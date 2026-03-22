@@ -1,19 +1,17 @@
-"""Abstract trading/market gateway (port)."""
+from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from typing import Protocol
 
-from strat_trade.domain.entities import Balance, Candle
+from strat_trade.domain.entities import AccountBalance
 
 
-class TradingGateway(ABC):
-    """Port: get balance and candles. Implemented by adapters."""
+class TradingGateway(Protocol):
+    """Broker-facing operations used by use cases. Implementations live in adapters."""
 
-    @abstractmethod
-    async def balance(self) -> Balance:
-        """Return current account balance."""
+    async def get_balance(self) -> AccountBalance:
+        """Return the current account balance in the broker's session."""
         ...
 
-    @abstractmethod
-    async def candles(self, asset: str, period: int, limit: int = 100) -> list[Candle]:
-        """Return historical OHLC candles for asset and period (seconds)."""
+    async def aclose(self) -> None:
+        """Release connections and other resources held by the gateway."""
         ...

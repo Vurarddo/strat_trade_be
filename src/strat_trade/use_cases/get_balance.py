@@ -1,9 +1,9 @@
-"""Get account balance use case."""
+from __future__ import annotations
 
-from strat_trade.domain.entities import Balance
+from strat_trade.domain.entities import AccountBalance
 from strat_trade.ports.trading_gateway import TradingGateway
 
 
-async def get_balance(gateway: TradingGateway) -> Balance:
-    """Return current balance from the given gateway."""
-    return await gateway.balance()
+async def fetch_balance(gateway: TradingGateway) -> AccountBalance:
+    """Load the live balance from the configured trading gateway."""
+    return await gateway.get_balance()

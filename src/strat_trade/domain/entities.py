@@ -1,21 +1,13 @@
-"""Domain value objects: no framework or I/O."""
+from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 
-@dataclass(frozen=True)
-class Balance:
-    """Account balance value."""
+@dataclass(frozen=True, slots=True)
+class AccountBalance:
+    """Normalized account balance from any broker implementing TradingGateway."""
 
-    value: float
-
-
-@dataclass(frozen=True)
-class Candle:
-    """OHLC candle."""
-
-    open: float
-    high: float
-    low: float
-    close: float
-    time: int
+    amount: Decimal
+    currency: str
+    is_demo: bool
