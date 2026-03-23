@@ -13,6 +13,7 @@ dependencies = [
   "uvicorn[standard]>=0.32.0",
   "pydantic-settings>=2.6.0",
   "binaryoptionstoolsv2>=0.2.9,<0.3",
+  "ta>=0.11.0",
 ]
 
 [project.optional-dependencies]

@@ -16,11 +16,14 @@ def _candle(i: int, close: float) -> Candle:
     return Candle(open_time=t, open=d, high=d, low=d, close=d, volume=Decimal("1"))
 
 
-def test_rsi_wilder_period_two_matches_manual() -> None:
+def test_rsi_period_two_matches_ta_library() -> None:
     closes = [10.0, 11.0, 10.0, 11.0, 12.0]
     candles = [_candle(i, c) for i, c in enumerate(closes)]
     series = RsiCalculator(2).compute(candles)
-    assert series.values == [None, None, 50.0, 75.0, 87.5]
+    assert series.values[0] is None
+    assert series.values[1:] == pytest.approx(
+        [100.0, 33.33333333333333, 71.42857142857143, 86.66666666666667]
+    )
 
 
 def test_rsi_rejects_invalid_period() -> None:

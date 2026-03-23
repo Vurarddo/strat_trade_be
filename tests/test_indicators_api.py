@@ -34,9 +34,9 @@ def test_post_indicators_recent_window_rsi() -> None:
     assert data["candles"] is None
     assert "r" in data["indicators"]
     ind = data["indicators"]["r"]
-    assert ind["start_index"] == 2
-    assert ind["values"][0] == 50.0
-    assert len(ind["values"]) == 3
+    assert ind["start_index"] == 1
+    assert ind["values"][0] == 100.0
+    assert len(ind["values"]) == 4
 
 
 def test_post_indicators_duplicate_keys_400() -> None:
@@ -92,7 +92,7 @@ def test_post_indicators_two_instances() -> None:
     assert len(data["candles"]) == 10
     assert data["indicators"]["fast"]["params"] == {"period": 2}
     assert data["indicators"]["slow"]["params"] == {"period": 4}
-    assert data["indicators"]["fast"]["start_index"] == 2
-    assert data["indicators"]["slow"]["start_index"] == 4
-    assert len(data["indicators"]["fast"]["values"]) == 8
-    assert len(data["indicators"]["slow"]["values"]) == 6
+    assert data["indicators"]["fast"]["start_index"] == 1
+    assert data["indicators"]["slow"]["start_index"] == 3
+    assert len(data["indicators"]["fast"]["values"]) == 9
+    assert len(data["indicators"]["slow"]["values"]) == 7

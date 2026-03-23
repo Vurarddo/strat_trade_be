@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from importlib import import_module
+
+import pandas as pd
 
 from strat_trade.domain.entities import Candle
 from strat_trade.domain.errors import IndicatorParameterError
 from strat_trade.domain.indicators.types import IndicatorSeries
 
 
-def _float_close(c: Candle) -> float:
-    return float(c.close)
-
-
 class RsiCalculator:
-    """Wilder-smoothed RSI; output length matches input candle count."""
+    """RSI powered by `ta`; output length matches input candle count."""
 
     __slots__ = ("_period",)
 
@@ -41,8 +40,8 @@ class RsiCalculator:
         return cls(period)
 
     def compute(self, candles: list[Candle]) -> IndicatorSeries:
-        closes = [_float_close(c) for c in candles]
-        values = _rsi_wilder(closes, self._period)
+        closes = [float(c.close) for c in candles]
+        values = _rsi_values(closes, self._period)
         return IndicatorSeries(
             indicator_id=self.indicator_id,
             params={"period": self._period},
@@ -50,37 +49,14 @@ class RsiCalculator:
         )
 
 
-def _rsi_wilder(closes: list[float], period: int) -> list[float | None]:
-    n = len(closes)
-    out: list[float | None] = [None] * n
-    if n < period + 1:
-        return out
-
-    gains: list[float] = []
-    losses: list[float] = []
-    for i in range(1, n):
-        diff = closes[i] - closes[i - 1]
-        gains.append(max(diff, 0.0))
-        losses.append(max(-diff, 0.0))
-
-    avg_gain = sum(gains[:period]) / period
-    avg_loss = sum(losses[:period]) / period
-    out[period] = _rsi_from_averages(avg_gain, avg_loss)
-
-    for i in range(period + 1, n):
-        g = gains[i - 1]
-        loss = losses[i - 1]
-        avg_gain = (avg_gain * (period - 1) + g) / period
-        avg_loss = (avg_loss * (period - 1) + loss) / period
-        out[i] = _rsi_from_averages(avg_gain, avg_loss)
-
-    return out
-
-
-def _rsi_from_averages(avg_gain: float, avg_loss: float) -> float:
-    if avg_loss == 0.0:
-        return 100.0 if avg_gain > 0.0 else 50.0
-    if avg_gain == 0.0:
-        return 0.0
-    rs = avg_gain / avg_loss
-    return 100.0 - (100.0 / (1.0 + rs))
+def _rsi_values(closes: list[float], period: int) -> list[float | None]:
+    series = pd.Series(closes, dtype="float64")
+    try:
+        momentum = import_module("ta.momentum")
+        rsi_indicator = momentum.RSIIndicator  # type: ignore[attr-defined]
+    except Exception as exc:
+        raise IndicatorParameterError(
+            "Technical indicators package `ta` is not available in this environment."
+        ) from exc
+    rsi = rsi_indicator(close=series, window=period).rsi()
+    return [None if pd.isna(v) else float(v) for v in rsi.tolist()]
