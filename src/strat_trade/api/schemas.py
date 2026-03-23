@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ErrorBody(BaseModel):
@@ -237,3 +237,124 @@ class MarketIndicatorsResponse(BaseModel):
     broker_chunk_oldest: datetime | None = None
     broker_chunk_newest: datetime | None = None
     broker_overlap: bool | None = None
+
+
+class StrategyConditionBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_key: str = Field(
+        min_length=1,
+        max_length=64,
+        description="Links this condition to an item from `indicators[*].key`.",
+        examples=["psar_main"],
+    )
+    operator: Literal["psar_reversal"] = Field(
+        description="MVP supports only PSAR reversal condition.",
+    )
+
+
+class StrategyConfigBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["psar_reversal"] = Field(
+        description="Strategy type. MVP supports only `psar_reversal`.",
+    )
+    signal_on_close: Literal[True] = Field(
+        True,
+        description="Signal is generated on candle close (MVP fixed to true).",
+    )
+    conditions: list[StrategyConditionBody] = Field(
+        min_length=1,
+        max_length=32,
+        description="Data-driven list of strategy conditions for future combinations.",
+    )
+
+
+class StrategyRangeWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    type: Literal["range"] = "range"
+    range_from: datetime = Field(
+        alias="from",
+        description="Interval start (inclusive), UTC ISO 8601.",
+    )
+    range_to: datetime = Field(
+        alias="to",
+        description="Interval end (inclusive), UTC ISO 8601.",
+    )
+
+
+class TestStrategyWinrateRequest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "asset": "EURUSD_otc",
+                "timeframe_seconds": 15,
+                "expiry_seconds": 30,
+                "window": {
+                    "type": "range",
+                    "from": "2026-03-22T00:00:00Z",
+                    "to": "2026-03-22T02:00:00Z",
+                },
+                "indicators": [
+                    {
+                        "key": "psar_main",
+                        "id": "psar",
+                        "params": {"step": 0.02, "max_step": 0.2, "component": "sar"},
+                    }
+                ],
+                "strategy": {
+                    "type": "psar_reversal",
+                    "signal_on_close": True,
+                    "conditions": [
+                        {"indicator_key": "psar_main", "operator": "psar_reversal"}
+                    ],
+                },
+            },
+        },
+    )
+
+    asset: str = Field(min_length=1, max_length=128, examples=["EURUSD_otc"])
+    timeframe_seconds: Literal[3, 10, 15, 30, 60] = Field(
+        description="MVP supported timeframes in seconds.",
+    )
+    expiry_seconds: int = Field(
+        ge=1,
+        le=2_592_000,
+        description="Expiry in seconds. Must be divisible by timeframe_seconds.",
+        examples=[3, 10, 15, 30, 60],
+    )
+    window: StrategyRangeWindow
+    indicators: list[IndicatorSpecBody] = Field(
+        min_length=1,
+        max_length=32,
+        description="Indicator instances referenced by strategy conditions.",
+    )
+    strategy: StrategyConfigBody
+
+    @model_validator(mode="after")
+    def validate_expiry_multiple(self) -> TestStrategyWinrateRequest:
+        if self.expiry_seconds % self.timeframe_seconds != 0:
+            raise ValueError("expiry_seconds must be divisible by timeframe_seconds.")
+        return self
+
+
+class TestStrategyWinrateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset: str
+    timeframe_seconds: int
+    expiry_seconds: int
+    total_signals: int = Field(description="Detected strategy signals (includes skipped).")
+    wins: int = Field(description="Signals classified as wins.")
+    losses: int = Field(description="Signals classified as losses (includes ties).")
+    skipped_signals: int = Field(
+        description="Signals ignored because there are not enough future candles for expiry."
+    )
+    winrate_percent: float = Field(
+        description="wins / (wins + losses) * 100, rounded to 2 decimals."
+    )
+    period_from: datetime
+    period_to: datetime

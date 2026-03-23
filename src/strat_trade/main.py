@@ -11,6 +11,7 @@ from strat_trade.api.http_errors import register_domain_exception_handlers
 from strat_trade.api.routes.balance import router as balance_router
 from strat_trade.api.routes.candles import router as candles_router
 from strat_trade.api.routes.indicators import router as indicators_router
+from strat_trade.api.routes.strategy import router as strategy_router
 from strat_trade.settings import Settings
 
 if TYPE_CHECKING:
@@ -45,6 +46,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "Account", "description": "Broker-linked account views (balance, etc.)."},
         {"name": "Market data", "description": "Historical candles and read-only market series."},
+        {"name": "Backtests", "description": "Strategy testing and historical performance metrics."},
         {"name": "System", "description": "Health and process metadata."},
     ],
 )
@@ -60,3 +62,4 @@ async def health() -> dict[str, str]:
 app.include_router(balance_router, prefix="/api/v1", tags=["Account"])
 app.include_router(candles_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(indicators_router, prefix="/api/v1", tags=["Market data"])
+app.include_router(strategy_router, prefix="/api/v1", tags=["Backtests"])

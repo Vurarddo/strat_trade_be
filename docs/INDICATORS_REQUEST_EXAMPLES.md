@@ -242,3 +242,51 @@ Use `component`:
 - For `window.type = "recent"`, use either `end_at` or `cursor` (not both).
 - `key` must be unique inside one request.
 - Response returns `start_index` and trimmed `values` (without leading `null`).
+
+---
+
+## Strategy Test Winrate (MVP)
+
+Endpoint: `POST /api/v1/strategy/test-winrate`
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 15,
+  "expiry_seconds": 30,
+  "window": {
+    "type": "range",
+    "from": "2026-03-22T00:00:00Z",
+    "to": "2026-03-22T02:00:00Z"
+  },
+  "indicators": [
+    {
+      "key": "psar_main",
+      "id": "psar",
+      "params": {
+        "step": 0.02,
+        "max_step": 0.2,
+        "component": "sar"
+      }
+    }
+  ],
+  "strategy": {
+    "type": "psar_reversal",
+    "signal_on_close": true,
+    "conditions": [
+      {
+        "indicator_key": "psar_main",
+        "operator": "psar_reversal"
+      }
+    ]
+  }
+}
+```
+
+Response fields include:
+
+- `total_signals` (detected signals, including skipped)
+- `wins`
+- `losses` (equal close at expiry counts as loss in MVP)
+- `skipped_signals` (not enough future candles for expiry)
+- `winrate_percent` (`wins / (wins + losses) * 100`)
