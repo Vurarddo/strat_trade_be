@@ -8,6 +8,7 @@ import pytest
 from strat_trade.domain.entities import Candle
 from strat_trade.domain.errors import IndicatorParameterError, UnknownIndicatorError
 from strat_trade.domain.indicators import (
+    CciCalculator,
     MacdCalculator,
     PsarCalculator,
     RsiCalculator,
@@ -75,3 +76,18 @@ def test_psar_defaults_component_sar() -> None:
 def test_psar_rejects_invalid_step_pair() -> None:
     with pytest.raises(IndicatorParameterError):
         PsarCalculator.from_params({"step": 0.3, "max_step": 0.2})
+
+
+def test_cci_defaults_return_series() -> None:
+    candles = [_candle(i, float(i)) for i in range(1, 120)]
+    series = CciCalculator.from_params({}).compute(candles)
+    assert series.indicator_id == "cci"
+    assert series.params["period"] == 20
+    assert series.params["constant"] == 0.015
+    assert len(series.values) == len(candles)
+    assert any(v is not None for v in series.values)
+
+
+def test_cci_rejects_invalid_period() -> None:
+    with pytest.raises(IndicatorParameterError):
+        CciCalculator.from_params({"period": 1})

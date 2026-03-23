@@ -168,3 +168,36 @@ def test_post_indicators_psar_component_sar() -> None:
     assert set(data["indicators"]) == {"psar_sar"}
     assert data["indicators"]["psar_sar"]["params"]["component"] == "sar"
     assert data["indicators"]["psar_sar"]["start_index"] >= 0
+
+
+def test_post_indicators_cci() -> None:
+    feed = FakeCandleFeed()
+    app = FastAPI()
+    register_domain_exception_handlers(app)
+    app.state.trading_gateway = feed
+    app.state.settings = DummySettings()
+    app.include_router(indicators_router, prefix="/api/v1", tags=["Market data"])
+    client = TestClient(app)
+
+    r = client.post(
+        "/api/v1/market/indicators",
+        json={
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 60,
+            "window": {"type": "recent", "count": 80},
+            "indicators": [
+                {
+                    "key": "cci_20",
+                    "id": "cci",
+                    "params": {"period": 20, "constant": 0.015},
+                }
+            ],
+            "include_candles": False,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert set(data["indicators"]) == {"cci_20"}
+    assert data["indicators"]["cci_20"]["params"]["period"] == 20
+    assert data["indicators"]["cci_20"]["start_index"] > 0
+    assert len(data["indicators"]["cci_20"]["values"]) > 0

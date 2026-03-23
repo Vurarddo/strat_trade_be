@@ -1,5 +1,6 @@
 """Indicator calculators and registry (pure domain, no I/O)."""
 
+from strat_trade.domain.indicators.cci import CciCalculator
 from strat_trade.domain.indicators.macd import MacdCalculator
 from strat_trade.domain.indicators.protocol import IndicatorCalculator
 from strat_trade.domain.indicators.psar import PsarCalculator
@@ -11,6 +12,7 @@ __all__ = [
     "IndicatorCalculator",
     "IndicatorRegistry",
     "IndicatorSeries",
+    "CciCalculator",
     "MacdCalculator",
     "PsarCalculator",
     "RsiCalculator",

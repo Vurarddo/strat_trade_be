@@ -3,7 +3,7 @@
 This document shows request body examples for:
 
 - `POST /api/v1/market/indicators`
-- Supported indicator ids: `rsi`, `macd`, `psar`
+- Supported indicator ids: `rsi`, `macd`, `psar`, `cci`
 
 ## Common Request Shape
 
@@ -182,6 +182,30 @@ Use `component`:
         "step": 0.02,
         "max_step": 0.2,
         "component": "sar"
+      }
+    }
+  ],
+  "include_candles": false
+}
+```
+
+## CCI Example
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "window": {
+    "type": "recent",
+    "count": 120
+  },
+  "indicators": [
+    {
+      "key": "cci_20",
+      "id": "cci",
+      "params": {
+        "period": 20,
+        "constant": 0.015
       }
     }
   ],
