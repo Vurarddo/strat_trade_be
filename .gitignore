@@ -26,6 +26,9 @@ dist/
 *.swp
 *.swo
 
+# Local tooling / scratch
+.tmp_po_sdk/
+
 # Testing / coverage
 .pytest_cache/
 .coverage

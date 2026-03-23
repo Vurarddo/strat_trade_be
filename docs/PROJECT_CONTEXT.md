@@ -1,0 +1,61 @@
+# Strat Trade — project context
+
+This document is the **source of truth for product intent and domain language**. Keep it updated when flows or boundaries change.
+
+## Product summary
+
+**Strat Trade** is a backend that integrates with the **Pocket Option** API and lets users define **indicator-based trading strategies**, **backtest** them on a chosen time range, inspect **win rate** and other metrics, then **save** and **activate** strategies. An **active** strategy runs in (near) real time, detects **signals** according to its rules, and **delivers** those signals to the user (push, websocket, or another channel — to be implemented per delivery adapter).
+
+## Primary user journeys
+
+1. **Compose a strategy**  
+   User picks indicators (e.g. RSI, MACD), sets parameters and combination logic (e.g. “RSI oversold AND MACD cross up”). The strategy is a persisted configuration + rules, not executable broker orders unless explicitly scoped later.
+
+2. **Backtest**  
+   User selects an **instrument**, **timeframe**, and **time window** (start/end). The system loads historical candles (via Pocket Option or a normalized internal series), runs the strategy engine over that series, and returns **aggregated results** (win rate, trade count, PnL proxy if defined, drawdown, etc.).
+
+3. **Save**  
+   If the user accepts the configuration, the strategy is stored as a versioned **Strategy** (draft vs published can be a later refinement).
+
+4. **Activate**  
+   User marks a saved strategy as **active**. A **runtime** component subscribes to live/market data, evaluates the same rules on sliding windows, and emits **signals** when conditions match.
+
+5. **Receive signals**  
+   User receives notifications through the chosen channel; API must support listing recent signals and subscription status.
+
+## Domain glossary
+
+| Term | Meaning |
+|------|--------|
+| **Strategy** | Named configuration: instrument(s), timeframe, indicator set, parameters, and rule graph (how indicators combine into entries/exits). |
+| **Indicator** | Pluggable computation over OHLCV (or derived) series (e.g. RSI, MACD). Each has a stable **id**, **parameter schema**, and **output schema**. |
+| **Backtest run** | One execution of a strategy over a fixed historical window; produces metrics and optional per-signal log. |
+| **Signal** | A time-stamped outcome of rule evaluation (e.g. “LONG”, “SHORT”, “EXIT”) with optional metadata (price, indicator snapshot). |
+| **Pocket Option gateway** | Outbound adapter: auth, candles, balances, and any other supported PO operations. Domain must not depend on PO SDK types. |
+
+## Non-goals (initial phases)
+
+- Guaranteeing execution or profit; backtest is **simulation** unless explicitly connected to execution features later.
+- UI implementation (this repo is **backend-only**).
+- Storing raw third-party responses without normalization where a stable domain model is required.
+
+## Integration assumptions (Pocket Option)
+
+- Credentials and session identifiers live in **config/secrets**, never in code or committed files.
+- All PO calls go through a **port** (`TradingGateway` / `MarketDataGateway` or split ports) implemented by **one adapter** so the broker can be swapped or mocked in tests.
+- Respect **rate limits** and **timeouts**; retries only where idempotent and safe.
+- **Candle history depth:** the Pocket Option adapter uses **BinaryOptionsToolsV2** (`get_candles` / `get_candles_advanced`) for native periods (1, 5, 15, 30, 60, 300 seconds). `GET /api/v1/market/candles/range` returns **all** bars in `[from, to]` in one response (bounded by server limits), anchored at `to`. Very long ranges or non-native timeframes still need **persisted candles** or adapter extensions.
+- **Indicator series:** `POST /api/v1/market/indicators` loads the same candle windows as the GET candle endpoints and returns one or more registered indicators (e.g. RSI) aligned by bar index; new indicators are added via the domain **registry**, not ad hoc route logic.
+
+## Documentation map
+
+| Document | Purpose |
+|----------|--------|
+| `PROJECT_CONTEXT.md` (this file) | Product and domain vocabulary |
+| `ARCHITECTURE.md` | Layers, extension points, data flow |
+| `CODE_STYLE.md` | Conventions and examples |
+
+## Related Cursor rules
+
+- `.cursor/rules/strat-trade-backend.mdc` — architecture and extensibility for this codebase  
+- `.cursor/rules/strat-trade-openapi.mdc` — OpenAPI / Swagger conventions for HTTP APIs  

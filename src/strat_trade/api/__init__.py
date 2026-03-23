@@ -1,1 +1,1 @@
-"""API (presentation) layer."""
+"""HTTP API (FastAPI routers and schemas)."""
