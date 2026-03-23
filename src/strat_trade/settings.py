@@ -46,8 +46,8 @@ class Settings(BaseSettings):
             "POCKET_OPTION_USE_RAW_AUTH_FRAME",
         ),
         description=(
-            "If SSID is a full 42[\"auth\",{...}] frame, send it verbatim on the socket "
-            "(matches browser; SDK default rebuild omits some keys)."
+            'Legacy flag for the old pocketoptionapi-async adapter. '
+            'BinaryOptionsToolsV2 sanitizes SSID internally; this setting is ignored.'
         ),
     )
     pocket_option_sdk_debug: bool = Field(
@@ -56,7 +56,40 @@ class Settings(BaseSettings):
             "STRAT_TRADE_POCKET_OPTION_SDK_DEBUG",
             "POCKET_OPTION_SDK_DEBUG",
         ),
-        description="Enable verbose pocketoptionapi-async (loguru) logging to stderr.",
+        description="Enable verbose BinaryOptionsToolsV2 client logging to stderr.",
+    )
+    max_candles_per_request: int = Field(
+        default=2000,
+        ge=1,
+        le=5000,
+        validation_alias=AliasChoices(
+            "STRAT_TRADE_MAX_CANDLES_PER_REQUEST",
+            "MAX_CANDLES_PER_REQUEST",
+        ),
+        description=(
+            "Upper bound on candles per GET /market/candles. Override via env if you need more "
+            "(still capped at 5000)."
+        ),
+    )
+    max_candles_range_total: int = Field(
+        default=25_000,
+        ge=1,
+        le=500_000,
+        validation_alias=AliasChoices(
+            "STRAT_TRADE_MAX_CANDLES_RANGE_TOTAL",
+            "MAX_CANDLES_RANGE_TOTAL",
+        ),
+        description="Max bars allowed in a single [from, to] range query (estimate before fetch).",
+    )
+    max_candles_range_fetch_rounds: int = Field(
+        default=80,
+        ge=1,
+        le=500,
+        validation_alias=AliasChoices(
+            "STRAT_TRADE_MAX_CANDLES_RANGE_FETCH_ROUNDS",
+            "MAX_CANDLES_RANGE_FETCH_ROUNDS",
+        ),
+        description="Unused; range returns the full [from,to] slice in one response.",
     )
 
     @model_validator(mode="after")

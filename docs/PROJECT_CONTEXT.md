@@ -44,6 +44,7 @@ This document is the **source of truth for product intent and domain language**.
 - Credentials and session identifiers live in **config/secrets**, never in code or committed files.
 - All PO calls go through a **port** (`TradingGateway` / `MarketDataGateway` or split ports) implemented by **one adapter** so the broker can be swapped or mocked in tests.
 - Respect **rate limits** and **timeouts**; retries only where idempotent and safe.
+- **Candle history depth:** the Pocket Option adapter uses **BinaryOptionsToolsV2** (`get_candles` / `get_candles_advanced`) for native periods (1, 5, 15, 30, 60, 300 seconds). `GET /api/v1/market/candles/range` returns **all** bars in `[from, to]` in one response (bounded by server limits), anchored at `to`. Very long ranges or non-native timeframes still need **persisted candles** or adapter extensions.
 
 ## Documentation map
 

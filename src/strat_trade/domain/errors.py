@@ -11,3 +11,11 @@ class BrokerUnavailableError(DomainError):
     def __init__(self, message: str, *, code: str = "BROKER_UNAVAILABLE") -> None:
         self.code = code
         super().__init__(message)
+
+
+class InvalidMarketParametersError(DomainError):
+    """Bad asset, timeframe, or range for a market-data request (broker rejected input)."""
+
+    def __init__(self, message: str, *, code: str = "INVALID_MARKET_PARAMETERS") -> None:
+        self.code = code
+        super().__init__(message)

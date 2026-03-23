@@ -1,24 +1,12 @@
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Depends, Request
-
+from strat_trade.api.deps import TradingGatewayDep
 from strat_trade.api.schemas import BalanceResponse
-from strat_trade.ports.trading_gateway import TradingGateway
 from strat_trade.use_cases.get_balance import fetch_balance
 
 router = APIRouter()
-
-
-def get_trading_gateway(request: Request) -> TradingGateway:
-    gateway = getattr(request.app.state, "trading_gateway", None)
-    if gateway is None:
-        raise RuntimeError("Trading gateway is not configured on the application.")
-    return gateway
-
-
-TradingGatewayDep = Annotated[TradingGateway, Depends(get_trading_gateway)]
 
 
 @router.get(

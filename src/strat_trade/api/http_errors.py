@@ -4,7 +4,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from strat_trade.api.schemas import ErrorBody, ErrorEnvelope
-from strat_trade.domain.errors import BrokerUnavailableError, DomainError
+from strat_trade.domain.errors import (
+    BrokerUnavailableError,
+    DomainError,
+    InvalidMarketParametersError,
+)
 
 
 def register_domain_exception_handlers(app: FastAPI) -> None:
@@ -18,9 +22,20 @@ def register_domain_exception_handlers(app: FastAPI) -> None:
         body = ErrorEnvelope(error=ErrorBody(code=exc.code, message=str(exc))).model_dump()
         return JSONResponse(status_code=502, content=body)
 
+    @app.exception_handler(InvalidMarketParametersError)
+    async def invalid_market_parameters_handler(
+        _request: Request,
+        exc: InvalidMarketParametersError,
+    ) -> JSONResponse:
+        body = ErrorEnvelope(
+            error=ErrorBody(code=exc.code, message=str(exc)),
+        ).model_dump()
+        return JSONResponse(status_code=400, content=body)
+
     @app.exception_handler(DomainError)
     async def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:
+        code = getattr(exc, "code", "DOMAIN_ERROR")
         body = ErrorEnvelope(
-            error=ErrorBody(code="DOMAIN_ERROR", message=str(exc)),
+            error=ErrorBody(code=code, message=str(exc)),
         ).model_dump()
         return JSONResponse(status_code=400, content=body)
