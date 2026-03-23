@@ -12,6 +12,7 @@ from strat_trade.domain.indicators import (
     MacdCalculator,
     PsarCalculator,
     RsiCalculator,
+    StochasticCalculator,
     default_indicator_registry,
 )
 
@@ -91,3 +92,19 @@ def test_cci_defaults_return_series() -> None:
 def test_cci_rejects_invalid_period() -> None:
     with pytest.raises(IndicatorParameterError):
         CciCalculator.from_params({"period": 1})
+
+
+def test_stochastic_defaults_series() -> None:
+    candles = [_candle(i, float(i)) for i in range(1, 120)]
+    series = StochasticCalculator.from_params({}).compute(candles)
+    assert series.indicator_id == "stochastic"
+    assert series.params["period"] == 14
+    assert series.params["smooth_window"] == 3
+    assert series.params["component"] == "k"
+    assert len(series.values) == len(candles)
+    assert any(v is not None for v in series.values)
+
+
+def test_stochastic_invalid_component() -> None:
+    with pytest.raises(IndicatorParameterError):
+        StochasticCalculator.from_params({"component": "x"})

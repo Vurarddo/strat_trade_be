@@ -201,3 +201,37 @@ def test_post_indicators_cci() -> None:
     assert data["indicators"]["cci_20"]["params"]["period"] == 20
     assert data["indicators"]["cci_20"]["start_index"] > 0
     assert len(data["indicators"]["cci_20"]["values"]) > 0
+
+
+def test_post_indicators_stochastic() -> None:
+    feed = FakeCandleFeed()
+    app = FastAPI()
+    register_domain_exception_handlers(app)
+    app.state.trading_gateway = feed
+    app.state.settings = DummySettings()
+    app.include_router(indicators_router, prefix="/api/v1", tags=["Market data"])
+    client = TestClient(app)
+
+    r = client.post(
+        "/api/v1/market/indicators",
+        json={
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 60,
+            "window": {"type": "recent", "count": 80},
+            "indicators": [
+                {
+                    "key": "stoch_k",
+                    "id": "stochastic",
+                    "params": {"period": 14, "smooth_window": 3, "component": "k"},
+                }
+            ],
+            "include_candles": False,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert set(data["indicators"]) == {"stoch_k"}
+    assert data["indicators"]["stoch_k"]["params"]["period"] == 14
+    assert data["indicators"]["stoch_k"]["params"]["component"] == "k"
+    assert data["indicators"]["stoch_k"]["start_index"] > 0
+    assert len(data["indicators"]["stoch_k"]["values"]) > 0

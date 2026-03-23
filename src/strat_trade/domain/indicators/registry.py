@@ -8,6 +8,7 @@ from strat_trade.domain.indicators.macd import MacdCalculator
 from strat_trade.domain.indicators.protocol import IndicatorCalculator
 from strat_trade.domain.indicators.psar import PsarCalculator
 from strat_trade.domain.indicators.rsi import RsiCalculator
+from strat_trade.domain.indicators.stochastic import StochasticCalculator
 
 IndicatorFactory = Callable[[Mapping[str, object]], IndicatorCalculator]
 
@@ -16,6 +17,7 @@ _DEFAULT_FACTORIES: dict[str, IndicatorFactory] = {
     "macd": MacdCalculator.from_params,
     "psar": PsarCalculator.from_params,
     "rsi": RsiCalculator.from_params,
+    "stochastic": StochasticCalculator.from_params,
 }
 
 

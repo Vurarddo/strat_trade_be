@@ -3,7 +3,7 @@
 This document shows request body examples for:
 
 - `POST /api/v1/market/indicators`
-- Supported indicator ids: `rsi`, `macd`, `psar`, `cci`
+- Supported indicator ids: `rsi`, `macd`, `psar`, `cci`, `stochastic`
 
 ## Common Request Shape
 
@@ -206,6 +206,36 @@ Use `component`:
       "params": {
         "period": 20,
         "constant": 0.015
+      }
+    }
+  ],
+  "include_candles": false
+}
+```
+
+## Stochastic Example
+
+Use `component`:
+
+- `k` (main stochastic line)
+- `d` (signal line)
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "window": {
+    "type": "recent",
+    "count": 120
+  },
+  "indicators": [
+    {
+      "key": "stoch_k",
+      "id": "stochastic",
+      "params": {
+        "period": 14,
+        "smooth_window": 3,
+        "component": "k"
       }
     }
   ],
