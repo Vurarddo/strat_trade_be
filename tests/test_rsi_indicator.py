@@ -7,7 +7,12 @@ import pytest
 
 from strat_trade.domain.entities import Candle
 from strat_trade.domain.errors import IndicatorParameterError, UnknownIndicatorError
-from strat_trade.domain.indicators import MacdCalculator, RsiCalculator, default_indicator_registry
+from strat_trade.domain.indicators import (
+    MacdCalculator,
+    PsarCalculator,
+    RsiCalculator,
+    default_indicator_registry,
+)
 
 
 def _candle(i: int, close: float) -> Candle:
@@ -56,3 +61,17 @@ def test_macd_defaults_and_component_hist() -> None:
 def test_macd_rejects_invalid_period_order() -> None:
     with pytest.raises(IndicatorParameterError):
         MacdCalculator.from_params({"fast_period": 26, "slow_period": 12})
+
+
+def test_psar_defaults_component_sar() -> None:
+    candles = [_candle(i, float(i)) for i in range(1, 80)]
+    series = PsarCalculator.from_params({}).compute(candles)
+    assert series.indicator_id == "psar"
+    assert series.params["component"] == "sar"
+    assert len(series.values) == len(candles)
+    assert any(v is not None for v in series.values)
+
+
+def test_psar_rejects_invalid_step_pair() -> None:
+    with pytest.raises(IndicatorParameterError):
+        PsarCalculator.from_params({"step": 0.3, "max_step": 0.2})

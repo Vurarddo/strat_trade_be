@@ -3,7 +3,7 @@
 This document shows request body examples for:
 
 - `POST /api/v1/market/indicators`
-- Supported indicator ids: `rsi`, `macd`
+- Supported indicator ids: `rsi`, `macd`, `psar`
 
 ## Common Request Shape
 
@@ -153,6 +153,35 @@ Use `component` as one of:
         "slow_period": 26,
         "signal_period": 9,
         "component": "hist"
+      }
+    }
+  ],
+  "include_candles": false
+}
+```
+
+## PSAR Example (single component)
+
+Use `component`:
+
+- `sar` (combined PSAR series)
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "window": {
+    "type": "recent",
+    "count": 120
+  },
+  "indicators": [
+    {
+      "key": "psar_sar",
+      "id": "psar",
+      "params": {
+        "step": 0.02,
+        "max_step": 0.2,
+        "component": "sar"
       }
     }
   ],

@@ -5,12 +5,14 @@ from collections.abc import Callable, Mapping
 from strat_trade.domain.errors import UnknownIndicatorError
 from strat_trade.domain.indicators.macd import MacdCalculator
 from strat_trade.domain.indicators.protocol import IndicatorCalculator
+from strat_trade.domain.indicators.psar import PsarCalculator
 from strat_trade.domain.indicators.rsi import RsiCalculator
 
 IndicatorFactory = Callable[[Mapping[str, object]], IndicatorCalculator]
 
 _DEFAULT_FACTORIES: dict[str, IndicatorFactory] = {
     "macd": MacdCalculator.from_params,
+    "psar": PsarCalculator.from_params,
     "rsi": RsiCalculator.from_params,
 }
 

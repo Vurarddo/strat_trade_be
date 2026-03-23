@@ -136,3 +136,35 @@ def test_post_indicators_macd_and_rsi_together() -> None:
     assert data["indicators"]["macd_hist"]["params"]["component"] == "hist"
     assert data["indicators"]["macd_hist"]["start_index"] > 0
     assert len(data["indicators"]["macd_hist"]["values"]) > 0
+
+
+def test_post_indicators_psar_component_sar() -> None:
+    feed = FakeCandleFeed()
+    app = FastAPI()
+    register_domain_exception_handlers(app)
+    app.state.trading_gateway = feed
+    app.state.settings = DummySettings()
+    app.include_router(indicators_router, prefix="/api/v1", tags=["Market data"])
+    client = TestClient(app)
+
+    r = client.post(
+        "/api/v1/market/indicators",
+        json={
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 60,
+            "window": {"type": "recent", "count": 80},
+            "indicators": [
+                {
+                    "key": "psar_sar",
+                    "id": "psar",
+                    "params": {"step": 0.02, "max_step": 0.2, "component": "sar"},
+                }
+            ],
+            "include_candles": False,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert set(data["indicators"]) == {"psar_sar"}
+    assert data["indicators"]["psar_sar"]["params"]["component"] == "sar"
+    assert data["indicators"]["psar_sar"]["start_index"] >= 0
