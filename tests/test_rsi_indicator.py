@@ -9,9 +9,11 @@ from strat_trade.domain.entities import Candle
 from strat_trade.domain.errors import IndicatorParameterError, UnknownIndicatorError
 from strat_trade.domain.indicators import (
     CciCalculator,
+    EmaCalculator,
     MacdCalculator,
     PsarCalculator,
     RsiCalculator,
+    SmaCalculator,
     StochasticCalculator,
     default_indicator_registry,
 )
@@ -108,3 +110,21 @@ def test_stochastic_defaults_series() -> None:
 def test_stochastic_invalid_component() -> None:
     with pytest.raises(IndicatorParameterError):
         StochasticCalculator.from_params({"component": "x"})
+
+
+def test_sma_defaults_series() -> None:
+    candles = [_candle(i, float(i)) for i in range(1, 120)]
+    series = SmaCalculator.from_params({}).compute(candles)
+    assert series.indicator_id == "sma"
+    assert series.params["period"] == 20
+    assert len(series.values) == len(candles)
+    assert any(v is not None for v in series.values)
+
+
+def test_ema_defaults_series() -> None:
+    candles = [_candle(i, float(i)) for i in range(1, 120)]
+    series = EmaCalculator.from_params({}).compute(candles)
+    assert series.indicator_id == "ema"
+    assert series.params["period"] == 20
+    assert len(series.values) == len(candles)
+    assert any(v is not None for v in series.values)

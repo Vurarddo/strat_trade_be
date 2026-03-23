@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -18,6 +18,13 @@ class ErrorEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     error: ErrorBody
+
+
+def _ema_period_int_for_validation(params: dict[str, Any]) -> int:
+    raw = params.get("period", 20)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise ValueError("EMA `period` in indicator params must be an integer for ema_cross validation.")
+    return int(raw)
 
 
 class BalanceResponse(BaseModel):
@@ -245,25 +252,31 @@ class StrategyConditionBody(BaseModel):
     indicator_key: str = Field(
         min_length=1,
         max_length=64,
-        description="Links this condition to an item from `indicators[*].key`.",
+        description="Links this condition to an item from `indicators[*].key` (fast EMA for `ema_cross`).",
         examples=["psar_main"],
     )
-    operator: Literal["psar_reversal", "cci_level_cross"] = Field(
+    operator: Literal["psar_reversal", "cci_level_cross", "ema_cross"] = Field(
         description=(
-            "Per-condition rule: `psar_reversal` (PSAR vs close) or `cci_level_cross` (CCI ±100). "
+            "Per-condition rule: `psar_reversal`, `cci_level_cross`, or `ema_cross` (two EMA lines). "
             "For single-indicator strategies must match `strategy.type`. For `composite`, each row "
-            "picks its own operator and `indicator_key`."
+            "picks its own operator."
         ),
+    )
+    slow_indicator_key: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description="Required for `ema_cross`: `indicators[*].key` of the **slow** EMA (must differ from `indicator_key`).",
     )
 
 
 class StrategyConfigBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["psar_reversal", "cci_level_cross", "composite"] = Field(
+    type: Literal["psar_reversal", "cci_level_cross", "ema_cross", "composite"] = Field(
         description=(
-            "Strategy type: `psar_reversal`, `cci_level_cross`, or `composite` (AND: all conditions "
-            "must fire on the same bar with the same side)."
+            "Strategy type: `psar_reversal`, `cci_level_cross`, `ema_cross`, or `composite` "
+            "(AND: all conditions on the same bar & side)."
         ),
     )
     combinator: Literal["all"] | None = Field(
@@ -288,18 +301,48 @@ class StrategyConfigBody(BaseModel):
                 raise ValueError("strategy.type composite requires combinator=all.")
             if len(self.conditions) < 2:
                 raise ValueError("composite strategy requires at least 2 conditions.")
-            keys = [c.indicator_key for c in self.conditions]
-            if len(set(keys)) != len(keys):
-                raise ValueError("composite strategy requires distinct indicator_key per condition.")
+            keys_flat: list[str] = []
+            for c in self.conditions:
+                keys_flat.append(c.indicator_key.strip())
+                if c.slow_indicator_key:
+                    keys_flat.append(c.slow_indicator_key.strip())
+            if len(set(keys_flat)) != len(keys_flat):
+                raise ValueError(
+                    "composite: all `indicator_key` and `slow_indicator_key` values must be unique."
+                )
+            for c in self.conditions:
+                if c.operator == "ema_cross":
+                    if not c.slow_indicator_key:
+                        raise ValueError("composite: ema_cross condition requires slow_indicator_key.")
+                    if c.indicator_key.strip() == c.slow_indicator_key.strip():
+                        raise ValueError("composite: ema_cross fast and slow keys must differ.")
+                elif c.slow_indicator_key:
+                    raise ValueError(
+                        "slow_indicator_key is only allowed when operator is ema_cross (composite)."
+                    )
         else:
             if self.combinator is not None:
                 raise ValueError("combinator is only allowed when strategy.type is composite.")
             if len(self.conditions) != 1:
                 raise ValueError("expected exactly one condition for this strategy type.")
-            if t == "psar_reversal" and self.conditions[0].operator != "psar_reversal":
-                raise ValueError("psar_reversal strategy requires operator psar_reversal.")
-            if t == "cci_level_cross" and self.conditions[0].operator != "cci_level_cross":
-                raise ValueError("cci_level_cross strategy requires operator cci_level_cross.")
+            c0 = self.conditions[0]
+            if t == "psar_reversal":
+                if c0.operator != "psar_reversal":
+                    raise ValueError("psar_reversal strategy requires operator psar_reversal.")
+                if c0.slow_indicator_key:
+                    raise ValueError("slow_indicator_key is only used with ema_cross.")
+            elif t == "cci_level_cross":
+                if c0.operator != "cci_level_cross":
+                    raise ValueError("cci_level_cross strategy requires operator cci_level_cross.")
+                if c0.slow_indicator_key:
+                    raise ValueError("slow_indicator_key is only used with ema_cross.")
+            elif t == "ema_cross":
+                if c0.operator != "ema_cross":
+                    raise ValueError("ema_cross strategy requires operator ema_cross.")
+                if not c0.slow_indicator_key:
+                    raise ValueError("ema_cross requires slow_indicator_key.")
+                if c0.indicator_key.strip() == c0.slow_indicator_key.strip():
+                    raise ValueError("ema_cross requires distinct fast and slow indicator keys.")
         return self
 
 
@@ -371,6 +414,28 @@ class TestStrategyWinrateRequest(BaseModel):
     def validate_expiry_multiple(self) -> TestStrategyWinrateRequest:
         if self.expiry_seconds % self.timeframe_seconds != 0:
             raise ValueError("expiry_seconds must be divisible by timeframe_seconds.")
+        return self
+
+    @model_validator(mode="after")
+    def validate_ema_cross_indicator_bindings(self) -> Self:
+        by_key = {spec.key.strip(): spec for spec in self.indicators}
+        for cond in self.strategy.conditions:
+            if cond.operator != "ema_cross":
+                continue
+            sk = (cond.slow_indicator_key or "").strip()
+            fk = cond.indicator_key.strip()
+            fast_spec = by_key.get(fk)
+            slow_spec = by_key.get(sk)
+            if fast_spec is None or slow_spec is None:
+                raise ValueError(
+                    "ema_cross: both indicator_key and slow_indicator_key must match entries in `indicators`."
+                )
+            if fast_spec.indicator_id.strip().lower() != "ema" or slow_spec.indicator_id.strip().lower() != "ema":
+                raise ValueError("ema_cross requires both linked indicators to have id `ema`.")
+            fp = _ema_period_int_for_validation(dict(fast_spec.params))
+            sp = _ema_period_int_for_validation(dict(slow_spec.params))
+            if fp >= sp:
+                raise ValueError("ema_cross requires fast EMA period < slow EMA period (from `params.period`).")
         return self
 
 

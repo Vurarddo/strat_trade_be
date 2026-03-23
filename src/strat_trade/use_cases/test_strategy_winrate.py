@@ -21,8 +21,11 @@ class StrategyIndicatorSpec:
 
 @dataclass(frozen=True, slots=True)
 class StrategyConditionSpec:
+    """For `ema_cross`, `indicator_key` is fast EMA; set `slow_indicator_key` for slow EMA."""
+
     indicator_key: str
     operator: str
+    slow_indicator_key: str | None = None
 
 
 def detect_psar_reversal_signals(
@@ -110,6 +113,56 @@ def detect_cci_level_cross_signals(
     return signals
 
 
+def detect_ema_cross_signals(
+    candles: Sequence[Candle],
+    fast_values: Sequence[float | None],
+    slow_values: Sequence[float | None],
+) -> list[StrategySignal]:
+    """
+    EMA cross on bar close (index i), **strict** inequalities.
+
+    - **BUY**: fast was below slow on the previous bar and above on this bar:
+      ``fast[i-1] < slow[i-1]`` and ``fast[i] > slow[i]``.
+    - **SELL**: ``fast[i-1] > slow[i-1]`` and ``fast[i] < slow[i]``.
+
+    If any of ``fast[i-1], fast[i], slow[i-1], slow[i]`` is None, skip that bar.
+    """
+    if len(candles) != len(fast_values) or len(candles) != len(slow_values):
+        raise InvalidMarketParametersError(
+            "Fast and slow EMA series lengths must match candle count for strategy evaluation."
+        )
+    if len(candles) < 2:
+        return []
+
+    signals: list[StrategySignal] = []
+    for idx in range(1, len(candles)):
+        pf, cf = fast_values[idx - 1], fast_values[idx]
+        ps, cs = slow_values[idx - 1], slow_values[idx]
+        if pf is None or cf is None or ps is None or cs is None:
+            continue
+
+        curr_close = float(candles[idx].close)
+        if pf < ps and cf > cs:
+            signals.append(
+                StrategySignal(
+                    index=idx,
+                    side=SignalSide.BUY,
+                    open_time=candles[idx].open_time,
+                    entry_close=curr_close,
+                )
+            )
+        elif pf > ps and cf < cs:
+            signals.append(
+                StrategySignal(
+                    index=idx,
+                    side=SignalSide.SELL,
+                    open_time=candles[idx].open_time,
+                    entry_close=curr_close,
+                )
+            )
+    return signals
+
+
 def evaluate_signal_outcomes(
     candles: Sequence[Candle],
     signals: Sequence[StrategySignal],
@@ -152,7 +205,9 @@ def signals_for_operator(
         return detect_psar_reversal_signals(candles, series_values)
     if op == "cci_level_cross":
         return detect_cci_level_cross_signals(candles, series_values)
-    raise InvalidMarketParametersError(f"Unknown strategy condition operator {operator!r}.")
+    raise InvalidMarketParametersError(
+        f"Unknown single-series condition operator {operator!r} (ema_cross uses two series)."
+    )
 
 
 def intersect_strategy_signals(signal_lists: list[list[StrategySignal]]) -> list[StrategySignal]:
@@ -188,6 +243,10 @@ def _resolve_strategy_indicator_key(
     if len(conditions) != 1:
         raise InvalidMarketParametersError("MVP strategy currently supports exactly one condition.")
     condition = conditions[0]
+    if condition.slow_indicator_key:
+        raise InvalidMarketParametersError(
+            "`slow_indicator_key` is only used with strategy type `ema_cross` (or composite)."
+        )
     st = strategy_type.strip().lower()
     op = condition.operator.strip().lower()
 
@@ -205,7 +264,8 @@ def _resolve_strategy_indicator_key(
         required_id = "cci"
     else:
         raise InvalidMarketParametersError(
-            "Unsupported strategy type. Supported: `psar_reversal`, `cci_level_cross`."
+            "Unsupported strategy type for single-indicator resolution (expected `psar_reversal` or "
+            "`cci_level_cross`)."
         )
 
     indicator_id = indicators_by_key.get(condition.indicator_key)
@@ -230,6 +290,52 @@ def _find_indicator_spec(
     raise InvalidMarketParametersError(f"Unknown indicator key {key!r}.")
 
 
+def _extract_ema_period_from_params(params: Mapping[str, object]) -> int:
+    raw = params.get("period", 20)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise InvalidMarketParametersError("EMA `period` in indicator params must be an integer.")
+    return int(raw)
+
+
+def _validate_fast_slower_period_than_slow(fast: StrategyIndicatorSpec, slow: StrategyIndicatorSpec) -> None:
+    if fast.indicator_id.strip().lower() != "ema" or slow.indicator_id.strip().lower() != "ema":
+        raise InvalidMarketParametersError("ema_cross requires both indicators with id `ema`.")
+    fp = _extract_ema_period_from_params(fast.params)
+    sp = _extract_ema_period_from_params(slow.params)
+    if fp >= sp:
+        raise InvalidMarketParametersError(
+            "ema_cross requires fast EMA `period` < slow EMA `period` (from indicator params)."
+        )
+
+
+def _resolve_ema_cross_keys(
+    condition: StrategyConditionSpec,
+    indicators_by_key: Mapping[str, str],
+) -> tuple[str, str]:
+    sk_raw = condition.slow_indicator_key
+    if sk_raw is None or not str(sk_raw).strip():
+        raise InvalidMarketParametersError(
+            "ema_cross requires `slow_indicator_key` on the condition (slow EMA instance)."
+        )
+    fk = condition.indicator_key.strip()
+    sk = str(sk_raw).strip()
+    if fk == sk:
+        raise InvalidMarketParametersError(
+            "ema_cross requires two different indicator keys (fast vs slow EMA)."
+        )
+    for key, label in ((fk, "fast"), (sk, "slow")):
+        iid = indicators_by_key.get(key)
+        if iid is None:
+            raise InvalidMarketParametersError(
+                f"Condition references unknown {label} indicator key {key!r}."
+            )
+        if iid.strip().lower() != "ema":
+            raise InvalidMarketParametersError(
+                f"ema_cross {label} EMA must use indicator id `ema`, got {iid!r}."
+            )
+    return fk, sk
+
+
 def _validate_operator_matches_indicator_id(operator: str, indicator_id: str) -> None:
     op = operator.strip().lower()
     iid = indicator_id.strip().lower()
@@ -242,7 +348,7 @@ def _validate_operator_matches_indicator_id(operator: str, indicator_id: str) ->
             "Operator `cci_level_cross` requires an indicator with id `cci`."
         )
     if op not in ("psar_reversal", "cci_level_cross"):
-        raise InvalidMarketParametersError(f"Unknown condition operator {operator!r}.")
+        raise InvalidMarketParametersError(f"Unknown single-indicator condition operator {operator!r}.")
 
 
 async def run_strategy_winrate_test(
@@ -264,9 +370,10 @@ async def run_strategy_winrate_test(
     max_candles_range_fetch_rounds: int,
 ) -> StrategyWinrateResult:
     st = strategy_type.strip().lower()
-    if st not in ("psar_reversal", "cci_level_cross", "composite"):
+    if st not in ("psar_reversal", "cci_level_cross", "ema_cross", "composite"):
         raise InvalidMarketParametersError(
-            "Unsupported strategy type. Supported: `psar_reversal`, `cci_level_cross`, `composite`."
+            "Unsupported strategy type. Supported: `psar_reversal`, `cci_level_cross`, `ema_cross`, "
+            "`composite`."
         )
     if not signal_on_close:
         raise InvalidMarketParametersError("MVP supports only `signal_on_close = true`.")
@@ -298,25 +405,65 @@ async def run_strategy_winrate_test(
             raise InvalidMarketParametersError(
                 "Composite strategy requires at least two conditions (one per indicator)."
             )
-        cond_keys = [c.indicator_key for c in conditions]
-        if len(set(cond_keys)) != len(cond_keys):
+        all_keys: list[str] = []
+        for c in conditions:
+            all_keys.append(c.indicator_key.strip())
+            if c.slow_indicator_key:
+                all_keys.append(str(c.slow_indicator_key).strip())
+        if len(set(all_keys)) != len(all_keys):
             raise InvalidMarketParametersError(
-                "Composite strategy requires distinct `indicator_key` per condition."
+                "Composite strategy requires unique indicator keys across all conditions "
+                "(including `slow_indicator_key` for `ema_cross`)."
             )
         signal_lists: list[list[StrategySignal]] = []
         for cond in conditions:
-            ind_id = indicators_by_key.get(cond.indicator_key)
-            if ind_id is None:
-                raise InvalidMarketParametersError(
-                    f"Condition references unknown indicator key {cond.indicator_key!r}."
+            opn = cond.operator.strip().lower()
+            if opn == "ema_cross":
+                fk, sk = _resolve_ema_cross_keys(cond, indicators_by_key)
+                fast_spec = _find_indicator_spec(indicators, fk)
+                slow_spec = _find_indicator_spec(indicators, sk)
+                _validate_fast_slower_period_than_slow(fast_spec, slow_spec)
+                fast_series = registry.build(fast_spec.indicator_id, fast_spec.params).compute(candles)
+                slow_series = registry.build(slow_spec.indicator_id, slow_spec.params).compute(candles)
+                signal_lists.append(
+                    detect_ema_cross_signals(candles, fast_series.values, slow_series.values)
                 )
-            _validate_operator_matches_indicator_id(cond.operator, ind_id)
-            spec = _find_indicator_spec(indicators, cond.indicator_key)
-            calculator = registry.build(spec.indicator_id, spec.params)
-            series = calculator.compute(candles)
-            signal_lists.append(signals_for_operator(candles, cond.operator, series.values))
+            else:
+                if cond.slow_indicator_key:
+                    raise InvalidMarketParametersError(
+                        "`slow_indicator_key` is only allowed when operator is `ema_cross`."
+                    )
+                ind_id = indicators_by_key.get(cond.indicator_key)
+                if ind_id is None:
+                    raise InvalidMarketParametersError(
+                        f"Condition references unknown indicator key {cond.indicator_key!r}."
+                    )
+                _validate_operator_matches_indicator_id(cond.operator, ind_id)
+                spec = _find_indicator_spec(indicators, cond.indicator_key)
+                calculator = registry.build(spec.indicator_id, spec.params)
+                series = calculator.compute(candles)
+                signal_lists.append(signals_for_operator(candles, cond.operator, series.values))
         signals = intersect_strategy_signals(signal_lists)
+    elif st == "ema_cross":
+        if len(conditions) != 1:
+            raise InvalidMarketParametersError("ema_cross strategy requires exactly one condition.")
+        cond = conditions[0]
+        if cond.operator.strip().lower() != "ema_cross":
+            raise InvalidMarketParametersError(
+                "For strategy type `ema_cross`, condition operator must be `ema_cross`."
+            )
+        fk, sk = _resolve_ema_cross_keys(cond, indicators_by_key)
+        fast_spec = _find_indicator_spec(indicators, fk)
+        slow_spec = _find_indicator_spec(indicators, sk)
+        _validate_fast_slower_period_than_slow(fast_spec, slow_spec)
+        fast_series = registry.build(fast_spec.indicator_id, fast_spec.params).compute(candles)
+        slow_series = registry.build(slow_spec.indicator_id, slow_spec.params).compute(candles)
+        signals = detect_ema_cross_signals(candles, fast_series.values, slow_series.values)
     else:
+        if conditions[0].slow_indicator_key:
+            raise InvalidMarketParametersError(
+                "`slow_indicator_key` is only used with strategy type `ema_cross` or composite `ema_cross`."
+            )
         indicator_key = _resolve_strategy_indicator_key(
             strategy_type=strategy_type,
             indicators_by_key=indicators_by_key,

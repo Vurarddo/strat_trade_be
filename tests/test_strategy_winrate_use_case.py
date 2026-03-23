@@ -7,6 +7,7 @@ from strat_trade.domain.entities import Candle
 from strat_trade.domain.strategy_testing import SignalSide, StrategySignal
 from strat_trade.use_cases.test_strategy_winrate import (
     detect_cci_level_cross_signals,
+    detect_ema_cross_signals,
     detect_psar_reversal_signals,
     evaluate_signal_outcomes,
     intersect_strategy_signals,
@@ -126,6 +127,55 @@ def test_detect_cci_level_cross_skips_bar_when_curr_cci_none() -> None:
     cci = [50.0, 99.0, None]
 
     assert detect_cci_level_cross_signals(candles, cci) == []
+
+
+def test_detect_ema_cross_bullish_strict() -> None:
+    candles = [_candle(i, "1") for i in range(5)]
+    fast = [None, None, 1.0, 2.0, 5.0]
+    slow = [None, None, 5.0, 4.0, 3.0]
+
+    signals = detect_ema_cross_signals(candles, fast, slow)
+
+    assert len(signals) == 1
+    assert signals[0].index == 4
+    assert signals[0].side is SignalSide.BUY
+
+
+def test_detect_ema_cross_bearish_strict() -> None:
+    candles = [_candle(i, "1") for i in range(5)]
+    fast = [None, None, 5.0, 4.0, 2.0]
+    slow = [None, None, 1.0, 3.0, 4.0]
+
+    signals = detect_ema_cross_signals(candles, fast, slow)
+
+    assert len(signals) == 1
+    assert signals[0].index == 4
+    assert signals[0].side is SignalSide.SELL
+
+
+def test_detect_ema_cross_no_signal_when_fast_stays_below() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    fast = [1.0, 1.0, 1.0, 1.0]
+    slow = [2.0, 2.0, 2.0, 2.0]
+
+    assert detect_ema_cross_signals(candles, fast, slow) == []
+
+
+def test_detect_ema_cross_skips_when_any_value_none() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    fast = [None, 1.0, 2.0, None]
+    slow = [None, 5.0, 4.0, 3.0]
+
+    assert detect_ema_cross_signals(candles, fast, slow) == []
+
+
+def test_detect_ema_cross_equality_on_prev_bar_no_strict_cross() -> None:
+    """fast[i-1] == slow[i-1] does not satisfy fast[i-1] < slow[i-1] (bullish)."""
+    candles = [_candle(i, "1") for i in range(4)]
+    fast = [1.0, 2.0, 2.0, 5.0]
+    slow = [1.0, 2.0, 2.0, 3.0]
+
+    assert detect_ema_cross_signals(candles, fast, slow) == []
 
 
 def test_intersect_strategy_signals_same_bar_and_side() -> None:

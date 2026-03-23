@@ -100,6 +100,34 @@ _TEST_WINRATE_BODY_EXAMPLES: dict[str, dict[str, object]] = {
             },
         },
     },
+    "ema_cross_range": {
+        "summary": "EMA fast/slow cross (strict) over UTC range",
+        "value": {
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 60,
+            "expiry_seconds": 120,
+            "window": {
+                "type": "range",
+                "from": "2026-03-22T00:00:00Z",
+                "to": "2026-03-22T04:00:00Z",
+            },
+            "indicators": [
+                {"key": "ema_fast", "id": "ema", "params": {"period": 9}},
+                {"key": "ema_slow", "id": "ema", "params": {"period": 21}},
+            ],
+            "strategy": {
+                "type": "ema_cross",
+                "signal_on_close": True,
+                "conditions": [
+                    {
+                        "indicator_key": "ema_fast",
+                        "slow_indicator_key": "ema_slow",
+                        "operator": "ema_cross",
+                    }
+                ],
+            },
+        },
+    },
 }
 
 
@@ -109,9 +137,10 @@ _TEST_WINRATE_BODY_EXAMPLES: dict[str, dict[str, object]] = {
     summary="Test strategy winrate on historical candles",
     description=(
         "Runs a strategy against historical candles in a fixed UTC range and returns winrate stats. "
-        "Single-indicator: **`psar_reversal`** or **`cci_level_cross`**. "
-        "**`composite`** with `combinator=all`: a signal exists only when **every** condition fires on the "
-        "**same bar index** with the **same side** (BUY/SELL). "
+        "Single-indicator: **`psar_reversal`**, **`cci_level_cross`**, or **`ema_cross`** (fast/slow EMA "
+        "cross with `indicator_key` + `slow_indicator_key`). "
+        "**`composite`** with `combinator=all`: every condition must fire on the **same bar** with the "
+        "**same side**; conditions may mix `psar_reversal`, `cci_level_cross`, and `ema_cross`. "
         "Outcome rule: BUY wins when `close[i+N] > close[i]`, SELL wins when `close[i+N] < close[i]`; "
         "**equal close at expiry counts as loss**. "
         "Signals without enough future candles for expiry are counted as `skipped_signals`."
@@ -150,6 +179,7 @@ async def post_test_strategy_winrate(
             StrategyConditionSpec(
                 indicator_key=item.indicator_key.strip(),
                 operator=item.operator,
+                slow_indicator_key=item.slow_indicator_key.strip() if item.slow_indicator_key else None,
             )
             for item in body.strategy.conditions
         ],

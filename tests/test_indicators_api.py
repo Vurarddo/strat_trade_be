@@ -235,3 +235,34 @@ def test_post_indicators_stochastic() -> None:
     assert data["indicators"]["stoch_k"]["params"]["component"] == "k"
     assert data["indicators"]["stoch_k"]["start_index"] > 0
     assert len(data["indicators"]["stoch_k"]["values"]) > 0
+
+
+def test_post_indicators_ema_and_sma() -> None:
+    feed = FakeCandleFeed()
+    app = FastAPI()
+    register_domain_exception_handlers(app)
+    app.state.trading_gateway = feed
+    app.state.settings = DummySettings()
+    app.include_router(indicators_router, prefix="/api/v1", tags=["Market data"])
+    client = TestClient(app)
+
+    r = client.post(
+        "/api/v1/market/indicators",
+        json={
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 60,
+            "window": {"type": "recent", "count": 80},
+            "indicators": [
+                {"key": "ema_20", "id": "ema", "params": {"period": 20}},
+                {"key": "sma_20", "id": "sma", "params": {"period": 20}},
+            ],
+            "include_candles": False,
+        },
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert set(data["indicators"]) == {"ema_20", "sma_20"}
+    assert data["indicators"]["ema_20"]["params"]["period"] == 20
+    assert data["indicators"]["sma_20"]["params"]["period"] == 20
+    assert data["indicators"]["ema_20"]["start_index"] > 0
+    assert data["indicators"]["sma_20"]["start_index"] > 0

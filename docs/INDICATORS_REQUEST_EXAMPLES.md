@@ -3,7 +3,7 @@
 This document shows request body examples for:
 
 - `POST /api/v1/market/indicators`
-- Supported indicator ids: `rsi`, `macd`, `psar`, `cci`, `stochastic`
+- Supported indicator ids: `rsi`, `macd`, `psar`, `cci`, `stochastic`, `ema`, `sma`
 
 ## Common Request Shape
 
@@ -243,6 +243,52 @@ Use `component`:
 }
 ```
 
+## EMA Example
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "window": {
+    "type": "recent",
+    "count": 120
+  },
+  "indicators": [
+    {
+      "key": "ema_20",
+      "id": "ema",
+      "params": {
+        "period": 20
+      }
+    }
+  ],
+  "include_candles": false
+}
+```
+
+## SMA Example
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "window": {
+    "type": "recent",
+    "count": 120
+  },
+  "indicators": [
+    {
+      "key": "sma_20",
+      "id": "sma",
+      "params": {
+        "period": 20
+      }
+    }
+  ],
+  "include_candles": false
+}
+```
+
 ## Range Window Example
 
 ```json
@@ -354,9 +400,48 @@ Response fields include:
 }
 ```
 
+### EMA cross (`ema_cross`)
+
+Два рядки в `indicators` з `id: "ema"` і різними `params.period`; у умові — `indicator_key` (**fast**) та **`slow_indicator_key`** (**slow**). Потрібно **`fast.period < slow.period`**.
+
+Сигнали на закритті (строгі нерівності):
+
+- **BUY**: `fast[i-1] < slow[i-1]` і `fast[i] > slow[i]`
+- **SELL**: `fast[i-1] > slow[i-1]` і `fast[i] < slow[i]`
+
+Якщо будь-яке з чотирьох значень EMA на парі барів — `null`, бар пропускається. Winrate/expiry — як у PSAR/CCI.
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "expiry_seconds": 120,
+  "window": {
+    "type": "range",
+    "from": "2026-03-22T00:00:00Z",
+    "to": "2026-03-22T04:00:00Z"
+  },
+  "indicators": [
+    { "key": "ema_fast", "id": "ema", "params": { "period": 9 } },
+    { "key": "ema_slow", "id": "ema", "params": { "period": 21 } }
+  ],
+  "strategy": {
+    "type": "ema_cross",
+    "signal_on_close": true,
+    "conditions": [
+      {
+        "indicator_key": "ema_fast",
+        "slow_indicator_key": "ema_slow",
+        "operator": "ema_cross"
+      }
+    ]
+  }
+}
+```
+
 ### Composite AND (`composite` + `combinator: all`)
 
-Сигнал лише там, де **усі** умови спрацювали на **одному й тому ж** індексі бару і з **однаковим** напрямком (`BUY` / `SELL`). Кожна умова має свій `operator` (`psar_reversal` / `cci_level_cross`) і **різний** `indicator_key`. Поле `combinator` має бути `"all"`.
+Сигнал лише там, де **усі** умови спрацювали на **одному й тому ж** індексі бару і з **однаковим** напрямком (`BUY` / `SELL`). Кожна умова має свій `operator` (`psar_reversal`, `cci_level_cross`, або `ema_cross`). Для `ema_cross` додайте `slow_indicator_key`. Усі ключі (`indicator_key` та `slow_indicator_key` де є) мають бути **унікальні**. Поле `combinator` має бути `"all"`.
 
 ```json
 {

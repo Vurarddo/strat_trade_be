@@ -251,3 +251,98 @@ def test_post_strategy_single_strategy_combinator_forbidden_422() -> None:
 
     client = TestClient(_app())
     assert client.post("/api/v1/strategy/test-winrate", json=p).status_code == 422
+
+
+class _FakeEmaSeries:
+    def __init__(self, template: list[float | None], period: int) -> None:
+        self._template = template
+        self._period = period
+
+    def compute(self, candles):
+        values = self._template[: len(candles)]
+        return IndicatorSeries(
+            indicator_id="ema",
+            params={"period": self._period},
+            values=values,
+        )
+
+
+class _FakeRegistryEmaCross:
+    def build(self, indicator_id: str, params: dict[str, object]):
+        assert indicator_id == "ema"
+        period = int(params["period"])
+        if period == 5:
+            return _FakeEmaSeries([None, None, 1.0, 2.0, 5.0, 5.0, 5.0], 5)
+        if period == 15:
+            return _FakeEmaSeries([None, None, 5.0, 4.0, 3.0, 3.0, 3.0], 15)
+        raise AssertionError(period)
+
+
+def _ema_cross_payload(*, fast_period: int, slow_period: int) -> dict:
+    return {
+        "asset": "EURUSD_otc",
+        "timeframe_seconds": 15,
+        "expiry_seconds": 30,
+        "window": {
+            "type": "range",
+            "from": "2025-01-01T12:43:00Z",
+            "to": "2025-01-01T12:49:00Z",
+        },
+        "indicators": [
+            {"key": "ema_fast", "id": "ema", "params": {"period": fast_period}},
+            {"key": "ema_slow", "id": "ema", "params": {"period": slow_period}},
+        ],
+        "strategy": {
+            "type": "ema_cross",
+            "signal_on_close": True,
+            "conditions": [
+                {
+                    "indicator_key": "ema_fast",
+                    "slow_indicator_key": "ema_slow",
+                    "operator": "ema_cross",
+                }
+            ],
+        },
+    }
+
+
+def test_post_strategy_test_winrate_ema_cross_happy_path(monkeypatch) -> None:
+    monkeypatch.setattr(strategy_route, "default_indicator_registry", lambda: _FakeRegistryEmaCross())
+
+    client = TestClient(_app())
+    response = client.post(
+        "/api/v1/strategy/test-winrate",
+        json=_ema_cross_payload(fast_period=5, slow_period=15),
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total_signals"] == 1
+    assert body["wins"] == 0
+    assert body["losses"] == 1
+    assert body["skipped_signals"] == 0
+
+
+def test_post_strategy_ema_cross_missing_slow_key_422() -> None:
+    p = _ema_cross_payload(fast_period=5, slow_period=15)
+    del p["strategy"]["conditions"][0]["slow_indicator_key"]
+
+    client = TestClient(_app())
+    assert client.post("/api/v1/strategy/test-winrate", json=p).status_code == 422
+
+
+def test_post_strategy_ema_cross_fast_period_not_less_than_slow_422() -> None:
+    client = TestClient(_app())
+    response = client.post(
+        "/api/v1/strategy/test-winrate",
+        json=_ema_cross_payload(fast_period=20, slow_period=10),
+    )
+    assert response.status_code == 422
+
+
+def test_post_strategy_ema_cross_non_ema_indicator_422() -> None:
+    p = _ema_cross_payload(fast_period=5, slow_period=15)
+    p["indicators"][0] = {"key": "ema_fast", "id": "rsi", "params": {"period": 14}}
+
+    client = TestClient(_app())
+    assert client.post("/api/v1/strategy/test-winrate", json=p).status_code == 422
