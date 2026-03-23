@@ -45,6 +45,7 @@ This document is the **source of truth for product intent and domain language**.
 - All PO calls go through a **port** (`TradingGateway` / `MarketDataGateway` or split ports) implemented by **one adapter** so the broker can be swapped or mocked in tests.
 - Respect **rate limits** and **timeouts**; retries only where idempotent and safe.
 - **Candle history depth:** the Pocket Option adapter uses **BinaryOptionsToolsV2** (`get_candles` / `get_candles_advanced`) for native periods (1, 5, 15, 30, 60, 300 seconds). `GET /api/v1/market/candles/range` returns **all** bars in `[from, to]` in one response (bounded by server limits), anchored at `to`. Very long ranges or non-native timeframes still need **persisted candles** or adapter extensions.
+- **Indicator series:** `POST /api/v1/market/indicators` loads the same candle windows as the GET candle endpoints and returns one or more registered indicators (e.g. RSI) aligned by bar index; new indicators are added via the domain **registry**, not ad hoc route logic.
 
 ## Documentation map
 

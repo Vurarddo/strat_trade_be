@@ -19,3 +19,19 @@ class InvalidMarketParametersError(DomainError):
     def __init__(self, message: str, *, code: str = "INVALID_MARKET_PARAMETERS") -> None:
         self.code = code
         super().__init__(message)
+
+
+class UnknownIndicatorError(DomainError):
+    """Requested indicator id is not registered."""
+
+    def __init__(self, message: str, *, code: str = "UNKNOWN_INDICATOR") -> None:
+        self.code = code
+        super().__init__(message)
+
+
+class IndicatorParameterError(DomainError):
+    """Invalid parameters for a known indicator."""
+
+    def __init__(self, message: str, *, code: str = "INDICATOR_PARAMETER_ERROR") -> None:
+        self.code = code
+        super().__init__(message)
