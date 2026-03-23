@@ -89,7 +89,11 @@ class Settings(BaseSettings):
             "STRAT_TRADE_MAX_CANDLES_RANGE_FETCH_ROUNDS",
             "MAX_CANDLES_RANGE_FETCH_ROUNDS",
         ),
-        description="Unused; range returns the full [from,to] slice in one response.",
+        description=(
+            "Max broker pages when loading GET /market/candles/range and range-based winrate: "
+            "each page is up to max_candles_per_request bars, walking backward from `to` until `from` "
+            "is covered or history ends."
+        ),
     )
 
     @model_validator(mode="after")

@@ -101,6 +101,7 @@ async def read_candles_in_range(
         range_end=range_end,
         max_chunk=settings.max_candles_per_request,
         max_bars_in_range=settings.max_candles_range_total,
+        max_fetch_rounds=settings.max_candles_range_fetch_rounds,
     )
     return _bars_to_response(asset, timeframe_seconds, page)
 

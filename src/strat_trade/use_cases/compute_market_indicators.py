@@ -50,6 +50,7 @@ async def compute_market_indicators(
     range_window: tuple[datetime, datetime] | None,
     max_candles_per_request: int,
     max_candles_range_total: int,
+    max_candles_range_fetch_rounds: int,
 ) -> MarketIndicatorsResult:
     """
     Load candles (recent page or fixed range), then run every indicator spec on the same series.
@@ -80,6 +81,7 @@ async def compute_market_indicators(
             range_end=re,
             max_chunk=max_candles_per_request,
             max_bars_in_range=max_candles_range_total,
+            max_fetch_rounds=max_candles_range_fetch_rounds,
         )
 
     candles = page.candles

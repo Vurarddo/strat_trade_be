@@ -69,6 +69,47 @@ def detect_psar_reversal_signals(
     return signals
 
 
+def detect_cci_level_cross_signals(
+    candles: Sequence[Candle],
+    cci_values: Sequence[float | None],
+) -> list[StrategySignal]:
+    """BUY: cross +100 from below (cci[i-1] < 100 and cci[i] >= 100). SELL: cross -100 from above."""
+    if len(candles) != len(cci_values):
+        raise InvalidMarketParametersError(
+            "CCI series length must match candle count for strategy evaluation."
+        )
+    if len(candles) < 2:
+        return []
+
+    signals: list[StrategySignal] = []
+    for idx in range(1, len(candles)):
+        prev_cci = cci_values[idx - 1]
+        curr_cci = cci_values[idx]
+        if prev_cci is None or curr_cci is None:
+            continue
+
+        curr_close = float(candles[idx].close)
+        if prev_cci < 100 and curr_cci >= 100:
+            signals.append(
+                StrategySignal(
+                    index=idx,
+                    side=SignalSide.BUY,
+                    open_time=candles[idx].open_time,
+                    entry_close=curr_close,
+                )
+            )
+        elif prev_cci > -100 and curr_cci <= -100:
+            signals.append(
+                StrategySignal(
+                    index=idx,
+                    side=SignalSide.SELL,
+                    open_time=candles[idx].open_time,
+                    entry_close=curr_close,
+                )
+            )
+    return signals
+
+
 def evaluate_signal_outcomes(
     candles: Sequence[Candle],
     signals: Sequence[StrategySignal],
@@ -101,6 +142,35 @@ def evaluate_signal_outcomes(
     return wins, losses, skipped
 
 
+def signals_for_operator(
+    candles: Sequence[Candle],
+    operator: str,
+    series_values: Sequence[float | None],
+) -> list[StrategySignal]:
+    op = operator.strip().lower()
+    if op == "psar_reversal":
+        return detect_psar_reversal_signals(candles, series_values)
+    if op == "cci_level_cross":
+        return detect_cci_level_cross_signals(candles, series_values)
+    raise InvalidMarketParametersError(f"Unknown strategy condition operator {operator!r}.")
+
+
+def intersect_strategy_signals(signal_lists: list[list[StrategySignal]]) -> list[StrategySignal]:
+    """
+    Keep only (bar index, side) pairs present in every list. Entry metadata is taken from the first list.
+    """
+    if not signal_lists:
+        return []
+    maps: list[dict[tuple[int, SignalSide], StrategySignal]] = []
+    for lst in signal_lists:
+        maps.append({(s.index, s.side): s for s in lst})
+    common = set(maps[0])
+    for m in maps[1:]:
+        common &= set(m)
+    ordered = sorted(common, key=lambda k: (k[0], k[1].value))
+    return [maps[0][k] for k in ordered]
+
+
 def _dedupe_indicator_keys(specs: Sequence[StrategyIndicatorSpec]) -> None:
     seen: set[str] = set()
     for spec in specs:
@@ -109,27 +179,70 @@ def _dedupe_indicator_keys(specs: Sequence[StrategyIndicatorSpec]) -> None:
         seen.add(spec.key)
 
 
-def _resolve_psar_indicator_key(
+def _resolve_strategy_indicator_key(
     *,
+    strategy_type: str,
     indicators_by_key: Mapping[str, str],
     conditions: Sequence[StrategyConditionSpec],
 ) -> str:
     if len(conditions) != 1:
         raise InvalidMarketParametersError("MVP strategy currently supports exactly one condition.")
     condition = conditions[0]
-    if condition.operator.strip().lower() != "psar_reversal":
-        raise InvalidMarketParametersError("Only condition operator `psar_reversal` is supported.")
+    st = strategy_type.strip().lower()
+    op = condition.operator.strip().lower()
+
+    if st == "psar_reversal":
+        if op != "psar_reversal":
+            raise InvalidMarketParametersError(
+                "For strategy type `psar_reversal`, condition operator must be `psar_reversal`."
+            )
+        required_id = "psar"
+    elif st == "cci_level_cross":
+        if op != "cci_level_cross":
+            raise InvalidMarketParametersError(
+                "For strategy type `cci_level_cross`, condition operator must be `cci_level_cross`."
+            )
+        required_id = "cci"
+    else:
+        raise InvalidMarketParametersError(
+            "Unsupported strategy type. Supported: `psar_reversal`, `cci_level_cross`."
+        )
 
     indicator_id = indicators_by_key.get(condition.indicator_key)
     if indicator_id is None:
         raise InvalidMarketParametersError(
             f"Condition references unknown indicator key {condition.indicator_key!r}."
         )
-    if indicator_id.strip().lower() != "psar":
+    if indicator_id.strip().lower() != required_id:
         raise InvalidMarketParametersError(
-            "MVP `psar_reversal` condition requires an indicator with id `psar`."
+            f"Strategy `{st}` requires an indicator with id `{required_id}` for the linked key."
         )
     return condition.indicator_key
+
+
+def _find_indicator_spec(
+    indicators: Sequence[StrategyIndicatorSpec],
+    key: str,
+) -> StrategyIndicatorSpec:
+    for item in indicators:
+        if item.key == key:
+            return item
+    raise InvalidMarketParametersError(f"Unknown indicator key {key!r}.")
+
+
+def _validate_operator_matches_indicator_id(operator: str, indicator_id: str) -> None:
+    op = operator.strip().lower()
+    iid = indicator_id.strip().lower()
+    if op == "psar_reversal" and iid != "psar":
+        raise InvalidMarketParametersError(
+            "Operator `psar_reversal` requires an indicator with id `psar`."
+        )
+    if op == "cci_level_cross" and iid != "cci":
+        raise InvalidMarketParametersError(
+            "Operator `cci_level_cross` requires an indicator with id `cci`."
+        )
+    if op not in ("psar_reversal", "cci_level_cross"):
+        raise InvalidMarketParametersError(f"Unknown condition operator {operator!r}.")
 
 
 async def run_strategy_winrate_test(
@@ -144,12 +257,17 @@ async def run_strategy_winrate_test(
     indicators: Sequence[StrategyIndicatorSpec],
     strategy_type: str,
     signal_on_close: bool,
+    combinator: str | None = None,
     conditions: Sequence[StrategyConditionSpec],
     max_candles_per_request: int,
     max_candles_range_total: int,
+    max_candles_range_fetch_rounds: int,
 ) -> StrategyWinrateResult:
-    if strategy_type.strip().lower() != "psar_reversal":
-        raise InvalidMarketParametersError("Only strategy type `psar_reversal` is supported in MVP.")
+    st = strategy_type.strip().lower()
+    if st not in ("psar_reversal", "cci_level_cross", "composite"):
+        raise InvalidMarketParametersError(
+            "Unsupported strategy type. Supported: `psar_reversal`, `cci_level_cross`, `composite`."
+        )
     if not signal_on_close:
         raise InvalidMarketParametersError("MVP supports only `signal_on_close = true`.")
     if expiry_seconds % timeframe_seconds != 0:
@@ -159,7 +277,6 @@ async def run_strategy_winrate_test(
 
     _dedupe_indicator_keys(indicators)
     indicators_by_key = {item.key: item.indicator_id for item in indicators}
-    psar_key = _resolve_psar_indicator_key(indicators_by_key=indicators_by_key, conditions=conditions)
 
     page = await fetch_candles_in_range(
         feed,
@@ -169,14 +286,46 @@ async def run_strategy_winrate_test(
         range_end=range_end,
         max_chunk=max_candles_per_request,
         max_bars_in_range=max_candles_range_total,
+        max_fetch_rounds=max_candles_range_fetch_rounds,
     )
     candles = page.candles
 
-    psar_spec = next(item for item in indicators if item.key == psar_key)
-    psar_calculator = registry.build(psar_spec.indicator_id, psar_spec.params)
-    psar_series = psar_calculator.compute(candles)
-
-    signals = detect_psar_reversal_signals(candles, psar_series.values)
+    if st == "composite":
+        comb = (combinator or "").strip().lower()
+        if comb != "all":
+            raise InvalidMarketParametersError("Strategy type `composite` requires `combinator=all`.")
+        if len(conditions) < 2:
+            raise InvalidMarketParametersError(
+                "Composite strategy requires at least two conditions (one per indicator)."
+            )
+        cond_keys = [c.indicator_key for c in conditions]
+        if len(set(cond_keys)) != len(cond_keys):
+            raise InvalidMarketParametersError(
+                "Composite strategy requires distinct `indicator_key` per condition."
+            )
+        signal_lists: list[list[StrategySignal]] = []
+        for cond in conditions:
+            ind_id = indicators_by_key.get(cond.indicator_key)
+            if ind_id is None:
+                raise InvalidMarketParametersError(
+                    f"Condition references unknown indicator key {cond.indicator_key!r}."
+                )
+            _validate_operator_matches_indicator_id(cond.operator, ind_id)
+            spec = _find_indicator_spec(indicators, cond.indicator_key)
+            calculator = registry.build(spec.indicator_id, spec.params)
+            series = calculator.compute(candles)
+            signal_lists.append(signals_for_operator(candles, cond.operator, series.values))
+        signals = intersect_strategy_signals(signal_lists)
+    else:
+        indicator_key = _resolve_strategy_indicator_key(
+            strategy_type=strategy_type,
+            indicators_by_key=indicators_by_key,
+            conditions=conditions,
+        )
+        spec = _find_indicator_spec(indicators, indicator_key)
+        calculator = registry.build(spec.indicator_id, spec.params)
+        series = calculator.compute(candles)
+        signals = signals_for_operator(candles, conditions[0].operator, series.values)
     expiry_bars = expiry_seconds // timeframe_seconds
     wins, losses, skipped = evaluate_signal_outcomes(candles, signals, expiry_bars=expiry_bars)
     evaluated = wins + losses

@@ -127,6 +127,7 @@ async def compute_indicators(
         range_window=range_window,
         max_candles_per_request=settings.max_candles_per_request,
         max_candles_range_total=settings.max_candles_range_total,
+        max_candles_range_fetch_rounds=settings.max_candles_range_fetch_rounds,
     )
 
     page = result.page

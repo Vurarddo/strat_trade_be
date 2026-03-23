@@ -132,11 +132,15 @@ async def _load_range_window(
     range_end: datetime,
     max_chunk: int,
     max_bars_in_range: int,
+    max_fetch_rounds: int,
 ) -> tuple[list[Candle], datetime | None, datetime | None]:
     """
-    Fetch up to `max_chunk` bars ending at `range_end` via the adapter, then keep only
-    `[range_start, range_end]` in memory. Depth is still bounded by the broker and
-    `max_chunk` / native PO periods (see gateway).
+    Load all bars in `[range_start, range_end]` by paging backward from `range_end`.
+
+    A single broker call only returns up to `max_chunk` bars ending near `end_time`; widening `to`
+    without paging would shift that tail window and can **drop** the start of `[from, to]`.
+    We repeat with `end_time` just before the oldest bar of the previous page until `from` is
+    covered, history ends, or `max_fetch_rounds` is reached.
     """
     rs = _utc(range_start)
     re = _utc(range_end)
@@ -159,25 +163,62 @@ async def _load_range_window(
             f"Requested window spans ~{approx_bars} bars (>{max_bars_in_range}); "
             "narrow the range or increase STRAT_TRADE_MAX_CANDLES_RANGE_TOTAL."
         )
-    if approx_bars > max_chunk:
+
+    max_loadable = max_chunk * max_fetch_rounds if max_chunk >= 1 else max_fetch_rounds
+    if approx_bars > max_loadable:
         raise InvalidMarketParametersError(
-            f"This interval needs up to ~{approx_bars} bars, but the broker returns at most "
-            f"{max_chunk} recent bars per call. Narrow [from, to] or raise "
-            "STRAT_TRADE_MAX_CANDLES_PER_REQUEST."
+            f"Requested window spans ~{approx_bars} bars; with chunk={max_chunk} and "
+            f"{max_fetch_rounds} fetch rounds at most ~{max_loadable} bars can be loaded. "
+            "Increase STRAT_TRADE_MAX_CANDLES_PER_REQUEST or STRAT_TRADE_MAX_CANDLES_RANGE_FETCH_ROUNDS, "
+            "or narrow [from, to]."
         )
 
-    raw = await feed.get_candles(
-        asset_clean,
-        timeframe_seconds,
-        count=max_chunk,
-        end_time=re,
-    )
-    chunk_old, chunk_new = _raw_chunk_open_bounds(raw)
     by_ts: dict[datetime, Candle] = {}
-    for c in _dedupe_by_open_time(raw):
-        ts = _utc(c.open_time)
-        if rs <= ts <= re:
-            by_ts[ts] = replace(c, open_time=ts)
+    batch_bounds: list[tuple[datetime, datetime]] = []
+    end_cap = re
+    rounds = 0
+    prev_batch_min: datetime | None = None
+
+    while rounds < max_fetch_rounds:
+        raw = await feed.get_candles(
+            asset_clean,
+            timeframe_seconds,
+            count=max_chunk,
+            end_time=end_cap,
+        )
+        rounds += 1
+        if not raw:
+            break
+
+        deduped = _dedupe_by_open_time(raw)
+        if not deduped:
+            break
+
+        times = [_utc(c.open_time) for c in deduped]
+        batch_min, batch_max = min(times), max(times)
+        batch_bounds.append((batch_min, batch_max))
+
+        if prev_batch_min is not None and batch_min >= prev_batch_min:
+            break
+        prev_batch_min = batch_min
+
+        for c in deduped:
+            ts = _utc(c.open_time)
+            if rs <= ts <= re:
+                by_ts[ts] = replace(c, open_time=ts)
+
+        if batch_min <= rs:
+            break
+
+        end_cap = batch_min - timedelta(microseconds=1)
+        if end_cap < rs:
+            break
+
+    if batch_bounds:
+        chunk_old = min(b[0] for b in batch_bounds)
+        chunk_new = max(b[1] for b in batch_bounds)
+    else:
+        chunk_old, chunk_new = None, None
 
     return sorted(by_ts.values(), key=lambda c: c.open_time), chunk_old, chunk_new
 
@@ -191,6 +232,7 @@ async def fetch_candles_in_range(
     range_end: datetime,
     max_chunk: int,
     max_bars_in_range: int,
+    max_fetch_rounds: int,
 ) -> CandlesPageResult:
     """All bars in [range_start, range_end] inclusive, ascending by open_time (single response)."""
     if timeframe_seconds < 1:
@@ -209,6 +251,7 @@ async def fetch_candles_in_range(
         range_end=range_end,
         max_chunk=max_chunk,
         max_bars_in_range=max_bars_in_range,
+        max_fetch_rounds=max_fetch_rounds,
     )
     total = len(window_sorted)
     rs = _utc(range_start)

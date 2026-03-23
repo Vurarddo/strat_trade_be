@@ -52,9 +52,40 @@ class FakeCandleFeed:
         return eligible
 
 
+class CappedTailFakeCandleFeed:
+    """Broker that never returns more than ``max_per_response`` bars per call (tail of eligible)."""
+
+    def __init__(self, *, max_per_response: int, num_bars: int = 120) -> None:
+        self.max_per_response = max_per_response
+        self.all_bars = [_bar(i) for i in range(num_bars)]
+        self.calls: list[tuple[int, datetime | None]] = []
+
+    async def get_candles(
+        self,
+        asset: str,
+        timeframe: int | str,
+        *,
+        count: int,
+        end_time: datetime | None = None,
+    ) -> list[Candle]:
+        self.calls.append((count, end_time))
+        if end_time is not None:
+            cap = end_time
+        else:
+            cap = self.all_bars[-1].open_time + timedelta(minutes=1)
+        eligible = [c for c in self.all_bars if c.open_time <= cap]
+        take = min(self.max_per_response, count, len(eligible))
+        if take <= 0:
+            return []
+        if len(eligible) >= take:
+            return eligible[-take:]
+        return eligible
+
+
 class DummySettings:
     max_candles_per_request = 500
     max_candles_range_total = 25_000
+    max_candles_range_fetch_rounds = 80
 
 
 @pytest.fixture
@@ -126,6 +157,38 @@ def test_cursor_and_end_at_rejected(app_candles: tuple[FastAPI, FakeCandleFeed])
     )
     assert r.status_code == 400
     assert r.json()["error"]["code"] == "INVALID_MARKET_PARAMETERS"
+
+
+@pytest.fixture
+def app_range_paging() -> tuple[FastAPI, CappedTailFakeCandleFeed]:
+    feed = CappedTailFakeCandleFeed(max_per_response=25)
+    app = FastAPI()
+    register_domain_exception_handlers(app)
+    app.state.trading_gateway = feed
+    app.state.settings = DummySettings()
+    app.include_router(candles_router, prefix="/api/v1", tags=["Market data"])
+    return app, feed
+
+
+def test_candles_range_paginates_until_from_is_covered(app_range_paging: tuple[FastAPI, CappedTailFakeCandleFeed]) -> None:
+    app, feed = app_range_paging
+    client = TestClient(app)
+    t0 = (_BASE + timedelta(minutes=10)).isoformat()
+    t1 = (_BASE + timedelta(minutes=80)).isoformat()
+    r = client.get(
+        "/api/v1/market/candles/range",
+        params={
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 60,
+            "from": t0,
+            "to": t1,
+        },
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["total"] == 71
+    assert len(body["candles"]) == 71
+    assert len(feed.calls) >= 3
 
 
 def test_candles_range_returns_full_window(app_candles: tuple[FastAPI, FakeCandleFeed]) -> None:

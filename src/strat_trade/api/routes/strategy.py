@@ -41,6 +41,65 @@ _TEST_WINRATE_BODY_EXAMPLES: dict[str, dict[str, object]] = {
             },
         },
     },
+    "cci_level_cross_range": {
+        "summary": "CCI ±100 level cross backtest over UTC range",
+        "value": {
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 60,
+            "expiry_seconds": 120,
+            "window": {
+                "type": "range",
+                "from": "2026-03-22T00:00:00Z",
+                "to": "2026-03-22T04:00:00Z",
+            },
+            "indicators": [
+                {
+                    "key": "cci_20",
+                    "id": "cci",
+                    "params": {"period": 20, "constant": 0.015},
+                }
+            ],
+            "strategy": {
+                "type": "cci_level_cross",
+                "signal_on_close": True,
+                "conditions": [{"indicator_key": "cci_20", "operator": "cci_level_cross"}],
+            },
+        },
+    },
+    "composite_psar_and_cci": {
+        "summary": "Composite AND — PSAR reversal + CCI cross on same bar & side",
+        "value": {
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 15,
+            "expiry_seconds": 30,
+            "window": {
+                "type": "range",
+                "from": "2026-03-22T00:00:00Z",
+                "to": "2026-03-22T02:00:00Z",
+            },
+            "indicators": [
+                {
+                    "key": "psar_main",
+                    "id": "psar",
+                    "params": {"step": 0.02, "max_step": 0.2, "component": "sar"},
+                },
+                {
+                    "key": "cci_20",
+                    "id": "cci",
+                    "params": {"period": 20, "constant": 0.015},
+                },
+            ],
+            "strategy": {
+                "type": "composite",
+                "combinator": "all",
+                "signal_on_close": True,
+                "conditions": [
+                    {"indicator_key": "psar_main", "operator": "psar_reversal"},
+                    {"indicator_key": "cci_20", "operator": "cci_level_cross"},
+                ],
+            },
+        },
+    },
 }
 
 
@@ -50,9 +109,12 @@ _TEST_WINRATE_BODY_EXAMPLES: dict[str, dict[str, object]] = {
     summary="Test strategy winrate on historical candles",
     description=(
         "Runs a strategy against historical candles in a fixed UTC range and returns winrate stats. "
-        "MVP supports `psar_reversal` only. "
+        "Single-indicator: **`psar_reversal`** or **`cci_level_cross`**. "
+        "**`composite`** with `combinator=all`: a signal exists only when **every** condition fires on the "
+        "**same bar index** with the **same side** (BUY/SELL). "
         "Outcome rule: BUY wins when `close[i+N] > close[i]`, SELL wins when `close[i+N] < close[i]`; "
-        "equal close is treated as loss. Signals without future candles are counted as `skipped_signals`."
+        "**equal close at expiry counts as loss**. "
+        "Signals without enough future candles for expiry are counted as `skipped_signals`."
     ),
     operation_id="postStrategyTestWinrate",
 )
@@ -83,6 +145,7 @@ async def post_test_strategy_winrate(
         ],
         strategy_type=body.strategy.type,
         signal_on_close=body.strategy.signal_on_close,
+        combinator=body.strategy.combinator,
         conditions=[
             StrategyConditionSpec(
                 indicator_key=item.indicator_key.strip(),
@@ -92,6 +155,7 @@ async def post_test_strategy_winrate(
         ],
         max_candles_per_request=settings.max_candles_per_request,
         max_candles_range_total=settings.max_candles_range_total,
+        max_candles_range_fetch_rounds=settings.max_candles_range_fetch_rounds,
     )
     return TestStrategyWinrateResponse(
         asset=result.asset,

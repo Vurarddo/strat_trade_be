@@ -6,8 +6,10 @@ from decimal import Decimal
 from strat_trade.domain.entities import Candle
 from strat_trade.domain.strategy_testing import SignalSide, StrategySignal
 from strat_trade.use_cases.test_strategy_winrate import (
+    detect_cci_level_cross_signals,
     detect_psar_reversal_signals,
     evaluate_signal_outcomes,
+    intersect_strategy_signals,
 )
 
 _BASE = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
@@ -40,6 +42,121 @@ def test_detect_psar_reversal_signals_buy_and_sell() -> None:
     assert signals[0].side is SignalSide.BUY
     assert signals[1].index == 3
     assert signals[1].side is SignalSide.SELL
+
+
+def test_detect_cci_level_cross_buy_crosses_100() -> None:
+    candles = [_candle(i, "100") for i in range(4)]
+    cci = [50.0, 99.0, 100.0, 120.0]
+
+    signals = detect_cci_level_cross_signals(candles, cci)
+
+    assert len(signals) == 1
+    assert signals[0].index == 2
+    assert signals[0].side is SignalSide.BUY
+    assert signals[0].entry_close == 100.0
+
+
+def test_detect_cci_level_cross_buy_exactly_at_100() -> None:
+    """cci[i] >= 100 includes equality on the crossing bar."""
+    candles = [_candle(i, "1") for i in range(3)]
+    cci = [0.0, 99.0, 100.0]
+
+    signals = detect_cci_level_cross_signals(candles, cci)
+
+    assert len(signals) == 1
+    assert signals[0].index == 2
+    assert signals[0].side is SignalSide.BUY
+
+
+def test_detect_cci_level_cross_no_buy_when_stays_above_100() -> None:
+    candles = [_candle(i, "1") for i in range(3)]
+    cci = [101.0, 102.0, 103.0]
+
+    assert detect_cci_level_cross_signals(candles, cci) == []
+
+
+def test_detect_cci_level_cross_no_buy_when_prev_already_at_or_above_100() -> None:
+    candles = [_candle(i, "1") for i in range(3)]
+    cci = [100.0, 100.0, 105.0]
+
+    assert detect_cci_level_cross_signals(candles, cci) == []
+
+
+def test_detect_cci_level_cross_sell_crosses_minus_100() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    cci = [0.0, 50.0, -100.0, -150.0]
+
+    signals = detect_cci_level_cross_signals(candles, cci)
+
+    assert len(signals) == 1
+    assert signals[0].index == 2
+    assert signals[0].side is SignalSide.SELL
+
+
+def test_detect_cci_level_cross_sell_exactly_at_minus_100() -> None:
+    candles = [_candle(i, "1") for i in range(3)]
+    cci = [0.0, 0.0, -100.0]
+
+    signals = detect_cci_level_cross_signals(candles, cci)
+
+    assert len(signals) == 1
+    assert signals[0].index == 2
+    assert signals[0].side is SignalSide.SELL
+
+
+def test_detect_cci_level_cross_no_sell_when_prev_already_at_or_below_minus_100() -> None:
+    candles = [_candle(i, "1") for i in range(3)]
+    cci = [-100.0, -120.0, -130.0]
+
+    assert detect_cci_level_cross_signals(candles, cci) == []
+
+
+def test_detect_cci_level_cross_skips_bar_when_prev_cci_none() -> None:
+    """Skip comparison at i when cci[i-1] is None (even if cci[i] would cross +100)."""
+    candles = [_candle(i, "1") for i in range(3)]
+    cci = [50.0, None, 100.0]
+
+    signals = detect_cci_level_cross_signals(candles, cci)
+
+    assert signals == []
+
+
+def test_detect_cci_level_cross_skips_bar_when_curr_cci_none() -> None:
+    candles = [_candle(i, "1") for i in range(3)]
+    cci = [50.0, 99.0, None]
+
+    assert detect_cci_level_cross_signals(candles, cci) == []
+
+
+def test_intersect_strategy_signals_same_bar_and_side() -> None:
+    s2_buy = StrategySignal(index=2, side=SignalSide.BUY, open_time=_BASE, entry_close=1.0)
+    a = [s2_buy]
+    b = [StrategySignal(index=2, side=SignalSide.BUY, open_time=_BASE, entry_close=1.0)]
+    out = intersect_strategy_signals([a, b])
+    assert len(out) == 1
+    assert out[0] is s2_buy
+
+
+def test_intersect_strategy_signals_empty_when_side_differs() -> None:
+    a = [StrategySignal(index=2, side=SignalSide.BUY, open_time=_BASE, entry_close=1.0)]
+    b = [StrategySignal(index=2, side=SignalSide.SELL, open_time=_BASE, entry_close=1.0)]
+    assert intersect_strategy_signals([a, b]) == []
+
+
+def test_intersect_strategy_signals_three_lists() -> None:
+    s = StrategySignal(index=1, side=SignalSide.SELL, open_time=_BASE, entry_close=5.0)
+    assert len(intersect_strategy_signals([[s], [s], [s]])) == 1
+
+
+def test_detect_cci_level_cross_buy_and_sell_same_series() -> None:
+    candles = [_candle(i, "1") for i in range(6)]
+    cci = [0.0, 90.0, 105.0, 0.0, -50.0, -120.0]
+
+    signals = detect_cci_level_cross_signals(candles, cci)
+
+    assert len(signals) == 2
+    assert signals[0].index == 2 and signals[0].side is SignalSide.BUY
+    assert signals[1].index == 5 and signals[1].side is SignalSide.SELL
 
 
 def test_evaluate_signal_outcomes_with_skipped_and_tie_loss() -> None:

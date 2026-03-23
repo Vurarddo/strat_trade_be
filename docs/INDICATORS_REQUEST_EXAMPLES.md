@@ -290,3 +290,74 @@ Response fields include:
 - `losses` (equal close at expiry counts as loss in MVP)
 - `skipped_signals` (not enough future candles for expiry)
 - `winrate_percent` (`wins / (wins + losses) * 100`)
+
+### CCI level cross (`cci_level_cross`)
+
+- **BUY** on bar `i` when `cci[i-1] < 100` and `cci[i] >= 100` (bars with `null` CCI skipped).
+- **SELL** on bar `i` when `cci[i-1] > -100` and `cci[i] <= -100`.
+- Win/loss at expiry uses the same close rules as PSAR (tie at expiry = loss).
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "expiry_seconds": 120,
+  "window": {
+    "type": "range",
+    "from": "2026-03-22T00:00:00Z",
+    "to": "2026-03-22T04:00:00Z"
+  },
+  "indicators": [
+    {
+      "key": "cci_20",
+      "id": "cci",
+      "params": { "period": 20, "constant": 0.015 }
+    }
+  ],
+  "strategy": {
+    "type": "cci_level_cross",
+    "signal_on_close": true,
+    "conditions": [
+      { "indicator_key": "cci_20", "operator": "cci_level_cross" }
+    ]
+  }
+}
+```
+
+### Composite AND (`composite` + `combinator: all`)
+
+Сигнал лише там, де **усі** умови спрацювали на **одному й тому ж** індексі бару і з **однаковим** напрямком (`BUY` / `SELL`). Кожна умова має свій `operator` (`psar_reversal` / `cci_level_cross`) і **різний** `indicator_key`. Поле `combinator` має бути `"all"`.
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 15,
+  "expiry_seconds": 30,
+  "window": {
+    "type": "range",
+    "from": "2026-03-22T00:00:00Z",
+    "to": "2026-03-22T02:00:00Z"
+  },
+  "indicators": [
+    {
+      "key": "psar_main",
+      "id": "psar",
+      "params": { "step": 0.02, "max_step": 0.2, "component": "sar" }
+    },
+    {
+      "key": "cci_20",
+      "id": "cci",
+      "params": { "period": 20, "constant": 0.015 }
+    }
+  ],
+  "strategy": {
+    "type": "composite",
+    "combinator": "all",
+    "signal_on_close": true,
+    "conditions": [
+      { "indicator_key": "psar_main", "operator": "psar_reversal" },
+      { "indicator_key": "cci_20", "operator": "cci_level_cross" }
+    ]
+  }
+}
+```

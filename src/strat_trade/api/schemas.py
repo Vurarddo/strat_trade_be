@@ -248,16 +248,27 @@ class StrategyConditionBody(BaseModel):
         description="Links this condition to an item from `indicators[*].key`.",
         examples=["psar_main"],
     )
-    operator: Literal["psar_reversal"] = Field(
-        description="MVP supports only PSAR reversal condition.",
+    operator: Literal["psar_reversal", "cci_level_cross"] = Field(
+        description=(
+            "Per-condition rule: `psar_reversal` (PSAR vs close) or `cci_level_cross` (CCI ±100). "
+            "For single-indicator strategies must match `strategy.type`. For `composite`, each row "
+            "picks its own operator and `indicator_key`."
+        ),
     )
 
 
 class StrategyConfigBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: Literal["psar_reversal"] = Field(
-        description="Strategy type. MVP supports only `psar_reversal`.",
+    type: Literal["psar_reversal", "cci_level_cross", "composite"] = Field(
+        description=(
+            "Strategy type: `psar_reversal`, `cci_level_cross`, or `composite` (AND: all conditions "
+            "must fire on the same bar with the same side)."
+        ),
+    )
+    combinator: Literal["all"] | None = Field(
+        default=None,
+        description="Required when `type` is `composite`: `all` = every condition agrees (same bar & side).",
     )
     signal_on_close: Literal[True] = Field(
         True,
@@ -268,6 +279,28 @@ class StrategyConfigBody(BaseModel):
         max_length=32,
         description="Data-driven list of strategy conditions for future combinations.",
     )
+
+    @model_validator(mode="after")
+    def validate_strategy_config(self) -> StrategyConfigBody:
+        t = self.type
+        if t == "composite":
+            if self.combinator != "all":
+                raise ValueError("strategy.type composite requires combinator=all.")
+            if len(self.conditions) < 2:
+                raise ValueError("composite strategy requires at least 2 conditions.")
+            keys = [c.indicator_key for c in self.conditions]
+            if len(set(keys)) != len(keys):
+                raise ValueError("composite strategy requires distinct indicator_key per condition.")
+        else:
+            if self.combinator is not None:
+                raise ValueError("combinator is only allowed when strategy.type is composite.")
+            if len(self.conditions) != 1:
+                raise ValueError("expected exactly one condition for this strategy type.")
+            if t == "psar_reversal" and self.conditions[0].operator != "psar_reversal":
+                raise ValueError("psar_reversal strategy requires operator psar_reversal.")
+            if t == "cci_level_cross" and self.conditions[0].operator != "cci_level_cross":
+                raise ValueError("cci_level_cross strategy requires operator cci_level_cross.")
+        return self
 
 
 class StrategyRangeWindow(BaseModel):
