@@ -8,7 +8,11 @@ from strat_trade.domain.strategy_testing import SignalSide, StrategySignal
 from strat_trade.use_cases.test_strategy_winrate import (
     detect_cci_level_cross_signals,
     detect_ema_cross_signals,
+    detect_macd_signal_cross_signals,
     detect_psar_reversal_signals,
+    detect_rsi_threshold_signals,
+    detect_stochastic_dual_threshold_signals,
+    detect_ema_cross_or_trend_signals,
     evaluate_signal_outcomes,
     intersect_strategy_signals,
 )
@@ -176,6 +180,100 @@ def test_detect_ema_cross_equality_on_prev_bar_no_strict_cross() -> None:
     slow = [1.0, 2.0, 2.0, 3.0]
 
     assert detect_ema_cross_signals(candles, fast, slow) == []
+
+
+def test_detect_rsi_threshold_signals_buy_and_sell() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    rsi = [10.0, 50.0, 90.0, None]
+    signals = detect_rsi_threshold_signals(candles, rsi, lower=18.0, upper=82.0)
+    assert len(signals) == 2
+    assert signals[0].side is SignalSide.BUY
+    assert signals[1].side is SignalSide.SELL
+
+
+def test_detect_stochastic_dual_threshold_signals() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    k = [10.0, 20.0, 90.0, None]
+    d = [12.0, 30.0, 95.0, 80.0]
+    signals = detect_stochastic_dual_threshold_signals(candles, k, d, lower=15.0, upper=85.0)
+    assert len(signals) == 2
+    assert signals[0].side is SignalSide.BUY
+    assert signals[1].side is SignalSide.SELL
+
+
+def test_detect_ema_cross_or_trend_with_gap_filter() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    fast = [None, 1.0, 2.0, 10.0]
+    slow = [None, 2.0, 1.0, 1.0]
+    signals = detect_ema_cross_or_trend_signals(
+        candles,
+        fast,
+        slow,
+        max_ema_separation=5.0,
+    )
+    # idx=2 -> BUY (cross), idx=3 filtered out by separation=9
+    assert len(signals) == 1
+    assert signals[0].index == 2 and signals[0].side is SignalSide.BUY
+
+
+def test_detect_macd_signal_cross_buy_below_zero() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    macd_line = [0.0, -2.0, -0.2, 0.0]
+    signal_line = [0.0, -1.5, -0.3, 0.0]
+
+    signals = detect_macd_signal_cross_signals(candles, macd_line, signal_line)
+
+    assert len(signals) == 1
+    assert signals[0].index == 2
+    assert signals[0].side is SignalSide.BUY
+
+
+def test_detect_macd_signal_cross_sell_above_zero() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    macd_line = [0.0, 2.0, 0.2, 0.0]
+    signal_line = [0.0, 1.5, 0.3, 0.0]
+
+    signals = detect_macd_signal_cross_signals(candles, macd_line, signal_line)
+
+    assert len(signals) == 1
+    assert signals[0].index == 2
+    assert signals[0].side is SignalSide.SELL
+
+
+def test_detect_macd_signal_cross_no_signal_when_bullish_not_both_negative() -> None:
+    """Bullish cross but lines straddle zero → half-plane filter rejects (no BUY)."""
+    candles = [_candle(i, "1") for i in range(4)]
+    macd_line = [0.0, -0.5, 0.1, 0.0]
+    signal_line = [0.0, -0.4, -0.05, 0.0]
+
+    assert detect_macd_signal_cross_signals(candles, macd_line, signal_line) == []
+
+
+def test_detect_macd_signal_cross_no_signal_when_line_is_zero() -> None:
+    """Exactly zero on a line fails strict `< 0` / `> 0` half-plane checks."""
+    candles = [_candle(i, "1") for i in range(4)]
+    macd_line = [0.0, -1.0, 0.0, 0.0]
+    signal_line = [0.0, -2.0, -0.1, 0.0]
+
+    assert detect_macd_signal_cross_signals(candles, macd_line, signal_line) == []
+
+
+def test_detect_macd_signal_cross_skips_when_any_value_none() -> None:
+    candles = [_candle(i, "1") for i in range(4)]
+    macd_line = [0.0, -2.0, -0.2, 0.0]
+    signal_line = [0.0, -1.5, None, 0.0]
+
+    assert detect_macd_signal_cross_signals(candles, macd_line, signal_line) == []
+
+
+def test_intersect_macd_and_psar_only_when_same_index_and_side() -> None:
+    """Composite AND: MACD list + PSAR list must agree on (index, side)."""
+    macd_buy = StrategySignal(index=2, side=SignalSide.BUY, open_time=_BASE, entry_close=1.0)
+    psar_buy = StrategySignal(index=2, side=SignalSide.BUY, open_time=_BASE, entry_close=1.0)
+    psar_late = StrategySignal(index=3, side=SignalSide.BUY, open_time=_BASE, entry_close=1.0)
+
+    assert len(intersect_strategy_signals([[macd_buy], [psar_buy]])) == 1
+    assert intersect_strategy_signals([[macd_buy], [psar_late]]) == []
 
 
 def test_intersect_strategy_signals_same_bar_and_side() -> None:

@@ -439,9 +439,20 @@ Response fields include:
 }
 ```
 
+### MACD vs signal cross (`macd_signal_cross`, лише `composite`)
+
+Два записи в `indicators` з `id: "macd"` і **однаковими** `fast_period` / `slow_period` / `signal_period`, але різним `component`: **`macd`** (лінія MACD) та **`signal`** (сигнальна лінія). У умові — `indicator_key` (лінія MACD) та **`slow_indicator_key`** (сигнальна лінія).
+
+На закритті бару `i` (пропуск, якщо будь-яке з чотирьох значень на `i-1`/`i` — `null`):
+
+- **BUY**: `macd[i-1] < signal[i-1]` і `macd[i] > signal[i]`, і на барі перетину **обидві** лінії строго нижче нуля: `macd[i] < 0` і `signal[i] < 0`.
+- **SELL**: `macd[i-1] > signal[i-1]` і `macd[i] < signal[i]`, і на барі перетину **обидві** лінії строго вище нуля: `macd[i] > 0` і `signal[i] > 0`.
+
+**Нуль / півплощина:** якщо після виявленого перетину умови «обидві < 0» або «обидві > 0» не виконуються (наприклад лінії «над/під нулем» по різні боки, або одна з ліній дорівнює `0`) — **сигналу немає** (неоднозначний випадок перетину з нулем).
+
 ### Composite AND (`composite` + `combinator: all`)
 
-Сигнал лише там, де **усі** умови спрацювали на **одному й тому ж** індексі бару і з **однаковим** напрямком (`BUY` / `SELL`). Кожна умова має свій `operator` (`psar_reversal`, `cci_level_cross`, або `ema_cross`). Для `ema_cross` додайте `slow_indicator_key`. Усі ключі (`indicator_key` та `slow_indicator_key` де є) мають бути **унікальні**. Поле `combinator` має бути `"all"`.
+Сигнал лише там, де **усі** умови спрацювали на **одному й тому ж** індексі бару і з **однаковим** напрямком (`BUY` / `SELL`). Кожна умова має свій `operator` (`psar_reversal`, `cci_level_cross`, `ema_cross`, `rsi_threshold`, `stochastic_dual_threshold`, `ema_cross_or_trend`, `macd_signal_cross`). Для `ema_cross` / `ema_cross_or_trend` / `stochastic_dual_threshold` / `macd_signal_cross` додайте `slow_indicator_key` за потреби. Усі ключі (`indicator_key` та `slow_indicator_key` де є) мають бути **унікальні**. Поле `combinator` має бути `"all"`.
 
 ```json
 {
@@ -476,3 +487,100 @@ Response fields include:
   }
 }
 ```
+
+### Приклад: `composite` — MACD + PSAR
+
+Типові періоди MACD: `12` / `26` / `9`. Друга умова — `psar_reversal` з ключем PSAR.
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 15,
+  "expiry_seconds": 30,
+  "window": {
+    "type": "range",
+    "from": "2026-03-22T00:00:00Z",
+    "to": "2026-03-22T02:00:00Z"
+  },
+  "indicators": [
+    {
+      "key": "macd_line",
+      "id": "macd",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "component": "macd"
+      }
+    },
+    {
+      "key": "macd_signal",
+      "id": "macd",
+      "params": {
+        "fast_period": 12,
+        "slow_period": 26,
+        "signal_period": 9,
+        "component": "signal"
+      }
+    },
+    {
+      "key": "psar_main",
+      "id": "psar",
+      "params": { "step": 0.02, "max_step": 0.2, "component": "sar" }
+    }
+  ],
+  "strategy": {
+    "type": "composite",
+    "combinator": "all",
+    "signal_on_close": true,
+    "conditions": [
+      {
+        "indicator_key": "macd_line",
+        "slow_indicator_key": "macd_signal",
+        "operator": "macd_signal_cross"
+      },
+      { "indicator_key": "psar_main", "operator": "psar_reversal" }
+    ]
+  }
+}
+```
+
+### Preset Example: RSI + Stochastic + EMA (M5)
+
+The preset can be composed with `composite` + `combinator: "all"` using three conditions:
+
+- `rsi_threshold` (default-like preset values: `lower=18`, `upper=82`)
+- `stochastic_dual_threshold` on two stochastic instances (`K` + `D`, `lower=15`, `upper=85`)
+- `ema_cross_or_trend` on `EMA(8)` and `EMA(21)` with optional `max_ema_separation`
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 300,
+  "expiry_seconds": 600,
+  "window": {
+    "type": "range",
+    "from": "2026-03-22T00:00:00Z",
+    "to": "2026-03-23T00:00:00Z"
+  },
+  "indicators": [
+    { "key": "rsi_7", "id": "rsi", "params": { "period": 7 } },
+    { "key": "stoch_k_5_3", "id": "stochastic", "params": { "period": 5, "smooth_window": 3, "component": "k" } },
+    { "key": "stoch_d_5_3", "id": "stochastic", "params": { "period": 5, "smooth_window": 3, "component": "d" } },
+    { "key": "ema_8", "id": "ema", "params": { "period": 8 } },
+    { "key": "ema_21", "id": "ema", "params": { "period": 21 } }
+  ],
+  "strategy": {
+    "type": "composite",
+    "combinator": "all",
+    "signal_on_close": true,
+    "conditions": [
+      { "indicator_key": "rsi_7", "operator": "rsi_threshold", "params": { "lower": 18, "upper": 82 } },
+      { "indicator_key": "stoch_k_5_3", "slow_indicator_key": "stoch_d_5_3", "operator": "stochastic_dual_threshold", "params": { "lower": 15, "upper": 85 } },
+      { "indicator_key": "ema_8", "slow_indicator_key": "ema_21", "operator": "ema_cross_or_trend", "params": { "max_ema_separation": 0.003 } }
+    ]
+  }
+}
+```
+
+MVP note: the optional "flat market 30-60 min" filter is not implemented in this iteration.

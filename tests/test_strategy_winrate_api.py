@@ -245,6 +245,22 @@ def test_post_strategy_composite_single_condition_422() -> None:
     assert client.post("/api/v1/strategy/test-winrate", json=p).status_code == 422
 
 
+def test_post_strategy_composite_macd_signal_cross_requires_slow_indicator_key_422() -> None:
+    p = _composite_payload(expiry_seconds=30)
+    p["indicators"] = [
+        {"key": "macd_line", "id": "macd", "params": {"fast_period": 12, "slow_period": 26, "signal_period": 9, "component": "macd"}},
+        {"key": "macd_signal", "id": "macd", "params": {"fast_period": 12, "slow_period": 26, "signal_period": 9, "component": "signal"}},
+        {"key": "psar_main", "id": "psar", "params": {"step": 0.02, "max_step": 0.2, "component": "sar"}},
+    ]
+    p["strategy"]["conditions"] = [
+        {"indicator_key": "macd_line", "operator": "macd_signal_cross"},
+        {"indicator_key": "psar_main", "operator": "psar_reversal"},
+    ]
+
+    client = TestClient(_app())
+    assert client.post("/api/v1/strategy/test-winrate", json=p).status_code == 422
+
+
 def test_post_strategy_single_strategy_combinator_forbidden_422() -> None:
     p = _payload(expiry_seconds=30)
     p["strategy"]["combinator"] = "all"
@@ -344,5 +360,94 @@ def test_post_strategy_ema_cross_non_ema_indicator_422() -> None:
     p = _ema_cross_payload(fast_period=5, slow_period=15)
     p["indicators"][0] = {"key": "ema_fast", "id": "rsi", "params": {"period": 14}}
 
+    client = TestClient(_app())
+    assert client.post("/api/v1/strategy/test-winrate", json=p).status_code == 422
+
+
+class _FakeRegistryPreset:
+    def build(self, indicator_id: str, params: dict[str, object]):
+        if indicator_id == "rsi":
+            return _FakeEmaSeries([10.0, 10.0, 50.0, 90.0, 50.0, 10.0, 10.0], 7)
+        if indicator_id == "stochastic":
+            component = params.get("component")
+            if component == "k":
+                return _FakeEmaSeries([10.0, 10.0, 50.0, 90.0, 50.0, 10.0, 10.0], 5)
+            return _FakeEmaSeries([10.0, 12.0, 55.0, 95.0, 55.0, 10.0, 10.0], 5)
+        if indicator_id == "ema":
+            period = int(params["period"])
+            if period == 8:
+                return _FakeEmaSeries([None, 1.0, 2.0, 5.0, 2.0, 1.0, 2.0], 8)
+            return _FakeEmaSeries([None, 2.0, 1.0, 4.0, 3.0, 2.0, 1.0], 21)
+        raise AssertionError(indicator_id)
+
+
+def _preset_payload() -> dict:
+    return {
+        "asset": "EURUSD_otc",
+        "timeframe_seconds": 300,
+        "expiry_seconds": 600,
+        "window": {
+            "type": "range",
+            "from": "2025-01-01T12:43:00Z",
+            "to": "2025-01-01T13:43:00Z",
+        },
+        "indicators": [
+            {"key": "rsi_7", "id": "rsi", "params": {"period": 7}},
+            {
+                "key": "stoch_k",
+                "id": "stochastic",
+                "params": {"period": 5, "smooth_window": 3, "component": "k"},
+            },
+            {
+                "key": "stoch_d",
+                "id": "stochastic",
+                "params": {"period": 5, "smooth_window": 3, "component": "d"},
+            },
+            {"key": "ema_8", "id": "ema", "params": {"period": 8}},
+            {"key": "ema_21", "id": "ema", "params": {"period": 21}},
+        ],
+        "strategy": {
+            "type": "composite",
+            "combinator": "all",
+            "signal_on_close": True,
+            "conditions": [
+                {"indicator_key": "rsi_7", "operator": "rsi_threshold", "params": {"lower": 18, "upper": 82}},
+                {
+                    "indicator_key": "stoch_k",
+                    "slow_indicator_key": "stoch_d",
+                    "operator": "stochastic_dual_threshold",
+                    "params": {"lower": 15, "upper": 85},
+                },
+                {
+                    "indicator_key": "ema_8",
+                    "slow_indicator_key": "ema_21",
+                    "operator": "ema_cross_or_trend",
+                    "params": {"max_ema_separation": 10.0},
+                },
+            ],
+        },
+    }
+
+
+def test_post_strategy_test_winrate_preset_composite_happy_path(monkeypatch) -> None:
+    monkeypatch.setattr(strategy_route, "default_indicator_registry", lambda: _FakeRegistryPreset())
+    client = TestClient(_app())
+    response = client.post("/api/v1/strategy/test-winrate", json=_preset_payload())
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total_signals"] >= 1
+    assert body["wins"] + body["losses"] + body["skipped_signals"] == body["total_signals"]
+
+
+def test_post_strategy_preset_stochastic_requires_stochastic_ids_422() -> None:
+    p = _preset_payload()
+    p["indicators"][1]["id"] = "rsi"
+    client = TestClient(_app())
+    assert client.post("/api/v1/strategy/test-winrate", json=p).status_code == 422
+
+
+def test_post_strategy_preset_ema_or_trend_requires_ema_ids_422() -> None:
+    p = _preset_payload()
+    p["indicators"][3]["id"] = "sma"
     client = TestClient(_app())
     assert client.post("/api/v1/strategy/test-winrate", json=p).status_code == 422

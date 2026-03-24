@@ -27,6 +27,13 @@ def _ema_period_int_for_validation(params: dict[str, Any]) -> int:
     return int(raw)
 
 
+def _macd_period_int_for_validation(params: dict[str, Any], name: str, *, default: int) -> int:
+    raw = params.get(name, default)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise ValueError(f"MACD `{name}` in indicator params must be an integer for macd_signal_cross validation.")
+    return int(raw)
+
+
 class BalanceResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -255,9 +262,18 @@ class StrategyConditionBody(BaseModel):
         description="Links this condition to an item from `indicators[*].key` (fast EMA for `ema_cross`).",
         examples=["psar_main"],
     )
-    operator: Literal["psar_reversal", "cci_level_cross", "ema_cross"] = Field(
+    operator: Literal[
+        "psar_reversal",
+        "cci_level_cross",
+        "ema_cross",
+        "rsi_threshold",
+        "stochastic_dual_threshold",
+        "ema_cross_or_trend",
+        "macd_signal_cross",
+    ] = Field(
         description=(
-            "Per-condition rule: `psar_reversal`, `cci_level_cross`, or `ema_cross` (two EMA lines). "
+            "Per-condition rule: `psar_reversal`, `cci_level_cross`, `ema_cross`, "
+            "`rsi_threshold`, `stochastic_dual_threshold`, `ema_cross_or_trend`, `macd_signal_cross`. "
             "For single-indicator strategies must match `strategy.type`. For `composite`, each row "
             "picks its own operator."
         ),
@@ -266,7 +282,19 @@ class StrategyConditionBody(BaseModel):
         default=None,
         min_length=1,
         max_length=64,
-        description="Required for `ema_cross`: `indicators[*].key` of the **slow** EMA (must differ from `indicator_key`).",
+        description=(
+            "Required for dual-series operators: `ema_cross` / `ema_cross_or_trend` (slow EMA), "
+            "`stochastic_dual_threshold` (D), `macd_signal_cross` (MACD signal line vs `indicator_key` MACD line)."
+        ),
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Optional condition parameters. Examples: "
+            "`rsi_threshold`: `{lower, upper}`, "
+            "`stochastic_dual_threshold`: `{lower, upper}`, "
+            "`ema_cross_or_trend`: `{max_ema_separation}`."
+        ),
     )
 
 
@@ -316,9 +344,19 @@ class StrategyConfigBody(BaseModel):
                         raise ValueError("composite: ema_cross condition requires slow_indicator_key.")
                     if c.indicator_key.strip() == c.slow_indicator_key.strip():
                         raise ValueError("composite: ema_cross fast and slow keys must differ.")
+                elif c.operator in ("stochastic_dual_threshold", "ema_cross_or_trend", "macd_signal_cross"):
+                    if not c.slow_indicator_key:
+                        raise ValueError(
+                            f"composite: {c.operator} requires slow_indicator_key."
+                        )
+                    if c.indicator_key.strip() == c.slow_indicator_key.strip():
+                        raise ValueError(
+                            f"composite: {c.operator} requires distinct indicator keys."
+                        )
                 elif c.slow_indicator_key:
                     raise ValueError(
-                        "slow_indicator_key is only allowed when operator is ema_cross (composite)."
+                        "slow_indicator_key is only allowed for ema_cross / stochastic_dual_threshold / "
+                        "ema_cross_or_trend / macd_signal_cross (composite)."
                     )
         else:
             if self.combinator is not None:
@@ -393,7 +431,7 @@ class TestStrategyWinrateRequest(BaseModel):
     )
 
     asset: str = Field(min_length=1, max_length=128, examples=["EURUSD_otc"])
-    timeframe_seconds: Literal[3, 10, 15, 30, 60] = Field(
+    timeframe_seconds: Literal[3, 10, 15, 30, 60, 300] = Field(
         description="MVP supported timeframes in seconds.",
     )
     expiry_seconds: int = Field(
@@ -420,7 +458,12 @@ class TestStrategyWinrateRequest(BaseModel):
     def validate_ema_cross_indicator_bindings(self) -> Self:
         by_key = {spec.key.strip(): spec for spec in self.indicators}
         for cond in self.strategy.conditions:
-            if cond.operator != "ema_cross":
+            if cond.operator not in (
+                "ema_cross",
+                "ema_cross_or_trend",
+                "stochastic_dual_threshold",
+                "macd_signal_cross",
+            ):
                 continue
             sk = (cond.slow_indicator_key or "").strip()
             fk = cond.indicator_key.strip()
@@ -428,14 +471,55 @@ class TestStrategyWinrateRequest(BaseModel):
             slow_spec = by_key.get(sk)
             if fast_spec is None or slow_spec is None:
                 raise ValueError(
-                    "ema_cross: both indicator_key and slow_indicator_key must match entries in `indicators`."
+                    f"{cond.operator}: both indicator_key and slow_indicator_key must match entries in `indicators`."
                 )
-            if fast_spec.indicator_id.strip().lower() != "ema" or slow_spec.indicator_id.strip().lower() != "ema":
-                raise ValueError("ema_cross requires both linked indicators to have id `ema`.")
-            fp = _ema_period_int_for_validation(dict(fast_spec.params))
-            sp = _ema_period_int_for_validation(dict(slow_spec.params))
-            if fp >= sp:
-                raise ValueError("ema_cross requires fast EMA period < slow EMA period (from `params.period`).")
+            if cond.operator in ("ema_cross", "ema_cross_or_trend"):
+                if (
+                    fast_spec.indicator_id.strip().lower() != "ema"
+                    or slow_spec.indicator_id.strip().lower() != "ema"
+                ):
+                    raise ValueError(
+                        f"{cond.operator} requires both linked indicators to have id `ema`."
+                    )
+                fp = _ema_period_int_for_validation(dict(fast_spec.params))
+                sp = _ema_period_int_for_validation(dict(slow_spec.params))
+                if fp >= sp:
+                    raise ValueError(
+                        f"{cond.operator} requires fast EMA period < slow EMA period (from `params.period`)."
+                    )
+            elif cond.operator == "macd_signal_cross":
+                if (
+                    fast_spec.indicator_id.strip().lower() != "macd"
+                    or slow_spec.indicator_id.strip().lower() != "macd"
+                ):
+                    raise ValueError(
+                        "macd_signal_cross requires both linked indicators to have id `macd`."
+                    )
+                mc = str(dict(fast_spec.params).get("component", "")).strip().lower()
+                sc = str(dict(slow_spec.params).get("component", "")).strip().lower()
+                if mc != "macd" or sc != "signal":
+                    raise ValueError(
+                        "macd_signal_cross requires `indicator_key` with `component='macd'` and "
+                        "`slow_indicator_key` with `component='signal'` (same fast/slow/signal periods)."
+                    )
+                fp = dict(fast_spec.params)
+                sp = dict(slow_spec.params)
+                for name, default in (("fast_period", 12), ("slow_period", 26), ("signal_period", 9)):
+                    if _macd_period_int_for_validation(fp, name, default=default) != _macd_period_int_for_validation(
+                        sp, name, default=default
+                    ):
+                        raise ValueError(
+                            "macd_signal_cross: MACD line and signal instances must use identical "
+                            f"`{name}` (and matching `slow_period` / `signal_period`)."
+                        )
+            else:
+                if (
+                    fast_spec.indicator_id.strip().lower() != "stochastic"
+                    or slow_spec.indicator_id.strip().lower() != "stochastic"
+                ):
+                    raise ValueError(
+                        "stochastic_dual_threshold requires both linked indicators to have id `stochastic`."
+                    )
         return self
 
 
