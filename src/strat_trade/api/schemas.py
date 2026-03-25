@@ -31,6 +31,42 @@ class BalanceResponse(BaseModel):
     is_demo: bool = Field(description="True if the balance refers to a demo wallet.")
 
 
+class BrokerAssetResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset_id: str = Field(description="Broker-stable instrument id (stringified if numeric).")
+    symbol: str = Field(
+        description="Trading symbol, e.g. EURUSD_otc.",
+        examples=["EURUSD_otc"],
+    )
+    name: str = Field(description="Display name from the broker catalog.")
+    asset_type: str = Field(
+        description="Broker category (e.g. currency, cryptocurrency, stock).",
+        examples=["currency"],
+    )
+    payout: float | None = Field(
+        None,
+        description="Payout percentage when provided by the broker.",
+    )
+    is_otc: bool = Field(description="True if the instrument is OTC.")
+    is_active: bool = Field(
+        description="Whether the broker marks the asset as open for trading right now.",
+    )
+    allowed_candles: list[int] = Field(
+        description="Native bar periods in seconds supported for this asset (Pocket Option).",
+        examples=[[1, 5, 60, 300]],
+    )
+
+
+class BrokerAssetsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assets: list[BrokerAssetResponse] = Field(description="Catalog rows in no guaranteed order.")
+    active_only: bool = Field(
+        description="Echo of the request query: list was filtered to ``is_active`` when true.",
+    )
+
+
 class CandleBarResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

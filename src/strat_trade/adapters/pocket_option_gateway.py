@@ -11,7 +11,7 @@ from typing import Any
 from BinaryOptionsToolsV2.config import Config
 from BinaryOptionsToolsV2.pocketoption import PocketOptionAsync
 
-from strat_trade.domain.entities import AccountBalance, Candle
+from strat_trade.domain.entities import AccountBalance, BrokerAsset, Candle
 from strat_trade.domain.errors import BrokerUnavailableError, InvalidMarketParametersError
 
 logger = logging.getLogger(__name__)
@@ -229,6 +229,62 @@ def _history_offset_seconds(*, period: int, count: int) -> int:
     return min(max(span, period * 2), 86400 * 400)
 
 
+def _parse_allowed_candles(raw: Any) -> tuple[int, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        return ()
+    out: list[int] = []
+    for x in raw:
+        try:
+            out.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    return tuple(out)
+
+
+def _coerce_payout(raw: Any) -> float | None:
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _broker_asset_from_po_row(row: Any) -> BrokerAsset | None:
+    """Map BinaryOptionsToolsV2 ``active_assets()`` JSON object to ``BrokerAsset``."""
+    if not isinstance(row, dict):
+        return None
+    symbol = str(row.get("symbol") or "").strip()
+    if not symbol:
+        return None
+    asset_id_raw = row.get("id")
+    asset_id = "" if asset_id_raw is None else str(asset_id_raw).strip()
+    if not asset_id:
+        asset_id = symbol
+    name = str(row.get("name") or "").strip() or symbol
+    asset_type = str(row.get("asset_type") or row.get("type") or "unknown").strip() or "unknown"
+    payout = _coerce_payout(row.get("payout"))
+    is_otc = bool(row.get("is_otc"))
+    # PO may omit the flag; default True so we do not hide rows without metadata.
+    if "is_active" in row:
+        is_active = bool(row.get("is_active"))
+    else:
+        is_active = True
+    allowed = _parse_allowed_candles(row.get("allowed_candles"))
+    return BrokerAsset(
+        asset_id=asset_id,
+        symbol=symbol,
+        name=name,
+        asset_type=asset_type,
+        payout=payout,
+        is_otc=is_otc,
+        is_active=is_active,
+        allowed_candles=allowed,
+    )
+
+
 class PocketOptionTradingGateway:
     """TradingGateway + CandleFeed via BinaryOptionsToolsV2 (PocketOptionAsync)."""
 
@@ -306,6 +362,27 @@ class PocketOptionTradingGateway:
             currency=self._balance_currency,
             is_demo=is_demo,
         )
+
+    async def list_assets(self) -> list[BrokerAsset]:
+        try:
+            client = await self._client_connected()
+            raw_list = await client.active_assets()
+        except BrokerUnavailableError:
+            raise
+        except Exception as exc:
+            logger.warning("Pocket Option active_assets error: %s", exc)
+            raise BrokerUnavailableError(str(exc)) from exc
+
+        if not isinstance(raw_list, list):
+            logger.debug("Pocket Option active_assets: expected list, got %s", type(raw_list).__name__)
+            return []
+
+        out: list[BrokerAsset] = []
+        for item in raw_list:
+            mapped = _broker_asset_from_po_row(item)
+            if mapped is not None:
+                out.append(mapped)
+        return out
 
     async def get_candles(
         self,
