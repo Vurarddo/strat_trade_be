@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -88,5 +89,134 @@ class CandlesResponse(BaseModel):
             "Range only: false if [from, to] is entirely before/after the broker chunk; "
             "null if the broker sent no rows."
         ),
+    )
+
+
+class IndicatorParameterField(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(description="Parameter name.")
+    type: str = Field(description="JSON/OpenAPI style type hint.", examples=["integer"])
+    default: int | float | str | bool | None = Field(description="Default when omitted.")
+    min_value: int | float | None = Field(
+        None,
+        description="Inclusive minimum when applicable.",
+    )
+    description: str = Field(description="Human-readable meaning.")
+
+
+class RsiWilderIndicatorInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_id: str = Field(
+        default="rsi_wilder",
+        description="Stable id used in strategy configs and registry.",
+    )
+    title: str = Field(description="Display title.")
+    summary: str = Field(description="Short description of what the indicator measures.")
+    source: str = Field(
+        default="close",
+        description="Price series used for changes (Wilder used close-to-close).",
+    )
+    formula: str = Field(description="Definition of RS and RSI plus Wilder smoothing.")
+    parameters: list[IndicatorParameterField] = Field(
+        description="Configurable inputs; period defaults to Wilder’s 14.",
+    )
+    reference_levels: dict[str, float] = Field(
+        default_factory=lambda: {"overbought": 70.0, "oversold": 30.0},
+        description="Common horizontal levels (not trading signals by themselves).",
+    )
+
+
+class IndicatorRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_id: str = Field(
+        min_length=1,
+        max_length=128,
+        description="Registered calculator id, e.g. rsi_wilder.",
+        examples=["rsi_wilder"],
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Indicator-specific parameters (e.g. rsi_wilder: length).",
+    )
+    key: str | None = Field(
+        None,
+        min_length=1,
+        max_length=128,
+        description=(
+            "Optional unique label per run (duplicate `key` in one request → 400). "
+            "Response `indicators` array follows the same order as this list; omit `key` to use "
+            "internal labels `run_0`, `run_1`, … only for validation."
+        ),
+        examples=["rsi_14", "rsi_21"],
+    )
+
+
+class MarketIndicatorsBatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset: str = Field(min_length=1, max_length=128, examples=["EURUSD_otc"])
+    timeframe_seconds: int = Field(
+        ge=1,
+        le=2_592_000,
+        examples=[60, 300],
+        description="Bar period in seconds (Pocket Option native: 1, 5, 15, 30, 60, 300).",
+    )
+    count: int = Field(
+        ge=1,
+        le=5000,
+        description="Bars to fetch; must cover the largest warmup among `indicators`.",
+    )
+    end_at: datetime | None = Field(
+        None,
+        description="First page only: broker window end (UTC). Omit for “now”.",
+    )
+    cursor: datetime | None = Field(
+        None,
+        description="Older pages: `next_cursor` from a prior candles or indicators response.",
+    )
+    indicators: list[IndicatorRunRequest] = Field(
+        min_length=1,
+        description="Ordered list; the same id may appear twice with different params.",
+    )
+
+
+class IndicatorRunSnapshotResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_id: str
+    params: dict[str, Any] = Field(description="Resolved parameters for this run.")
+    outputs: dict[str, dict[str, float]] = Field(
+        description=(
+            "Output name → map from candle open time (see response `align_by`) to numeric value. "
+            "Only defined (non-warmup) points are present."
+        ),
+    )
+
+
+class MarketIndicatorsBatchResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset: str = Field(description="Same as GET /market/candles.")
+    timeframe_seconds: int = Field(description="Same as GET /market/candles.")
+    align_by: Literal["open_time"] = Field(
+        default="open_time",
+        description=(
+            "How keys inside `indicators[*].outputs[*]` map to candles: "
+            "each key equals `candles[i].open_time` after JSON serialization (ISO 8601)."
+        ),
+    )
+    candles: list[CandleBarResponse] = Field(
+        description="Same shape as `candles` in GET /api/v1/market/candles.",
+    )
+    indicators: list[IndicatorRunSnapshotResponse] = Field(
+        description="Same order as request `indicators[]`; join values to candles via `align_by`.",
+    )
+    has_more: bool = Field(description="Same semantics as GET /market/candles.")
+    next_cursor: datetime | None = Field(
+        None,
+        description="Same semantics as GET /market/candles.",
     )
 

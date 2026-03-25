@@ -95,6 +95,16 @@ class Settings(BaseSettings):
             "is covered or history ends."
         ),
     )
+    max_indicators_per_market_request: int = Field(
+        default=32,
+        ge=1,
+        le=128,
+        validation_alias=AliasChoices(
+            "STRAT_TRADE_MAX_INDICATORS_PER_MARKET_REQUEST",
+            "MAX_INDICATORS_PER_MARKET_REQUEST",
+        ),
+        description="Max indicator runs in one POST /market/indicators body.",
+    )
 
     @model_validator(mode="after")
     def resolve_pocket_option_ssid(self) -> Self:

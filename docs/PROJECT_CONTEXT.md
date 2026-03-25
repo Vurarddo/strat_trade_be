@@ -45,7 +45,7 @@ This document is the **source of truth for product intent and domain language**.
 - All PO calls go through a **port** (`TradingGateway` / `MarketDataGateway` or split ports) implemented by **one adapter** so the broker can be swapped or mocked in tests.
 - Respect **rate limits** and **timeouts**; retries only where idempotent and safe.
 - **Candle history depth:** the Pocket Option adapter uses **BinaryOptionsToolsV2** (`get_candles` / `get_candles_advanced`) for native periods (1, 5, 15, 30, 60, 300 seconds). `GET /api/v1/market/candles/range` (and range-based winrate) loads `[from, to]` by **paging backward** from `to`: each call requests up to `STRAT_TRADE_MAX_CANDLES_PER_REQUEST` bars, then repeats with an end cursor before the oldest bar until `from` is covered or `STRAT_TRADE_MAX_CANDLES_RANGE_FETCH_ROUNDS` / broker history limits apply. Very long ranges may still need **persisted candles** or adapter extensions.
-- **Indicator series:** Indicator math lives in pure domain calculators (see `src/strat_trade/domain/indicators/*`). The HTTP endpoint `POST /api/v1/market/indicators` is temporarily removed in this iteration.
+- **Indicator series:** Indicator math lives in pure domain calculators (see `src/strat_trade/domain/indicators/*`). Metadata: `GET /api/v1/indicators/rsi`. **Computed:** `POST /api/v1/market/indicators` — same `candles` shape as `GET /api/v1/market/candles`, plus `indicators[]` in request order; values map candle `open_time` (see `align_by`) to numbers (nulls omitted). Examples: `docs/MARKET_INDICATORS_API.md`.
 - **Winrate strategy test (MVP):** The HTTP endpoint `POST /api/v1/strategy/test-winrate` and related winrate strategy evaluation are temporarily removed from the API in this iteration; strategy evaluation core is being rebuilt on top of the indicator calculators.
 
 ## Documentation map
@@ -55,6 +55,7 @@ This document is the **source of truth for product intent and domain language**.
 | `PROJECT_CONTEXT.md` (this file) | Product and domain vocabulary |
 | `ARCHITECTURE.md` | Layers, extension points, data flow |
 | `CODE_STYLE.md` | Conventions and examples |
+| `MARKET_INDICATORS_API.md` | `POST /api/v1/market/indicators` request/response JSON examples |
 
 ## Related Cursor rules
 

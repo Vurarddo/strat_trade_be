@@ -326,16 +326,18 @@ class PocketOptionTradingGateway:
 
         try:
             client = await self._client_connected()
+            # Always use get_candles_advanced with an explicit UTC end instant. The simpler
+            # client.candles() path can lag several minutes behind "now" vs the advanced API.
             if end_time is None:
-                raw_list = await client.candles(asset.strip(), period)
+                et = datetime.now(UTC)
             else:
                 et = end_time if end_time.tzinfo else end_time.replace(tzinfo=UTC)
                 et = et.astimezone(UTC)
-                end_u = int(et.timestamp())
-                offset = _history_offset_seconds(period=period, count=count)
-                raw_list = await client.get_candles_advanced(
-                    asset.strip(), period, offset, end_u
-                )
+            end_u = int(et.timestamp())
+            offset = _history_offset_seconds(period=period, count=count)
+            raw_list = await client.get_candles_advanced(
+                asset.strip(), period, offset, end_u
+            )
         except InvalidMarketParametersError:
             raise
         except ValueError as exc:
