@@ -79,6 +79,17 @@ def test_get_rsi_indicator_info(client: TestClient) -> None:
     assert body["parameters"][0]["name"] == "length"
 
 
+def test_get_macd_indicator_info(client: TestClient) -> None:
+    r = client.get("/api/v1/indicators/macd")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["indicator_id"] == "macd"
+    assert body["title"] == "MACD"
+    assert set(body["outputs"]) == {"macd", "signal", "histogram"}
+    names = {p["name"] for p in body["parameters"]}
+    assert names == {"fast_length", "slow_length", "signal_length"}
+
+
 def test_get_bollinger_bands_indicator_info(client: TestClient) -> None:
     r = client.get("/api/v1/indicators/bollinger-bands")
     assert r.status_code == 200
@@ -146,6 +157,29 @@ def test_post_market_indicators_duplicate_key_rejected(client: TestClient) -> No
     r = client.post("/api/v1/market/indicators", json=payload)
     assert r.status_code == 400
     assert "Duplicate indicator key" in r.json()["error"]["message"]
+
+
+def test_post_market_indicators_macd(client: TestClient) -> None:
+    payload = {
+        "asset": "EURUSD_otc",
+        "timeframe_seconds": 60,
+        "count": 50,
+        "indicators": [
+            {
+                "indicator_id": "macd",
+                "params": {"fast_length": 12, "slow_length": 26, "signal_length": 9},
+            }
+        ],
+    }
+    r = client.post("/api/v1/market/indicators", json=payload)
+    assert r.status_code == 200
+    row = r.json()["indicators"][0]
+    assert row["indicator_id"] == "macd"
+    outs = row["outputs"]
+    assert set(outs.keys()) == {"macd", "signal", "histogram"}
+    for series in outs.values():
+        assert isinstance(series, list)
+        assert all("open_time" in p and "value" in p for p in series)
 
 
 def test_post_market_indicators_bollinger_bands(client: TestClient) -> None:

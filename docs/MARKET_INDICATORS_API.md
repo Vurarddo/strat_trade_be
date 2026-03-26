@@ -17,6 +17,12 @@ Before calling `POST /market/indicators`, read the static schema for each indica
   - Response output lines: `middle`, `upper`, `lower` (each keyed by `open_time` like other indicators)
   - Minimum `count`: `length` (first full window ends at bar index `length - 1`)
 
+- **MACD:** `GET /api/v1/indicators/macd`
+  - Stable id: `macd`
+  - Params: `{ "fast_length": 12, "slow_length": 26, "signal_length": 9 }` (defaults match if omitted)
+  - Outputs: `macd`, `signal`, `histogram` (each a list of `{ open_time, value }`)
+  - Minimum `count`: `max(fast_length, slow_length) + signal_length - 1` (e.g. 12/26/9 → **34**)
+
 ## Request
 
 `POST /api/v1/market/indicators`  
@@ -28,7 +34,7 @@ Before calling `POST /market/indicators`, read the static schema for each indica
 | ------------------- | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `asset`             | string            | yes      | Broker symbol, e.g. `EURUSD_otc`                                                                                                |
 | `timeframe_seconds` | integer           | yes      | Bar size in seconds (PO native: `1`, `5`, `15`, `30`, `60`, `300`)                                                              |
-| `count`             | integer           | yes      | How many bars to fetch (1–5000, capped by server env). Must be ≥ **largest warmup** among runs (`rsi_wilder`: `length + 1`; `bollinger_bands`: `length`) |
+| `count`             | integer           | yes      | How many bars to fetch (1–5000, capped by server env). Must be ≥ **largest warmup** among runs (`rsi_wilder`: `length + 1`; `bollinger_bands`: `length`; `macd`: `max(fast,slow)+signal−1`) |
 | `indicators`        | array             | yes      | Non-empty list of runs (see below)                                                                                              |
 | `end_at`            | string (ISO 8601) | no       | Anchor window end for the **first** page only                                                                                   |
 | `cursor`            | string (ISO 8601) | no       | Older pages: pass `next_cursor` from a previous response (do not combine with `end_at`)                                         |
@@ -37,7 +43,7 @@ Before calling `POST /market/indicators`, read the static schema for each indica
 
 | Field          | Type   | Required | Description                                                                                                              |
 | -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `indicator_id` | string | yes      | Registered id, e.g. `rsi_wilder`, `bollinger_bands`                                                                      |
+| `indicator_id` | string | yes      | Registered id, e.g. `rsi_wilder`, `bollinger_bands`, `macd`                                                              |
 | `params`       | object | no       | Indicator-specific parameters (defaults apply if omitted)                                                                |
 | `key`          | string | no       | Must be **unique** within the request if set. If omitted, internal keys `run_0`, `run_1`, … are used for validation only |
 
@@ -73,7 +79,29 @@ Before calling `POST /market/indicators`, read the static schema for each indica
 }
 ```
 
-Omit `params` to use defaults (`length` 20, `mult` 2.0). The response includes three maps under `outputs`: `middle`, `upper`, `lower`.
+Omit `params` to use defaults (`length` 20, `mult` 2.0). The response includes three series under `outputs`: `middle`, `upper`, `lower`.
+
+### Example: MACD (12, 26, 9)
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "count": 120,
+  "indicators": [
+    {
+      "indicator_id": "macd",
+      "params": {
+        "fast_length": 12,
+        "slow_length": 26,
+        "signal_length": 9
+      }
+    }
+  ]
+}
+```
+
+`count` must be at least **34** for these defaults. Omit `params` to use 12 / 26 / 9.
 
 ### Example: two RSI runs (14 and 21) with explicit keys
 

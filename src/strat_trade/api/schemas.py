@@ -187,14 +187,34 @@ class BollingerBandsIndicatorInfoResponse(BaseModel):
     )
 
 
+class MacdIndicatorInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_id: str = Field(default="macd", description="Stable id for POST /market/indicators.")
+    title: str = Field(description="Display title.")
+    summary: str = Field(description="Short description of MACD, signal, and histogram.")
+    source: str = Field(
+        default="close",
+        description="Price series for fast and slow EMAs.",
+    )
+    formula: str = Field(description="EMA definitions for MACD line, signal, and histogram.")
+    parameters: list[IndicatorParameterField] = Field(
+        description="fast_length, slow_length, signal_length (classic 12 / 26 / 9).",
+    )
+    outputs: list[str] = Field(
+        default_factory=lambda: ["macd", "signal", "histogram"],
+        description="Series names in API responses for this id.",
+    )
+
+
 class IndicatorRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     indicator_id: str = Field(
         min_length=1,
         max_length=128,
-        description="Registered calculator id, e.g. rsi_wilder or bollinger_bands.",
-        examples=["rsi_wilder", "bollinger_bands"],
+        description="Registered calculator id: rsi_wilder, bollinger_bands, macd, …",
+        examples=["rsi_wilder", "bollinger_bands", "macd"],
     )
     params: dict[str, Any] = Field(
         default_factory=dict,

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from strat_trade.api.schemas import (
     BollingerBandsIndicatorInfoResponse,
     IndicatorParameterField,
+    MacdIndicatorInfoResponse,
     RsiWilderIndicatorInfoResponse,
 )
 from strat_trade.domain.indicators.bollinger_bands import (
@@ -15,6 +16,15 @@ from strat_trade.domain.indicators.bollinger_bands import (
     BOLLINGER_BANDS_ID,
     BOLLINGER_SUMMARY,
     BOLLINGER_TITLE,
+)
+from strat_trade.domain.indicators.macd import (
+    MACD_FORMULA,
+    MACD_ID,
+    MACD_OUTPUT_HISTOGRAM,
+    MACD_OUTPUT_LINE,
+    MACD_OUTPUT_SIGNAL,
+    MACD_SUMMARY,
+    MACD_TITLE,
 )
 from strat_trade.domain.indicators.rsi_wilder import (
     RSI_WILDER_FORMULA,
@@ -89,4 +99,48 @@ async def read_bollinger_bands_info() -> BollingerBandsIndicatorInfoResponse:
             ),
         ],
         outputs=[BB_OUTPUT_MIDDLE, BB_OUTPUT_UPPER, BB_OUTPUT_LOWER],
+    )
+
+
+@router.get(
+    "/macd",
+    response_model=MacdIndicatorInfoResponse,
+    summary="MACD — definition and parameters",
+    description=(
+        "Read-only metadata for **MACD**: EMA(fast) − EMA(slow), signal = EMA(MACD), "
+        "histogram = MACD − signal. "
+        "Computed values: `POST /api/v1/market/indicators` with `indicator_id`: `macd`."
+    ),
+    operation_id="getMacdIndicatorInfo",
+)
+async def read_macd_info() -> MacdIndicatorInfoResponse:
+    return MacdIndicatorInfoResponse(
+        indicator_id=MACD_ID,
+        title=MACD_TITLE,
+        summary=MACD_SUMMARY,
+        formula=MACD_FORMULA,
+        parameters=[
+            IndicatorParameterField(
+                name="fast_length",
+                type="integer",
+                default=12,
+                min_value=1,
+                description="Fast EMA period (classic 12).",
+            ),
+            IndicatorParameterField(
+                name="slow_length",
+                type="integer",
+                default=26,
+                min_value=1,
+                description="Slow EMA period (classic 26).",
+            ),
+            IndicatorParameterField(
+                name="signal_length",
+                type="integer",
+                default=9,
+                min_value=1,
+                description="Signal EMA period applied to MACD line (classic 9).",
+            ),
+        ],
+        outputs=[MACD_OUTPUT_LINE, MACD_OUTPUT_SIGNAL, MACD_OUTPUT_HISTOGRAM],
     )
