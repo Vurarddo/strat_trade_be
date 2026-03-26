@@ -2,7 +2,20 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from strat_trade.api.schemas import IndicatorParameterField, RsiWilderIndicatorInfoResponse
+from strat_trade.api.schemas import (
+    BollingerBandsIndicatorInfoResponse,
+    IndicatorParameterField,
+    RsiWilderIndicatorInfoResponse,
+)
+from strat_trade.domain.indicators.bollinger_bands import (
+    BB_OUTPUT_LOWER,
+    BB_OUTPUT_MIDDLE,
+    BB_OUTPUT_UPPER,
+    BOLLINGER_FORMULA,
+    BOLLINGER_BANDS_ID,
+    BOLLINGER_SUMMARY,
+    BOLLINGER_TITLE,
+)
 from strat_trade.domain.indicators.rsi_wilder import (
     RSI_WILDER_FORMULA,
     RSI_WILDER_ID,
@@ -39,4 +52,41 @@ async def read_rsi_wilder_info() -> RsiWilderIndicatorInfoResponse:
                 description="Number of periods for average gain/loss (Wilder default 14).",
             ),
         ],
+    )
+
+
+@router.get(
+    "/bollinger-bands",
+    response_model=BollingerBandsIndicatorInfoResponse,
+    summary="Bollinger Bands — definition and parameters",
+    description=(
+        "Read-only metadata for **Bollinger Bands** (John Bollinger): SMA middle, population "
+        "standard deviation (÷ length), upper/lower = middle ± mult × σ. "
+        "Computed values: `POST /api/v1/market/indicators` with `indicator_id`: `bollinger_bands`."
+    ),
+    operation_id="getBollingerBandsIndicatorInfo",
+)
+async def read_bollinger_bands_info() -> BollingerBandsIndicatorInfoResponse:
+    return BollingerBandsIndicatorInfoResponse(
+        indicator_id=BOLLINGER_BANDS_ID,
+        title=BOLLINGER_TITLE,
+        summary=BOLLINGER_SUMMARY,
+        formula=BOLLINGER_FORMULA,
+        parameters=[
+            IndicatorParameterField(
+                name="length",
+                type="integer",
+                default=20,
+                min_value=1,
+                description="SMA and stdev window (classic 20).",
+            ),
+            IndicatorParameterField(
+                name="mult",
+                type="number",
+                default=2.0,
+                min_value=0.001,
+                description="Standard deviation multiplier for upper/lower bands (classic 2.0).",
+            ),
+        ],
+        outputs=[BB_OUTPUT_MIDDLE, BB_OUTPUT_UPPER, BB_OUTPUT_LOWER],
     )

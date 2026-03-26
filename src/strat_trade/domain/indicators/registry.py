@@ -4,13 +4,19 @@ from collections.abc import Mapping
 from typing import Any
 
 from strat_trade.domain.errors import IndicatorParameterError, UnknownIndicatorError
+from strat_trade.domain.indicators.bollinger_bands import (
+    BOLLINGER_BANDS_ID,
+    BollingerBandsCalculator,
+)
 from strat_trade.domain.indicators.protocol import IndicatorCalculator
 from strat_trade.domain.indicators.rsi_wilder import RSI_WILDER_ID, RsiWilderCalculator
 
 # Known indicator ids for validation / OpenAPI; new indicators extend this set.
-REGISTERED_INDICATOR_IDS = frozenset({RSI_WILDER_ID})
+REGISTERED_INDICATOR_IDS = frozenset({RSI_WILDER_ID, BOLLINGER_BANDS_ID})
 
 _MAX_RSI_LENGTH = 500
+_MAX_BB_LENGTH = 500
+_MAX_BB_MULT = 50.0
 
 
 def _coerce_positive_int(value: object, field: str, *, default: int, max_value: int) -> int:
@@ -31,6 +37,22 @@ def _coerce_positive_int(value: object, field: str, *, default: int, max_value: 
     return n
 
 
+def _coerce_positive_float(value: object, field: str, *, default: float, max_value: float) -> float:
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        raise IndicatorParameterError(f"{field} must be a number.")
+    try:
+        x = float(value)
+    except (TypeError, ValueError):
+        raise IndicatorParameterError(f"{field} must be a number.") from None
+    if x <= 0.0:
+        raise IndicatorParameterError(f"{field} must be > 0.")
+    if x > max_value:
+        raise IndicatorParameterError(f"{field} must be <= {max_value}.")
+    return x
+
+
 def min_bars_for_indicator(indicator_id: str, params: Mapping[str, Any]) -> int:
     """Minimum candle count so the first bar can have a defined value (per indicator rules)."""
     if indicator_id == RSI_WILDER_ID:
@@ -41,6 +63,14 @@ def min_bars_for_indicator(indicator_id: str, params: Mapping[str, Any]) -> int:
             max_value=_MAX_RSI_LENGTH,
         )
         return length + 1
+    if indicator_id == BOLLINGER_BANDS_ID:
+        length = _coerce_positive_int(
+            params.get("length", 20),
+            "length",
+            default=20,
+            max_value=_MAX_BB_LENGTH,
+        )
+        return length
     raise UnknownIndicatorError(f"Unknown indicator_id: {indicator_id!r}.")
 
 
@@ -53,6 +83,20 @@ def build_calculator(indicator_id: str, params: Mapping[str, Any]) -> IndicatorC
             max_value=_MAX_RSI_LENGTH,
         )
         return RsiWilderCalculator(length=length)
+    if indicator_id == BOLLINGER_BANDS_ID:
+        length = _coerce_positive_int(
+            params.get("length", 20),
+            "length",
+            default=20,
+            max_value=_MAX_BB_LENGTH,
+        )
+        mult = _coerce_positive_float(
+            params.get("mult", 2.0),
+            "mult",
+            default=2.0,
+            max_value=_MAX_BB_MULT,
+        )
+        return BollingerBandsCalculator(length=length, multiplier=mult)
     raise UnknownIndicatorError(f"Unknown indicator_id: {indicator_id!r}.")
 
 

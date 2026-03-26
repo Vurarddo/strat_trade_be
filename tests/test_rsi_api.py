@@ -79,6 +79,17 @@ def test_get_rsi_indicator_info(client: TestClient) -> None:
     assert body["parameters"][0]["name"] == "length"
 
 
+def test_get_bollinger_bands_indicator_info(client: TestClient) -> None:
+    r = client.get("/api/v1/indicators/bollinger-bands")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["indicator_id"] == "bollinger_bands"
+    assert "Bollinger" in body["title"]
+    assert body["outputs"] == ["middle", "upper", "lower"]
+    names = {p["name"] for p in body["parameters"]}
+    assert names == {"length", "mult"}
+
+
 def test_post_market_indicators_requires_enough_bars(client: TestClient) -> None:
     payload = {
         "asset": "EURUSD_otc",
@@ -112,13 +123,14 @@ def test_post_market_indicators_candles_plus_indicators_by_open_time(client: Tes
     ind0, ind1 = body["indicators"][0], body["indicators"][1]
     assert ind0["params"]["length"] == 14
     assert ind1["params"]["length"] == 21
-    rsi14_map = ind0["outputs"]["rsi"]
-    rsi21_map = ind1["outputs"]["rsi"]
-    assert ot14 in rsi14_map
-    assert ot14 not in rsi21_map
+    rsi14_pts = ind0["outputs"]["rsi"]
+    rsi21_pts = ind1["outputs"]["rsi"]
+    assert {"open_time", "value"} == set(rsi14_pts[0].keys())
+    assert any(p["open_time"] == ot14 for p in rsi14_pts)
+    assert not any(p["open_time"] == ot14 for p in rsi21_pts)
     c21 = body["candles"][21]
     ot21 = c21["open_time"]
-    assert ot21 in rsi21_map
+    assert any(p["open_time"] == ot21 for p in rsi21_pts)
 
 
 def test_post_market_indicators_duplicate_key_rejected(client: TestClient) -> None:
@@ -136,6 +148,25 @@ def test_post_market_indicators_duplicate_key_rejected(client: TestClient) -> No
     assert "Duplicate indicator key" in r.json()["error"]["message"]
 
 
+def test_post_market_indicators_bollinger_bands(client: TestClient) -> None:
+    payload = {
+        "asset": "EURUSD_otc",
+        "timeframe_seconds": 60,
+        "count": 30,
+        "indicators": [{"indicator_id": "bollinger_bands", "params": {"length": 10, "mult": 2.0}}],
+    }
+    r = client.post("/api/v1/market/indicators", json=payload)
+    assert r.status_code == 200
+    body = r.json()
+    row = body["indicators"][0]
+    assert row["indicator_id"] == "bollinger_bands"
+    assert row["params"]["length"] == 10
+    assert row["params"]["mult"] == 2.0
+    assert set(row["outputs"].keys()) == {"middle", "upper", "lower"}
+    last_ot = body["candles"][-1]["open_time"]
+    assert any(p["open_time"] == last_ot for p in row["outputs"]["middle"])
+
+
 def test_post_market_indicators_auto_run_keys(client: TestClient) -> None:
     payload = {
         "asset": "EURUSD_otc",
@@ -150,5 +181,5 @@ def test_post_market_indicators_auto_run_keys(client: TestClient) -> None:
     assert r.status_code == 200
     last_ot = r.json()["candles"][-1]["open_time"]
     inds = r.json()["indicators"]
-    assert last_ot in inds[0]["outputs"]["rsi"]
-    assert last_ot in inds[1]["outputs"]["rsi"]
+    assert any(p["open_time"] == last_ot for p in inds[0]["outputs"]["rsi"])
+    assert any(p["open_time"] == last_ot for p in inds[1]["outputs"]["rsi"])

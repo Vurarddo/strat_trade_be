@@ -101,26 +101,26 @@ def build_indicator_rows_by_time_key(
     time_keys: list[str],
     runs: list[IndicatorRunSpec],
     blocks: list[IndicatorSeriesBlock],
-) -> list[tuple[str, str, dict[str, Any], dict[str, dict[str, float]]]]:
+) -> list[tuple[str, str, dict[str, Any], dict[str, list[tuple[str, float]]]]]:
     """
     One row per request run, same order as `runs`. Each row:
-    (response_key, indicator_id, params, outputs) where outputs is output_name -> { time_key: value }.
-    Empty series are omitted; `outputs` may be {} if nothing is defined yet.
+    (response_key, indicator_id, params, outputs) where outputs is
+    output_name -> list of (open_time_json, value) in bar order (warmup omitted).
     """
     if len(runs) != len(blocks):
         raise ValueError("runs and blocks must have the same length.")
     n = len(time_keys)
-    rows: list[tuple[str, str, dict[str, Any], dict[str, dict[str, float]]]] = []
+    rows: list[tuple[str, str, dict[str, Any], dict[str, list[tuple[str, float]]]]] = []
     for spec, block in zip(runs, blocks, strict=True):
-        out_maps: dict[str, dict[str, float]] = {}
+        out_lists: dict[str, list[tuple[str, float]]] = {}
         for out_name, series in block.outputs.items():
-            point_map: dict[str, float] = {}
+            points: list[tuple[str, float]] = []
             for i, val in enumerate(series):
                 if i >= n:
                     break
                 if val is not None:
-                    point_map[time_keys[i]] = val
-            if point_map:
-                out_maps[out_name] = point_map
-        rows.append((spec.response_key, block.indicator_id, dict(block.params), out_maps))
+                    points.append((time_keys[i], val))
+            if points:
+                out_lists[out_name] = points
+        rows.append((spec.response_key, block.indicator_id, dict(block.params), out_lists))
     return rows

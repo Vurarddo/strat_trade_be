@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from strat_trade.api.deps import CandleFeedDep, SettingsDep
 from strat_trade.api.schemas import (
     CandleBarResponse,
+    IndicatorOutputPoint,
     IndicatorRunSnapshotResponse,
     MarketIndicatorsBatchRequest,
     MarketIndicatorsBatchResponse,
@@ -66,10 +67,10 @@ def _resolve_indicator_keys(body: MarketIndicatorsBatchRequest) -> list[str]:
     response_model=MarketIndicatorsBatchResponse,
     summary="Compute several indicators on one candle window",
     description=(
-        "Same candle page as `GET /api/v1/market/candles`, plus **`indicators`**: an array in the "
-        "same order as the request body. Values are keyed by **`align_by`** (`open_time`): each "
-        "map key equals `candles[i].open_time` in this JSON response. Warmup points are omitted. "
-        "See `docs/MARKET_INDICATORS_API.md` for JSON examples."
+        "Same candle page as `GET /api/v1/market/candles`, plus **`indicators`**: array in request "
+        "order. Each run's `outputs` maps line names to arrays of `{ open_time, value }` "
+        "(`open_time` matches `candles[].open_time`). Warmup omitted. "
+        "See `docs/MARKET_INDICATORS_API.md`."
     ),
     operation_id="postMarketIndicatorsBatch",
 )
@@ -102,7 +103,14 @@ async def compute_market_indicators(
     time_keys = _open_time_keys_aligned_with_json_candles(candles)
     rows = build_indicator_rows_by_time_key(time_keys, runs, result.indicator_blocks)
     indicators = [
-        IndicatorRunSnapshotResponse(indicator_id=iid, params=p, outputs=o)
+        IndicatorRunSnapshotResponse(
+            indicator_id=iid,
+            params=p,
+            outputs={
+                name: [IndicatorOutputPoint(open_time=ts, value=v) for ts, v in pts]
+                for name, pts in o.items()
+            },
+        )
         for _, iid, p, o in rows
     ]
     return MarketIndicatorsBatchResponse(

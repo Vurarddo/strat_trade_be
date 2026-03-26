@@ -9,6 +9,13 @@ Before calling `POST /market/indicators`, read the static schema for each indica
 - **RSI (Wilder):** `GET /api/v1/indicators/rsi`
   - Stable id: `rsi_wilder`
   - Typical params: `{ "length": 14 }` (integer ≥ 1; default internally is 14 if omitted)
+  - Minimum `count`: `length + 1` (warmup)
+
+- **Bollinger Bands:** `GET /api/v1/indicators/bollinger-bands`
+  - Stable id: `bollinger_bands`
+  - Params: `{ "length": 20, "mult": 2.0 }` (`length` ≥ 1 default 20; `mult` > 0 default 2.0)
+  - Response output lines: `middle`, `upper`, `lower` (each keyed by `open_time` like other indicators)
+  - Minimum `count`: `length` (first full window ends at bar index `length - 1`)
 
 ## Request
 
@@ -21,7 +28,7 @@ Before calling `POST /market/indicators`, read the static schema for each indica
 | ------------------- | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `asset`             | string            | yes      | Broker symbol, e.g. `EURUSD_otc`                                                                                                |
 | `timeframe_seconds` | integer           | yes      | Bar size in seconds (PO native: `1`, `5`, `15`, `30`, `60`, `300`)                                                              |
-| `count`             | integer           | yes      | How many bars to fetch (1–5000, capped by server env). Must be ≥ **largest warmup** among runs (for `rsi_wilder`: `length + 1`) |
+| `count`             | integer           | yes      | How many bars to fetch (1–5000, capped by server env). Must be ≥ **largest warmup** among runs (`rsi_wilder`: `length + 1`; `bollinger_bands`: `length`) |
 | `indicators`        | array             | yes      | Non-empty list of runs (see below)                                                                                              |
 | `end_at`            | string (ISO 8601) | no       | Anchor window end for the **first** page only                                                                                   |
 | `cursor`            | string (ISO 8601) | no       | Older pages: pass `next_cursor` from a previous response (do not combine with `end_at`)                                         |
@@ -30,7 +37,7 @@ Before calling `POST /market/indicators`, read the static schema for each indica
 
 | Field          | Type   | Required | Description                                                                                                              |
 | -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `indicator_id` | string | yes      | Registered id, e.g. `rsi_wilder`                                                                                         |
+| `indicator_id` | string | yes      | Registered id, e.g. `rsi_wilder`, `bollinger_bands`                                                                      |
 | `params`       | object | no       | Indicator-specific parameters (defaults apply if omitted)                                                                |
 | `key`          | string | no       | Must be **unique** within the request if set. If omitted, internal keys `run_0`, `run_1`, … are used for validation only |
 
@@ -49,6 +56,24 @@ Before calling `POST /market/indicators`, read the static schema for each indica
   ]
 }
 ```
+
+### Example: Bollinger Bands (20, 2.0)
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "count": 120,
+  "indicators": [
+    {
+      "indicator_id": "bollinger_bands",
+      "params": { "length": 20, "mult": 2.0 }
+    }
+  ]
+}
+```
+
+Omit `params` to use defaults (`length` 20, `mult` 2.0). The response includes three maps under `outputs`: `middle`, `upper`, `lower`.
 
 ### Example: two RSI runs (14 and 21) with explicit keys
 
@@ -94,14 +119,14 @@ Shape aligns with `GET /api/v1/market/candles` for **`asset`**, **`timeframe_sec
 
 | Field        | Type   | Description                                                                                                           |
 | ------------ | ------ | --------------------------------------------------------------------------------------------------------------------- |
-| `align_by`   | string | Always `open_time`: keys inside `indicators[].outputs.*` match `candles[].open_time` strings in **this** JSON payload |
+| `align_by`   | string | Always `open_time`: each point’s `open_time` matches `candles[].open_time` in **this** JSON payload                      |
 | `candles`    | array  | Same object shape as `GET /market/candles` (`open_time`, `open`, `high`, `low`, `close`, `volume`)                    |
 | `indicators` | array  | **Same order** as request `indicators[]`. Each item: `indicator_id`, `params`, `outputs`                              |
 
 ### `outputs` structure
 
-- `outputs` is an object: **output line name** → **map of candle open time (string) → number**.
-- Only bars where the value is **defined** appear (warmup / `null` points are **omitted**, not sent as `null`).
+- `outputs` is an object: **output line name** → **array** of `{ "open_time": "<ISO string>", "value": <number> }`.
+- Arrays are in **chronological** bar order. Warmup bars are **omitted** (no `null` entries).
 
 ### Example response (abbreviated)
 
@@ -125,22 +150,26 @@ Shape aligns with `GET /api/v1/market/candles` for **`asset`**, **`timeframe_sec
       "indicator_id": "rsi_wilder",
       "params": { "length": 14 },
       "outputs": {
-        "rsi": {
-          "2026-03-25T21:53:00Z": 64.0625000000004,
-          "2026-03-25T21:54:00Z": 60.02252252251929,
-          "2026-03-25T21:55:00Z": 46.73231267282598
-        }
+        "rsi": [
+          { "open_time": "2026-03-25T21:53:00Z", "value": 64.0625000000004 },
+          { "open_time": "2026-03-25T21:54:00Z", "value": 60.02252252251929 },
+          { "open_time": "2026-03-25T22:07:00Z", "value": 35.54216867469766 }
+        ]
       }
     },
     {
-      "indicator_id": "rsi_wilder",
-      "params": { "length": 21 },
+      "indicator_id": "bollinger_bands",
+      "params": { "length": 20, "mult": 2.0 },
       "outputs": {
-        "rsi": {
-          "2026-03-25T22:00:00Z": 56.92640692640621,
-          "2026-03-25T22:01:00Z": 54.928989139515636,
-          "2026-03-25T22:02:00Z": 54.55214863904885
-        }
+        "middle": [
+          { "open_time": "2026-03-25T22:14:00Z", "value": 1.1385359999999998 }
+        ],
+        "upper": [
+          { "open_time": "2026-03-25T22:14:00Z", "value": 1.139427502103194 }
+        ],
+        "lower": [
+          { "open_time": "2026-03-25T22:14:00Z", "value": 1.1376444978968054 }
+        ]
       }
     }
   ],
@@ -152,8 +181,8 @@ Shape aligns with `GET /api/v1/market/candles` for **`asset`**, **`timeframe_sec
 ### Joining indicators to candles
 
 1. Take `candles[i].open_time` as a string (after JSON parsing).
-2. For an indicator line, e.g. `outputs.rsi`, look up that string: `outputs.rsi[open_time]`.
-3. If the key is missing, the indicator is still warming up (or undefined) on that bar.
+2. For an indicator line, e.g. `outputs.rsi`, find the object in the array with the same `open_time`, then read `value`.
+3. If there is no such element, that bar is still warmup (or undefined) for that line.
 
 ## Common errors
 

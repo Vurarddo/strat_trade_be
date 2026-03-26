@@ -164,14 +164,37 @@ class RsiWilderIndicatorInfoResponse(BaseModel):
     )
 
 
+class BollingerBandsIndicatorInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_id: str = Field(
+        default="bollinger_bands",
+        description="Stable id for POST /market/indicators.",
+    )
+    title: str = Field(description="Display title.")
+    summary: str = Field(description="Short description of bands and volatility.")
+    source: str = Field(
+        default="close",
+        description="Price series for SMA and standard deviation.",
+    )
+    formula: str = Field(description="Middle, σ, upper and lower band definitions.")
+    parameters: list[IndicatorParameterField] = Field(
+        description="Length (SMA/stdev window) and multiplier (classic 20 / 2.0).",
+    )
+    outputs: list[str] = Field(
+        default_factory=lambda: ["middle", "upper", "lower"],
+        description="Series names returned in `POST /market/indicators` for this id.",
+    )
+
+
 class IndicatorRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     indicator_id: str = Field(
         min_length=1,
         max_length=128,
-        description="Registered calculator id, e.g. rsi_wilder.",
-        examples=["rsi_wilder"],
+        description="Registered calculator id, e.g. rsi_wilder or bollinger_bands.",
+        examples=["rsi_wilder", "bollinger_bands"],
     )
     params: dict[str, Any] = Field(
         default_factory=dict,
@@ -219,15 +242,24 @@ class MarketIndicatorsBatchRequest(BaseModel):
     )
 
 
+class IndicatorOutputPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    open_time: str = Field(
+        description="Candle open time (ISO 8601), same string as `candles[].open_time` in this response.",
+    )
+    value: float = Field(description="Indicator value at that bar.")
+
+
 class IndicatorRunSnapshotResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     indicator_id: str
     params: dict[str, Any] = Field(description="Resolved parameters for this run.")
-    outputs: dict[str, dict[str, float]] = Field(
+    outputs: dict[str, list[IndicatorOutputPoint]] = Field(
         description=(
-            "Output name → map from candle open time (see response `align_by`) to numeric value. "
-            "Only defined (non-warmup) points are present."
+            "Output line name → chronological list of `{ open_time, value }`. "
+            "Warmup bars omitted. Join to `candles` by matching `open_time`."
         ),
     )
 
@@ -240,8 +272,8 @@ class MarketIndicatorsBatchResponse(BaseModel):
     align_by: Literal["open_time"] = Field(
         default="open_time",
         description=(
-            "How keys inside `indicators[*].outputs[*]` map to candles: "
-            "each key equals `candles[i].open_time` after JSON serialization (ISO 8601)."
+            "Each `indicators[*].outputs[*][]` item uses `open_time` strings equal to "
+            "`candles[i].open_time` in this JSON response."
         ),
     )
     candles: list[CandleBarResponse] = Field(
