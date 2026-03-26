@@ -85,8 +85,11 @@ class CandlesResponse(BaseModel):
 
     asset: str = Field(description="Broker symbol, e.g. EURUSD_otc.")
     timeframe_seconds: int = Field(
-        description="Bar width in seconds (e.g. 60 = 1m, 300 = 5m).",
-        examples=[60, 300, 3600],
+        description=(
+            "Bar width in seconds. Pocket Option only serves 1, 5, 15, 30, 60, 300 "
+            "(e.g. 1m=60, 5m=300); larger frames need client-side aggregation."
+        ),
+        examples=[60, 300],
     )
     candles: list[CandleBarResponse]
     has_more: bool = Field(
