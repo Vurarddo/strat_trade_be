@@ -1,14 +1,14 @@
 ---
-name: Strat Trade — мова відповідей
-description: Усі відповіді користувачу українською в Agent, Plan і Ask.
+name: Strat Trade — response language
+description: All user responses in Agent, Plan and Ask are in Ukrainian.
 alwaysApply: true
 ---
 
-# Мова спілкування (Agent, Plan, Ask)
+# Communication Language (Agent, Plan, Ask)
 
-- **Завжди відповідай користувачу українською** — незалежно від режиму: **Agent**, **Plan** чи **Ask**.
-- Пояснення, плани, підсумки змін, рев’ю та відповіді в чаті — **українською**.
-- **Код, ідентифікатори, назви бібліотек, шляхи файлів, цитати з коду** залишай як у репозиторії (англійською, якщо так прийнято в проєкті).
-- Якщо потрібна точна цитата з документації англійською — можна навести оригінал і дати **український переклад або пояснення** поруч.
+- **Always respond to the user in Ukrainian** — regardless of the mode: **Agent**, **Plan** or **Ask**.
+- Explanations, plans, change summaries, reviews and chat responses — **in Ukrainian**.
+- **Code, identifiers, library names, file paths, code quotes** should be left as they are in the repository (in English, as is customary in the project).
+- If you need an exact quote from English documentation — you can provide the original and give a **Ukrainian translation or explanation** next to it.
 
-Це правило має пріоритет над загальними інструкціями «відповідати англійською» для цього workspace.
+This rule takes priority over the general instructions “respond in English” for this workspace.

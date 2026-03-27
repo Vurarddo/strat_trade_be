@@ -24,3 +24,17 @@ class AccountBalance:
     amount: Decimal
     currency: str
     is_demo: bool
+
+
+@dataclass(frozen=True, slots=True)
+class BrokerAsset:
+    """Tradable instrument from a broker catalog (normalized, not raw PO JSON)."""
+
+    asset_id: str
+    symbol: str
+    name: str
+    asset_type: str
+    payout: float | None
+    is_otc: bool
+    is_active: bool
+    allowed_candles: tuple[int, ...]

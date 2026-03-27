@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 from strat_trade.domain.entities import Candle
-from strat_trade.domain.indicators.types import IndicatorSeries
 
 
 @runtime_checkable
@@ -13,9 +13,6 @@ class IndicatorCalculator(Protocol):
     @property
     def indicator_id(self) -> str: ...
 
-    def compute(self, candles: list[Candle]) -> IndicatorSeries:
-        """
-        Return one value per input candle (use None where the indicator is not yet defined).
-        `params` in the result must echo the effective parameters used.
-        """
+    def compute(self, candles: Sequence[Candle]) -> dict[str, list[float | None]]:
+        """Named output series, each list aligned 1:1 with `candles` (leading Nones until warmup)."""
         ...

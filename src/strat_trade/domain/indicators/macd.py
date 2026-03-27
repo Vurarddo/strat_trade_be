@@ -1,121 +1,125 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from importlib import import_module
-
-import pandas as pd
+from collections.abc import Sequence
 
 from strat_trade.domain.entities import Candle
 from strat_trade.domain.errors import IndicatorParameterError
-from strat_trade.domain.indicators.types import IndicatorSeries
 
-_MACD_COMPONENTS = {"macd", "signal", "hist"}
+MACD_ID = "macd"
+MACD_OUTPUT_LINE = "macd"
+MACD_OUTPUT_SIGNAL = "signal"
+MACD_OUTPUT_HISTOGRAM = "histogram"
+
+MACD_TITLE = "MACD"
+MACD_SUMMARY = (
+    "Moving Average Convergence Divergence: MACD line = EMA(fast) − EMA(slow) on source; "
+    "signal = EMA(MACD, signal length); histogram = MACD − signal."
+)
+MACD_FORMULA = (
+    "MACD = EMA(close, fast_length) − EMA(close, slow_length). "
+    "Signal = EMA(MACD, signal_length). Histogram = MACD − Signal. "
+    "EMA uses smoothing α = 2/(period+1) with initial seed = SMA of the first `period` values."
+)
+
+
+def compute_ema(values: list[float], period: int) -> list[float | None]:
+    """EMA with SMA seed at index ``period - 1`` (standard trading platform convention)."""
+    n = len(values)
+    out: list[float | None] = [None] * n
+    if period < 1 or n < period:
+        return out
+    k = 2.0 / (period + 1.0)
+    sma = sum(values[0:period]) / period
+    out[period - 1] = sma
+    for i in range(period, n):
+        prev = out[i - 1]
+        if prev is None:
+            break
+        out[i] = values[i] * k + prev * (1.0 - k)
+    return out
+
+
+def compute_ema_optional(base: list[float | None], period: int) -> list[float | None]:
+    """EMA on a series that may start with Nones; SMA seed on first ``period`` non-missing values."""
+    n = len(base)
+    out: list[float | None] = [None] * n
+    start = 0
+    while start < n and base[start] is None:
+        start += 1
+    if start >= n or start + period - 1 >= n:
+        return out
+    for j in range(start, start + period):
+        if base[j] is None:
+            return out
+    seed = sum(base[start : start + period]) / period
+    seed_idx = start + period - 1
+    out[seed_idx] = seed
+    k = 2.0 / (period + 1.0)
+    prev = seed
+    for i in range(seed_idx + 1, n):
+        v = base[i]
+        if v is None:
+            out[i] = None
+            continue
+        prev = v * k + prev * (1.0 - k)
+        out[i] = prev
+    return out
+
+
+def compute_macd(
+    closes: list[float],
+    fast_length: int,
+    slow_length: int,
+    signal_length: int,
+) -> tuple[list[float | None], list[float | None], list[float | None]]:
+    n = len(closes)
+    macd_line: list[float | None] = [None] * n
+    signal_line: list[float | None] = [None] * n
+    histogram: list[float | None] = [None] * n
+
+    fast_ema = compute_ema(closes, fast_length)
+    slow_ema = compute_ema(closes, slow_length)
+    for i in range(n):
+        f, s = fast_ema[i], slow_ema[i]
+        if f is not None and s is not None:
+            macd_line[i] = f - s
+
+    signal_line = compute_ema_optional(macd_line, signal_length)
+
+    for i in range(n):
+        m, sig = macd_line[i], signal_line[i]
+        if m is not None and sig is not None:
+            histogram[i] = m - sig
+
+    return macd_line, signal_line, histogram
 
 
 class MacdCalculator:
-    """MACD powered by `ta`; output length matches input candle count."""
+    """MACD with EMA-based MACD line, signal, and histogram (close prices)."""
 
-    __slots__ = ("_fast_period", "_signal_period", "_slow_period", "_component")
+    __slots__ = ("_fast", "_slow", "_signal")
 
-    def __init__(
-        self,
-        *,
-        fast_period: int,
-        slow_period: int,
-        signal_period: int,
-        component: str,
-    ) -> None:
-        if fast_period < 2:
-            raise IndicatorParameterError("MACD `fast_period` must be >= 2.")
-        if slow_period < 2:
-            raise IndicatorParameterError("MACD `slow_period` must be >= 2.")
-        if signal_period < 2:
-            raise IndicatorParameterError("MACD `signal_period` must be >= 2.")
-        if fast_period >= slow_period:
-            raise IndicatorParameterError("MACD requires `fast_period` < `slow_period`.")
-        if component not in _MACD_COMPONENTS:
-            raise IndicatorParameterError(
-                "MACD `component` must be one of: macd, signal, hist."
-            )
-        self._fast_period = fast_period
-        self._slow_period = slow_period
-        self._signal_period = signal_period
-        self._component = component
+    def __init__(self, fast_length: int = 12, slow_length: int = 26, signal_length: int = 9) -> None:
+        if fast_length < 1 or slow_length < 1 or signal_length < 1:
+            raise IndicatorParameterError("MACD lengths must be >= 1.")
+        self._fast = fast_length
+        self._slow = slow_length
+        self._signal = signal_length
 
     @property
     def indicator_id(self) -> str:
-        return "macd"
+        return MACD_ID
 
-    @classmethod
-    def from_params(cls, params: Mapping[str, object]) -> MacdCalculator:
-        fast_period = _require_int_param(params, "fast_period", default=12)
-        slow_period = _require_int_param(params, "slow_period", default=26)
-        signal_period = _require_int_param(params, "signal_period", default=9)
-        raw_component = params.get("component", "macd")
-        if not isinstance(raw_component, str):
-            raise IndicatorParameterError("MACD `component` must be a string.")
-        component = raw_component.strip().lower()
-        return cls(
-            fast_period=fast_period,
-            slow_period=slow_period,
-            signal_period=signal_period,
-            component=component,
-        )
-
-    def compute(self, candles: list[Candle]) -> IndicatorSeries:
-        closes = pd.Series([float(c.close) for c in candles], dtype="float64")
-        macd_values = _macd_values(
-            closes,
-            fast_period=self._fast_period,
-            slow_period=self._slow_period,
-            signal_period=self._signal_period,
-            component=self._component,
-        )
-        return IndicatorSeries(
-            indicator_id=self.indicator_id,
-            params={
-                "fast_period": self._fast_period,
-                "slow_period": self._slow_period,
-                "signal_period": self._signal_period,
-                "component": self._component,
-            },
-            values=macd_values,
-        )
+    def compute(self, candles: Sequence[Candle]) -> dict[str, list[float | None]]:
+        closes = [float(c.close) for c in candles]
+        macd_l, sig_l, hist = compute_macd(closes, self._fast, self._slow, self._signal)
+        return {
+            MACD_OUTPUT_LINE: macd_l,
+            MACD_OUTPUT_SIGNAL: sig_l,
+            MACD_OUTPUT_HISTOGRAM: hist,
+        }
 
 
-def _require_int_param(params: Mapping[str, object], name: str, *, default: int) -> int:
-    raw = params.get(name, default)
-    if isinstance(raw, bool) or not isinstance(raw, int):
-        raise IndicatorParameterError(f"MACD `{name}` must be an integer.")
-    return raw
-
-
-def _macd_values(
-    closes: pd.Series,
-    *,
-    fast_period: int,
-    slow_period: int,
-    signal_period: int,
-    component: str,
-) -> list[float | None]:
-    try:
-        trend = import_module("ta.trend")
-        macd_indicator = trend.MACD  # type: ignore[attr-defined]
-    except Exception as exc:
-        raise IndicatorParameterError(
-            "Technical indicators package `ta` is not available in this environment."
-        ) from exc
-
-    calc = macd_indicator(
-        close=closes,
-        window_fast=fast_period,
-        window_slow=slow_period,
-        window_sign=signal_period,
-    )
-    if component == "macd":
-        series = calc.macd()
-    elif component == "signal":
-        series = calc.macd_signal()
-    else:
-        series = calc.macd_diff()
-    return [None if pd.isna(v) else float(v) for v in series.tolist()]
+def min_bars_macd(fast_length: int, slow_length: int, signal_length: int) -> int:
+    """Smallest bar count so histogram (last series) can be defined at the newest index."""
+    return max(fast_length, slow_length) + signal_length - 1

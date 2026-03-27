@@ -35,3 +35,27 @@ class IndicatorParameterError(DomainError):
     def __init__(self, message: str, *, code: str = "INDICATOR_PARAMETER_ERROR") -> None:
         self.code = code
         super().__init__(message)
+
+
+class GeminiNotConfiguredError(DomainError):
+    """Google Gemini API key is missing; LLM routes cannot run."""
+
+    def __init__(self, message: str, *, code: str = "GEMINI_NOT_CONFIGURED") -> None:
+        self.code = code
+        super().__init__(message)
+
+
+class GeminiQuotaExceededError(DomainError):
+    """Gemini API returned 429 (rate limit or quota exhausted)."""
+
+    def __init__(self, message: str, *, code: str = "GEMINI_QUOTA_EXCEEDED") -> None:
+        self.code = code
+        super().__init__(message)
+
+
+class GeminiInvocationError(DomainError):
+    """Gemini API rejected the request (non-quota) or server error from provider."""
+
+    def __init__(self, message: str, *, code: str = "GEMINI_API_ERROR") -> None:
+        self.code = code
+        super().__init__(message)

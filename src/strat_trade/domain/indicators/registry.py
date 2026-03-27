@@ -1,48 +1,150 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
+from typing import Any
 
-from strat_trade.domain.errors import UnknownIndicatorError
-from strat_trade.domain.indicators.cci import CciCalculator
-from strat_trade.domain.indicators.ema import EmaCalculator
-from strat_trade.domain.indicators.macd import MacdCalculator
+from strat_trade.domain.errors import IndicatorParameterError, UnknownIndicatorError
+from strat_trade.domain.indicators.bollinger_bands import (
+    BOLLINGER_BANDS_ID,
+    BollingerBandsCalculator,
+)
+from strat_trade.domain.indicators.macd import (
+    MACD_ID,
+    MacdCalculator,
+    min_bars_macd,
+)
 from strat_trade.domain.indicators.protocol import IndicatorCalculator
-from strat_trade.domain.indicators.psar import PsarCalculator
-from strat_trade.domain.indicators.rsi import RsiCalculator
-from strat_trade.domain.indicators.sma import SmaCalculator
-from strat_trade.domain.indicators.stochastic import StochasticCalculator
+from strat_trade.domain.indicators.rsi_wilder import RSI_WILDER_ID, RsiWilderCalculator
 
-IndicatorFactory = Callable[[Mapping[str, object]], IndicatorCalculator]
+# Known indicator ids for validation / OpenAPI; new indicators extend this set.
+REGISTERED_INDICATOR_IDS = frozenset({RSI_WILDER_ID, BOLLINGER_BANDS_ID, MACD_ID})
 
-_DEFAULT_FACTORIES: dict[str, IndicatorFactory] = {
-    "cci": CciCalculator.from_params,
-    "ema": EmaCalculator.from_params,
-    "macd": MacdCalculator.from_params,
-    "psar": PsarCalculator.from_params,
-    "rsi": RsiCalculator.from_params,
-    "sma": SmaCalculator.from_params,
-    "stochastic": StochasticCalculator.from_params,
-}
+_MAX_RSI_LENGTH = 500
+_MAX_BB_LENGTH = 500
+_MAX_BB_MULT = 50.0
+_MAX_MACD_LENGTH = 500
 
 
-class IndicatorRegistry:
-    """Maps stable indicator ids to factories; extend by passing a copy of factories dict."""
+def _coerce_positive_int(value: object, field: str, *, default: int, max_value: int) -> int:
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        raise IndicatorParameterError(f"{field} must be an integer.")
+    if isinstance(value, int):
+        n = value
+    elif isinstance(value, float) and value == int(value):
+        n = int(value)
+    else:
+        raise IndicatorParameterError(f"{field} must be an integer.")
+    if n < 1:
+        raise IndicatorParameterError(f"{field} must be >= 1.")
+    if n > max_value:
+        raise IndicatorParameterError(f"{field} must be <= {max_value}.")
+    return n
 
-    __slots__ = ("_factories",)
 
-    def __init__(self, factories: dict[str, IndicatorFactory] | None = None) -> None:
-        self._factories = dict(factories if factories is not None else _DEFAULT_FACTORIES)
+def _coerce_positive_float(value: object, field: str, *, default: float, max_value: float) -> float:
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        raise IndicatorParameterError(f"{field} must be a number.")
+    try:
+        x = float(value)
+    except (TypeError, ValueError):
+        raise IndicatorParameterError(f"{field} must be a number.") from None
+    if x <= 0.0:
+        raise IndicatorParameterError(f"{field} must be > 0.")
+    if x > max_value:
+        raise IndicatorParameterError(f"{field} must be <= {max_value}.")
+    return x
 
-    def build(self, indicator_id: str, params: Mapping[str, object]) -> IndicatorCalculator:
-        key = indicator_id.strip().lower()
-        factory = self._factories.get(key)
-        if factory is None:
-            raise UnknownIndicatorError(
-                f"Unknown indicator id {indicator_id!r}. "
-                f"Supported: {', '.join(sorted(self._factories))}."
-            )
-        return factory(params)
+
+def min_bars_for_indicator(indicator_id: str, params: Mapping[str, Any]) -> int:
+    """Minimum candle count so the first bar can have a defined value (per indicator rules)."""
+    if indicator_id == RSI_WILDER_ID:
+        length = _coerce_positive_int(
+            params.get("length", 14),
+            "length",
+            default=14,
+            max_value=_MAX_RSI_LENGTH,
+        )
+        return length + 1
+    if indicator_id == BOLLINGER_BANDS_ID:
+        length = _coerce_positive_int(
+            params.get("length", 20),
+            "length",
+            default=20,
+            max_value=_MAX_BB_LENGTH,
+        )
+        return length
+    if indicator_id == MACD_ID:
+        fast = _coerce_positive_int(
+            params.get("fast_length", 12),
+            "fast_length",
+            default=12,
+            max_value=_MAX_MACD_LENGTH,
+        )
+        slow = _coerce_positive_int(
+            params.get("slow_length", 26),
+            "slow_length",
+            default=26,
+            max_value=_MAX_MACD_LENGTH,
+        )
+        sig = _coerce_positive_int(
+            params.get("signal_length", 9),
+            "signal_length",
+            default=9,
+            max_value=_MAX_MACD_LENGTH,
+        )
+        return min_bars_macd(fast, slow, sig)
+    raise UnknownIndicatorError(f"Unknown indicator_id: {indicator_id!r}.")
 
 
-def default_indicator_registry() -> IndicatorRegistry:
-    return IndicatorRegistry()
+def build_calculator(indicator_id: str, params: Mapping[str, Any]) -> IndicatorCalculator:
+    if indicator_id == RSI_WILDER_ID:
+        length = _coerce_positive_int(
+            params.get("length", 14),
+            "length",
+            default=14,
+            max_value=_MAX_RSI_LENGTH,
+        )
+        return RsiWilderCalculator(length=length)
+    if indicator_id == BOLLINGER_BANDS_ID:
+        length = _coerce_positive_int(
+            params.get("length", 20),
+            "length",
+            default=20,
+            max_value=_MAX_BB_LENGTH,
+        )
+        mult = _coerce_positive_float(
+            params.get("mult", 2.0),
+            "mult",
+            default=2.0,
+            max_value=_MAX_BB_MULT,
+        )
+        return BollingerBandsCalculator(length=length, multiplier=mult)
+    if indicator_id == MACD_ID:
+        fast = _coerce_positive_int(
+            params.get("fast_length", 12),
+            "fast_length",
+            default=12,
+            max_value=_MAX_MACD_LENGTH,
+        )
+        slow = _coerce_positive_int(
+            params.get("slow_length", 26),
+            "slow_length",
+            default=26,
+            max_value=_MAX_MACD_LENGTH,
+        )
+        sig = _coerce_positive_int(
+            params.get("signal_length", 9),
+            "signal_length",
+            default=9,
+            max_value=_MAX_MACD_LENGTH,
+        )
+        return MacdCalculator(fast_length=fast, slow_length=slow, signal_length=sig)
+    raise UnknownIndicatorError(f"Unknown indicator_id: {indicator_id!r}.")
+
+
+def build_rsi_wilder(length: int = 14) -> RsiWilderCalculator:
+    return RsiWilderCalculator(length=length)

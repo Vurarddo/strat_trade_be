@@ -1,171 +1,146 @@
 from __future__ import annotations
 
-from typing import Annotated
+from fastapi import APIRouter
 
-from fastapi import APIRouter, Body
-
-from strat_trade.api.deps import CandleFeedDep, SettingsDep
-from strat_trade.api.indicator_payload import trim_leading_none_indicator_values
 from strat_trade.api.schemas import (
-    CandleBarResponse,
-    IndicatorSeriesResponse,
-    MarketIndicatorsRequest,
-    MarketIndicatorsResponse,
-    RangeIndicatorWindow,
-    RecentIndicatorWindow,
+    BollingerBandsIndicatorInfoResponse,
+    IndicatorParameterField,
+    MacdIndicatorInfoResponse,
+    RsiWilderIndicatorInfoResponse,
 )
-from strat_trade.domain.indicators import default_indicator_registry
-from strat_trade.use_cases.compute_market_indicators import (
-    ClientIndicatorSpec,
-    compute_market_indicators,
+from strat_trade.domain.indicators.bollinger_bands import (
+    BB_OUTPUT_LOWER,
+    BB_OUTPUT_MIDDLE,
+    BB_OUTPUT_UPPER,
+    BOLLINGER_FORMULA,
+    BOLLINGER_BANDS_ID,
+    BOLLINGER_SUMMARY,
+    BOLLINGER_TITLE,
+)
+from strat_trade.domain.indicators.macd import (
+    MACD_FORMULA,
+    MACD_ID,
+    MACD_OUTPUT_HISTOGRAM,
+    MACD_OUTPUT_LINE,
+    MACD_OUTPUT_SIGNAL,
+    MACD_SUMMARY,
+    MACD_TITLE,
+)
+from strat_trade.domain.indicators.rsi_wilder import (
+    RSI_WILDER_FORMULA,
+    RSI_WILDER_ID,
+    RSI_WILDER_SUMMARY,
+    RSI_WILDER_TITLE,
 )
 
-router = APIRouter(prefix="/market")
-
-_MARKET_INDICATORS_BODY_EXAMPLES: dict[str, dict[str, object]] = {
-    "recent_first_page": {
-        "summary": "Recent window — first page",
-        "description": (
-            "Omit both `end_at` and `cursor` for broker “now”, or set only `end_at` to anchor "
-            "the end. **Never send `end_at` and `cursor` together.**"
-        ),
-        "value": {
-            "asset": "EURUSD_otc",
-            "timeframe_seconds": 60,
-            "window": {"type": "recent", "count": 100},
-            "indicators": [
-                {"key": "rsi_14", "id": "rsi", "params": {"period": 14}},
-            ],
-            "include_candles": True,
-        },
-    },
-    "recent_older_page": {
-        "summary": "Recent window — next page (cursor only)",
-        "value": {
-            "asset": "EURUSD_otc",
-            "timeframe_seconds": 60,
-            "window": {
-                "type": "recent",
-                "count": 100,
-                "cursor": "2026-03-22T00:34:07.000Z",
-            },
-            "indicators": [
-                {"key": "rsi_14", "id": "rsi", "params": {"period": 14}},
-            ],
-            "include_candles": True,
-        },
-    },
-    "range_window": {
-        "summary": "Fixed UTC range",
-        "value": {
-            "asset": "EURUSD_otc",
-            "timeframe_seconds": 60,
-            "window": {
-                "type": "range",
-                "from": "2026-03-22T00:00:00Z",
-                "to": "2026-03-22T01:00:00Z",
-            },
-            "indicators": [
-                {"key": "rsi_14", "id": "rsi", "params": {"period": 14}},
-            ],
-            "include_candles": True,
-        },
-    },
-}
+router = APIRouter(prefix="/indicators")
 
 
-@router.post(
-    "/indicators",
-    response_model=MarketIndicatorsResponse,
-    summary="Compute indicators on a candle window",
+@router.get(
+    "/rsi",
+    response_model=RsiWilderIndicatorInfoResponse,
+    summary="RSI (Wilder) — definition and parameters",
     description=(
-        "Fetches the same candle window as **GET /market/candles** (recent) or "
-        "**GET /market/candles/range** (fixed interval), then evaluates every requested "
-        "indicator on that series. Values are aligned by index with `open_times` "
-        "Leading undefined bars are omitted from each `values` array; use `start_index` to "
-        "align with `open_times`. Add new indicators by registering "
-        "them in the domain registry — clients only pass `id` + `params` per instance.\n\n"
-        "**Recent `window`:** `end_at` and `cursor` are mutually exclusive (identical to "
-        "GET `/api/v1/market/candles`)."
+        "Read-only metadata for the **Relative Strength Index** as defined by J. Welles Wilder: "
+        "Wilder smoothing of average gain and average loss, not an SMA of RS. "
+        "Computed values: `POST /api/v1/market/indicators` (several indicators, per-bar `key`)."
     ),
-    operation_id="postMarketIndicators",
+    operation_id="getRsiWilderIndicatorInfo",
 )
-async def compute_indicators(
-    body: Annotated[
-        MarketIndicatorsRequest,
-        Body(openapi_examples=_MARKET_INDICATORS_BODY_EXAMPLES),
-    ],
-    feed: CandleFeedDep,
-    settings: SettingsDep,
-) -> MarketIndicatorsResponse:
-    registry = default_indicator_registry()
-    specs = [
-        ClientIndicatorSpec(
-            key=s.key.strip(),
-            indicator_id=s.indicator_id.strip(),
-            params=dict(s.params),
-        )
-        for s in body.indicators
-    ]
-
-    if isinstance(body.window, RecentIndicatorWindow):
-        recent = (body.window.count, body.window.end_at, body.window.cursor)
-        range_window = None
-    else:
-        assert isinstance(body.window, RangeIndicatorWindow)
-        recent = None
-        range_window = (body.window.range_from, body.window.range_to)
-
-    result = await compute_market_indicators(
-        feed,
-        registry,
-        asset=body.asset.strip(),
-        timeframe_seconds=body.timeframe_seconds,
-        include_candles=body.include_candles,
-        specs=specs,
-        recent=recent,
-        range_window=range_window,
-        max_candles_per_request=settings.max_candles_per_request,
-        max_candles_range_total=settings.max_candles_range_total,
-        max_candles_range_fetch_rounds=settings.max_candles_range_fetch_rounds,
+async def read_rsi_wilder_info() -> RsiWilderIndicatorInfoResponse:
+    return RsiWilderIndicatorInfoResponse(
+        indicator_id=RSI_WILDER_ID,
+        title=RSI_WILDER_TITLE,
+        summary=RSI_WILDER_SUMMARY,
+        formula=RSI_WILDER_FORMULA,
+        parameters=[
+            IndicatorParameterField(
+                name="length",
+                type="integer",
+                default=14,
+                min_value=1,
+                description="Number of periods for average gain/loss (Wilder default 14).",
+            ),
+        ],
     )
 
-    page = result.page
-    open_times = [c.open_time for c in page.candles]
-    candles_out = None
-    if result.include_candles:
-        candles_out = [
-            CandleBarResponse(
-                open_time=c.open_time,
-                open=float(c.open),
-                high=float(c.high),
-                low=float(c.low),
-                close=float(c.close),
-                volume=None if c.volume is None else float(c.volume),
-            )
-            for c in page.candles
-        ]
 
-    indicators_out = {}
-    for key, series in result.indicators.items():
-        start_idx, vals = trim_leading_none_indicator_values(list(series.values))
-        indicators_out[key] = IndicatorSeriesResponse(
-            indicator_id=series.indicator_id,
-            params={k: v for k, v in series.params.items()},
-            start_index=start_idx,
-            values=vals,
-        )
+@router.get(
+    "/bollinger-bands",
+    response_model=BollingerBandsIndicatorInfoResponse,
+    summary="Bollinger Bands — definition and parameters",
+    description=(
+        "Read-only metadata for **Bollinger Bands** (John Bollinger): SMA middle, population "
+        "standard deviation (÷ length), upper/lower = middle ± mult × σ. "
+        "Computed values: `POST /api/v1/market/indicators` with `indicator_id`: `bollinger_bands`."
+    ),
+    operation_id="getBollingerBandsIndicatorInfo",
+)
+async def read_bollinger_bands_info() -> BollingerBandsIndicatorInfoResponse:
+    return BollingerBandsIndicatorInfoResponse(
+        indicator_id=BOLLINGER_BANDS_ID,
+        title=BOLLINGER_TITLE,
+        summary=BOLLINGER_SUMMARY,
+        formula=BOLLINGER_FORMULA,
+        parameters=[
+            IndicatorParameterField(
+                name="length",
+                type="integer",
+                default=20,
+                min_value=1,
+                description="SMA and stdev window (classic 20).",
+            ),
+            IndicatorParameterField(
+                name="mult",
+                type="number",
+                default=2.0,
+                min_value=0.001,
+                description="Standard deviation multiplier for upper/lower bands (classic 2.0).",
+            ),
+        ],
+        outputs=[BB_OUTPUT_MIDDLE, BB_OUTPUT_UPPER, BB_OUTPUT_LOWER],
+    )
 
-    return MarketIndicatorsResponse(
-        asset=body.asset.strip(),
-        timeframe_seconds=body.timeframe_seconds,
-        open_times=open_times,
-        candles=candles_out,
-        indicators=indicators_out,
-        has_more=page.has_more,
-        next_cursor=page.next_cursor,
-        total=page.total,
-        broker_chunk_oldest=page.broker_chunk_oldest,
-        broker_chunk_newest=page.broker_chunk_newest,
-        broker_overlap=page.broker_overlap,
+
+@router.get(
+    "/macd",
+    response_model=MacdIndicatorInfoResponse,
+    summary="MACD — definition and parameters",
+    description=(
+        "Read-only metadata for **MACD**: EMA(fast) − EMA(slow), signal = EMA(MACD), "
+        "histogram = MACD − signal. "
+        "Computed values: `POST /api/v1/market/indicators` with `indicator_id`: `macd`."
+    ),
+    operation_id="getMacdIndicatorInfo",
+)
+async def read_macd_info() -> MacdIndicatorInfoResponse:
+    return MacdIndicatorInfoResponse(
+        indicator_id=MACD_ID,
+        title=MACD_TITLE,
+        summary=MACD_SUMMARY,
+        formula=MACD_FORMULA,
+        parameters=[
+            IndicatorParameterField(
+                name="fast_length",
+                type="integer",
+                default=12,
+                min_value=1,
+                description="Fast EMA period (classic 12).",
+            ),
+            IndicatorParameterField(
+                name="slow_length",
+                type="integer",
+                default=26,
+                min_value=1,
+                description="Slow EMA period (classic 26).",
+            ),
+            IndicatorParameterField(
+                name="signal_length",
+                type="integer",
+                default=9,
+                min_value=1,
+                description="Signal EMA period applied to MACD line (classic 9).",
+            ),
+        ],
+        outputs=[MACD_OUTPUT_LINE, MACD_OUTPUT_SIGNAL, MACD_OUTPUT_HISTOGRAM],
     )

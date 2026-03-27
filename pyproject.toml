@@ -13,7 +13,7 @@ dependencies = [
   "uvicorn[standard]>=0.32.0",
   "pydantic-settings>=2.6.0",
   "binaryoptionstoolsv2>=0.2.9,<0.3",
-  "ta>=0.11.0",
+  "google-genai>=0.3.1",
 ]
 
 [project.optional-dependencies]
@@ -37,3 +37,6 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/strat_trade/use_cases/prompts/pro_trader_gemini.py" = ["E501"]

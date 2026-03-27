@@ -45,8 +45,9 @@ This document is the **source of truth for product intent and domain language**.
 - All PO calls go through a **port** (`TradingGateway` / `MarketDataGateway` or split ports) implemented by **one adapter** so the broker can be swapped or mocked in tests.
 - Respect **rate limits** and **timeouts**; retries only where idempotent and safe.
 - **Candle history depth:** the Pocket Option adapter uses **BinaryOptionsToolsV2** (`get_candles` / `get_candles_advanced`) for native periods (1, 5, 15, 30, 60, 300 seconds). `GET /api/v1/market/candles/range` (and range-based winrate) loads `[from, to]` by **paging backward** from `to`: each call requests up to `STRAT_TRADE_MAX_CANDLES_PER_REQUEST` bars, then repeats with an end cursor before the oldest bar until `from` is covered or `STRAT_TRADE_MAX_CANDLES_RANGE_FETCH_ROUNDS` / broker history limits apply. Very long ranges may still need **persisted candles** or adapter extensions.
-- **Indicator series:** `POST /api/v1/market/indicators` loads the same candle windows as the GET candle endpoints and returns one or more registered indicators (e.g. RSI) aligned by bar index; new indicators are added via the domain **registry**, not ad hoc route logic.
-- **Winrate strategy test (MVP):** `POST /api/v1/strategy/test-winrate` evaluates strategies on a fixed UTC range: **`psar_reversal`**, **`cci_level_cross`**, **`ema_cross`**, or **`composite`** with `combinator=all` (signal only when every listed condition fires on the same bar with the same side). Composite supports additional condition operators for preset-like setups: `rsi_threshold`, `stochastic_dual_threshold` (K + D keys), `ema_cross_or_trend` (fast/slow EMA + optional `max_ema_separation`), and **`macd_signal_cross`** (two `macd` instances: `component` `macd` + `signal`, same MACD periods; cross with strict below/above-zero half-plane rules). Entry is at signal candle close; expiry is `N = expiry_seconds / timeframe_seconds` candles later. BUY win: `close[i+N] > close[i]`, SELL win: `close[i+N] < close[i]`, equal close counts as loss; incomplete tail signals are reported as `skipped_signals`.
+- **Asset catalog:** `GET /api/v1/market/assets` returns normalized rows from `PocketOptionAsync.active_assets()` (symbol, payout, `is_otc`, `is_active`, `allowed_candles`, etc.); query `active_only=true` filters to `is_active`.
+- **Indicator series:** Indicator math lives in pure domain calculators (see `src/strat_trade/domain/indicators/*`). Metadata: `GET /api/v1/indicators/rsi`, `GET /api/v1/indicators/bollinger-bands`, `GET /api/v1/indicators/macd`. **Computed:** `POST /api/v1/market/indicators` — same `candles` shape as `GET /api/v1/market/candles`, plus `indicators[]` in request order; each output line is a list of `{ open_time, value }` aligned with `candles` (warmup omitted). **Gemini:** `POST /api/v1/market/indicators/gemini` — same request body; returns structured fields (`direction`, `expiration`, `win_probability`, `analysis`, `entry_time`, `close_time`, plus model echo) (requires `STRAT_TRADE_GOOGLE_GEMINI_API_KEY` or `GOOGLE_API_KEY` / `GEMINI_API_KEY`). Examples: `docs/MARKET_INDICATORS_API.md`.
+- **Winrate strategy test (MVP):** The HTTP endpoint `POST /api/v1/strategy/test-winrate` and related winrate strategy evaluation are temporarily removed from the API in this iteration; strategy evaluation core is being rebuilt on top of the indicator calculators.
 
 ## Documentation map
 
@@ -55,6 +56,7 @@ This document is the **source of truth for product intent and domain language**.
 | `PROJECT_CONTEXT.md` (this file) | Product and domain vocabulary |
 | `ARCHITECTURE.md` | Layers, extension points, data flow |
 | `CODE_STYLE.md` | Conventions and examples |
+| `MARKET_INDICATORS_API.md` | `POST /api/v1/market/indicators` request/response JSON examples |
 
 ## Related Cursor rules
 
