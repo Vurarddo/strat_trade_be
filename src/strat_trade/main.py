@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 
+from strat_trade.adapters.gemini.llm_market_analysis import GeminiLlmMarketAnalysis
 from strat_trade.adapters.pocket_option_gateway import PocketOptionTradingGateway
 from strat_trade.api.http_errors import register_domain_exception_handlers
 from strat_trade.api.routes.assets import router as assets_router
@@ -13,6 +14,10 @@ from strat_trade.api.routes.balance import router as balance_router
 from strat_trade.api.routes.candles import router as candles_router
 from strat_trade.api.routes.indicators import router as indicators_router
 from strat_trade.api.routes.market_indicators_batch import router as market_indicators_batch_router
+from strat_trade.api.routes.market_indicators_gemini import (
+    router as market_indicators_gemini_router,
+)
+from strat_trade.ports.llm_market_analysis import LlmMarketAnalysisPort
 from strat_trade.settings import Settings
 
 if TYPE_CHECKING:
@@ -33,6 +38,12 @@ async def lifespan(app: FastAPI):
     )
     app.state.settings = settings
     app.state.trading_gateway: TradingGateway = gateway
+    gemini_key = settings.google_gemini_api_key.strip()
+    if gemini_key:
+        gemini_llm: LlmMarketAnalysisPort = GeminiLlmMarketAnalysis(api_key=gemini_key)
+        app.state.gemini_llm = gemini_llm
+    else:
+        app.state.gemini_llm = None
     logger.info("Strat Trade started (Pocket Option demo=%s).", settings.pocket_option_is_demo)
     yield
     await gateway.aclose()
@@ -47,8 +58,14 @@ app = FastAPI(
     openapi_tags=[
         {"name": "Account", "description": "Broker-linked account views (balance, etc.)."},
         {"name": "Market data", "description": "Historical candles and read-only market series."},
-        {"name": "Indicators", "description": "Indicator definitions and computed series over market data."},
-        {"name": "Backtests", "description": "Strategy testing and historical performance metrics."},
+        {
+            "name": "Indicators",
+            "description": "Indicator definitions and computed series over market data.",
+        },
+        {
+            "name": "Backtests",
+            "description": "Strategy testing and historical performance metrics.",
+        },
         {"name": "System", "description": "Health and process metadata."},
     ],
 )
@@ -66,3 +83,4 @@ app.include_router(assets_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(candles_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(indicators_router, prefix="/api/v1", tags=["Indicators"])
 app.include_router(market_indicators_batch_router, prefix="/api/v1", tags=["Market data"])
+app.include_router(market_indicators_gemini_router, prefix="/api/v1", tags=["Market data"])

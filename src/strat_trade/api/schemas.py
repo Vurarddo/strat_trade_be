@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ErrorBody(BaseModel):
@@ -265,11 +265,27 @@ class MarketIndicatorsBatchRequest(BaseModel):
     )
 
 
+class GeminiMarketIndicatorsRequest(MarketIndicatorsBatchRequest):
+    """Same as `POST /market/indicators` plus optional Gemini expiry constraint."""
+
+    expiration_time_seconds: int | None = Field(
+        None,
+        ge=1,
+        le=86_400,
+        description=(
+            "If set, the model must suggest an `expiration` duration that does not exceed this "
+            "many seconds (binary option expiry cap)."
+        ),
+    )
+
+
 class IndicatorOutputPoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     open_time: str = Field(
-        description="Candle open time (ISO 8601), same string as `candles[].open_time` in this response.",
+        description=(
+            "Candle open time (ISO 8601), same string as `candles[].open_time` in this response."
+        ),
     )
     value: float = Field(description="Indicator value at that bar.")
 
@@ -310,4 +326,49 @@ class MarketIndicatorsBatchResponse(BaseModel):
         None,
         description="Same semantics as GET /market/candles.",
     )
+
+
+class GeminiLlmJsonPayload(BaseModel):
+    """Validated shape of the JSON object returned by Gemini (ProTrader prompt)."""
+
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    direction: str = Field(description="CALL, PUT, or NEUTRAL.")
+    expiration: str = Field(description="Expiry hint, e.g. 2 min.")
+    win_probability: str = Field(description='Percentage string, e.g. "78%".')
+    analysis: str = Field(description="Qualitative analysis only.")
+
+    @field_validator("direction")
+    @classmethod
+    def direction_upper(cls, v: str) -> str:
+        u = v.strip().upper()
+        if u not in ("CALL", "PUT", "NEUTRAL"):
+            msg = f"direction must be CALL, PUT, or NEUTRAL; got {v!r}"
+            raise ValueError(msg)
+        return u
+
+
+class GeminiMarketIndicatorsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    direction: str = Field(
+        description='Trading bias: CALL, PUT, or NEUTRAL (from Gemini JSON).',
+        examples=["CALL", "PUT", "NEUTRAL"],
+    )
+    expiration: str = Field(
+        description="Suggested expiry window as short text (e.g. 2 min).",
+        examples=["2 min", "1-3 min"],
+    )
+    win_probability: str = Field(
+        description='Estimated win probability as a percentage string (e.g. "78%").',
+        examples=["78%"],
+    )
+    analysis: str = Field(
+        description=(
+            "Qualitative market analysis from Gemini (trend, indicators, patterns, logic)."
+        ),
+    )
+    model: str = Field(description="Gemini model id used for this call.")
+    asset: str = Field(description="Echo from request.")
+    timeframe_seconds: int = Field(description="Echo from request.")
 

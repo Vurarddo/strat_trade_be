@@ -2,6 +2,48 @@
 
 This endpoint loads **one page** of recent candles (same rules as `GET /api/v1/market/candles`) and computes **several** registered indicators on that window in a single round trip.
 
+## Gemini analysis (`POST /api/v1/market/indicators/gemini`)
+
+Uses the **same JSON request body** as `POST /api/v1/market/indicators` (see below), plus one **optional** field:
+
+| Field                      | Type    | Required | Description |
+| -------------------------- | ------- | -------- | ----------- |
+| `expiration_time_seconds`  | integer | no       | If set (`>= 1`), Gemini must suggest an `expiration` duration **not exceeding** this many seconds. Omitted = no cap in the prompt. |
+
+The server:
+
+1. Fetches the candle window and computes the requested indicators (identical to the batch endpoint).
+2. Sends Gemini a JSON user message: `candles`, `indicators`, and — when provided — top-level `expiration_time_seconds`.
+3. Parses the model’s **JSON** reply into structured fields (`direction`, `expiration`, `win_probability`, `analysis`).
+
+**Configuration:** set one of `STRAT_TRADE_GOOGLE_GEMINI_API_KEY`, `GOOGLE_API_KEY`, or `GEMINI_API_KEY` in the environment (or `.env`). Optional: `STRAT_TRADE_GOOGLE_GEMINI_MODEL` (default `gemini-2.0-flash`). If no key is configured, the endpoint responds with **503** and `code: GEMINI_NOT_CONFIGURED`.
+
+**Response (success):**
+
+| Field               | Type    | Description                                      |
+| ------------------- | ------- | ------------------------------------------------ |
+| `direction`         | string  | `CALL`, `PUT`, or `NEUTRAL`                      |
+| `expiration`        | string  | Suggested expiry window (e.g. `2 min`)           |
+| `win_probability`   | string  | e.g. `78%`                                       |
+| `analysis`          | string  | Qualitative analysis (trend, RSI, patterns)      |
+| `model`             | string  | Model id used for the call                        |
+| `asset`             | string  | Echo from request                               |
+| `timeframe_seconds` | integer | Echo from request                                |
+
+### Example response (abbreviated)
+
+```json
+{
+  "direction": "CALL",
+  "expiration": "2 min",
+  "win_probability": "78%",
+  "analysis": "Trend is … RSI …",
+  "model": "gemini-2.0-flash",
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60
+}
+```
+
 ## Indicator metadata
 
 Before calling `POST /market/indicators`, read the static schema for each indicator:
@@ -219,6 +261,9 @@ Shape aligns with `GET /api/v1/market/candles` for **`asset`**, **`timeframe_sec
 | 400  | `INVALID_MARKET_PARAMETERS` | `count` too small for warmup; `cursor` + `end_at` together; duplicate `key`; bad timeframe |
 | 400  | `UNKNOWN_INDICATOR`         | Unregistered `indicator_id`                                                                |
 | 400  | `INDICATOR_PARAMETER_ERROR` | Invalid params (e.g. `length` &lt; 1)                                                      |
+| 503  | `GEMINI_NOT_CONFIGURED`     | `POST /market/indicators/gemini` called without a Gemini API key in env                 |
+| 429  | `GEMINI_QUOTA_EXCEEDED`     | Gemini API quota or rate limit (e.g. free tier exhausted); see Google AI Studio / billing |
+| 502  | `GEMINI_API_ERROR`          | Other Gemini API failures (HTTP 4xx/5xx from provider, surfaced as 502)                  |
 | 502  | `BROKER_UNAVAILABLE`        | Broker/session errors                                                                      |
 
 ## Limits

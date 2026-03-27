@@ -7,6 +7,9 @@ from strat_trade.api.schemas import ErrorBody, ErrorEnvelope
 from strat_trade.domain.errors import (
     BrokerUnavailableError,
     DomainError,
+    GeminiInvocationError,
+    GeminiNotConfiguredError,
+    GeminiQuotaExceededError,
     InvalidMarketParametersError,
 )
 
@@ -31,6 +34,30 @@ def register_domain_exception_handlers(app: FastAPI) -> None:
             error=ErrorBody(code=exc.code, message=str(exc)),
         ).model_dump()
         return JSONResponse(status_code=400, content=body)
+
+    @app.exception_handler(GeminiNotConfiguredError)
+    async def gemini_not_configured_handler(
+        _request: Request,
+        exc: GeminiNotConfiguredError,
+    ) -> JSONResponse:
+        body = ErrorEnvelope(error=ErrorBody(code=exc.code, message=str(exc))).model_dump()
+        return JSONResponse(status_code=503, content=body)
+
+    @app.exception_handler(GeminiQuotaExceededError)
+    async def gemini_quota_exceeded_handler(
+        _request: Request,
+        exc: GeminiQuotaExceededError,
+    ) -> JSONResponse:
+        body = ErrorEnvelope(error=ErrorBody(code=exc.code, message=str(exc))).model_dump()
+        return JSONResponse(status_code=429, content=body)
+
+    @app.exception_handler(GeminiInvocationError)
+    async def gemini_invocation_handler(
+        _request: Request,
+        exc: GeminiInvocationError,
+    ) -> JSONResponse:
+        body = ErrorEnvelope(error=ErrorBody(code=exc.code, message=str(exc))).model_dump()
+        return JSONResponse(status_code=502, content=body)
 
     @app.exception_handler(DomainError)
     async def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:

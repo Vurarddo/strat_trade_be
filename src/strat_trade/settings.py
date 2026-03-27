@@ -105,6 +105,28 @@ class Settings(BaseSettings):
         ),
         description="Max indicator runs in one POST /market/indicators body.",
     )
+    google_gemini_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "STRAT_TRADE_GOOGLE_GEMINI_API_KEY",
+            "GOOGLE_API_KEY",
+            "GEMINI_API_KEY",
+        ),
+        description=(
+            "API key for Google Gemini (`google-genai`). Required for `POST /market/indicators/gemini`. "
+            "If empty, that route returns 503."
+        ),
+    )
+    google_gemini_model: str = Field(
+        default="gemini-2.0-flash",
+        min_length=1,
+        max_length=128,
+        validation_alias=AliasChoices(
+            "STRAT_TRADE_GOOGLE_GEMINI_MODEL",
+            "GOOGLE_GEMINI_MODEL",
+        ),
+        description="Model id passed to `client.models.generate_content` (e.g. gemini-2.0-flash).",
+    )
 
     @model_validator(mode="after")
     def resolve_pocket_option_ssid(self) -> Self:
