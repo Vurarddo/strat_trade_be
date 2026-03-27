@@ -13,6 +13,10 @@ from strat_trade.api.routes.market_indicators_gemini import (
     router as market_indicators_gemini_router,
 )
 from strat_trade.domain.entities import Candle
+from strat_trade.use_cases.gemini_market_analysis import (
+    _apply_fixed_expiration_duration,
+    format_expiration_from_seconds,
+)
 
 _BASE = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
 
@@ -111,7 +115,7 @@ def test_post_market_indicators_gemini_returns_llm_text(gemini_client: TestClien
     assert r.status_code == 200
     body = r.json()
     assert body["direction"] == "NEUTRAL"
-    assert body["expiration"] == "1 min"
+    assert body["expiration"] == "2 min"
     assert body["win_probability"] == "50%"
     assert body["analysis"] == "mock analysis body"
     assert body["entry_time"] == "2026-03-27T12:34:00Z"
@@ -130,6 +134,30 @@ def test_post_market_indicators_gemini_returns_llm_text(gemini_client: TestClien
     assert "candles" in parsed and "indicators" in parsed
     assert parsed.get("expiration_time_seconds") == 120
     assert len(parsed["candles"]) == 40
+
+
+def test_format_expiration_from_seconds_canonical() -> None:
+    assert format_expiration_from_seconds(300) == "5 min"
+    assert format_expiration_from_seconds(120) == "2 min"
+    assert format_expiration_from_seconds(90) == "1 min 30 sec"
+    assert format_expiration_from_seconds(45) == "45 sec"
+
+
+def test_apply_fixed_expiration_overrides_close_time() -> None:
+    from strat_trade.api.schemas import GeminiLlmJsonPayload
+
+    parsed = GeminiLlmJsonPayload(
+        direction="PUT",
+        expiration="3 min",
+        win_probability="74%",
+        analysis="x",
+        entry_time="2026-03-27T20:28:00Z",
+        close_time="2026-03-27T20:31:00Z",
+    )
+    exp, ent, clo = _apply_fixed_expiration_duration(parsed=parsed, seconds=300)
+    assert exp == "5 min"
+    assert ent == "2026-03-27T20:28:00Z"
+    assert clo == "2026-03-27T20:33:00Z"
 
 
 def test_post_market_indicators_gemini_503_without_key() -> None:

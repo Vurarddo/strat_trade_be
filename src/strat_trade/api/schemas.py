@@ -210,14 +210,74 @@ class MacdIndicatorInfoResponse(BaseModel):
     )
 
 
+class StochasticIndicatorInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_id: str = Field(default="stochastic", description="Stable id for POST /market/indicators.")
+    title: str = Field(description="Display title.")
+    summary: str = Field(description="Short description of %K and %D.")
+    source: str = Field(
+        default="ohlc",
+        description="High/low range and close for %K; %D is a moving average of %K.",
+    )
+    formula: str = Field(description="Raw %K from range, optional SMA smoothing, then %D.")
+    parameters: list[IndicatorParameterField] = Field(
+        description="k_length, d_length, smooth_k (classic 14 / 3 / 1).",
+    )
+    outputs: list[str] = Field(
+        default_factory=lambda: ["k", "d"],
+        description="Series names in API responses for this id.",
+    )
+
+
+class CciIndicatorInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_id: str = Field(default="cci", description="Stable id for POST /market/indicators.")
+    title: str = Field(description="Display title.")
+    summary: str = Field(description="Short description of CCI on typical price.")
+    source: str = Field(
+        default="ohlc",
+        description="Typical price (H+L+C)/3.",
+    )
+    formula: str = Field(description="CCI vs mean deviation (Lambert 0.015).")
+    parameters: list[IndicatorParameterField] = Field(
+        description="length (classic 20).",
+    )
+    outputs: list[str] = Field(
+        default_factory=lambda: ["cci"],
+        description="Series name in API responses for this id.",
+    )
+
+
+class ParabolicSarIndicatorInfoResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    indicator_id: str = Field(default="parabolic_sar", description="Stable id for POST /market/indicators.")
+    title: str = Field(description="Display title.")
+    summary: str = Field(description="Short description of Parabolic SAR.")
+    source: str = Field(
+        default="high_low",
+        description="Uses highs and lows only.",
+    )
+    formula: str = Field(description="Wilder SAR with AF limits.")
+    parameters: list[IndicatorParameterField] = Field(
+        description="af_start, af_increment, af_max (classic 0.02 / 0.02 / 0.2).",
+    )
+    outputs: list[str] = Field(
+        default_factory=lambda: ["sar"],
+        description="Series name in API responses for this id.",
+    )
+
+
 class IndicatorRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     indicator_id: str = Field(
         min_length=1,
         max_length=128,
-        description="Registered calculator id: rsi_wilder, bollinger_bands, macd, …",
-        examples=["rsi_wilder", "bollinger_bands", "macd"],
+        description="Registered calculator id: rsi_wilder, bollinger_bands, macd, stochastic, cci, parabolic_sar, …",
+        examples=["rsi_wilder", "bollinger_bands", "macd", "stochastic", "cci", "parabolic_sar"],
     )
     params: dict[str, Any] = Field(
         default_factory=dict,
@@ -273,8 +333,9 @@ class GeminiMarketIndicatorsRequest(MarketIndicatorsBatchRequest):
         ge=1,
         le=86_400,
         description=(
-            "If set, the model must suggest an `expiration` duration that does not exceed this "
-            "many seconds (binary option expiry cap)."
+            "If set, the API sets `expiration` and `close_time` to this exact duration in seconds "
+            "(canonical text for `expiration`, `close_time = entry_time` + this many seconds); "
+            "the LLM cannot shorten or lengthen it."
         ),
     )
 

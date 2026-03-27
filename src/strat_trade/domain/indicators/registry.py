@@ -8,21 +8,44 @@ from strat_trade.domain.indicators.bollinger_bands import (
     BOLLINGER_BANDS_ID,
     BollingerBandsCalculator,
 )
+from strat_trade.domain.indicators.cci import CCI_ID, CciCalculator
 from strat_trade.domain.indicators.macd import (
     MACD_ID,
     MacdCalculator,
     min_bars_macd,
 )
+from strat_trade.domain.indicators.parabolic_sar import (
+    PARABOLIC_SAR_ID,
+    ParabolicSarCalculator,
+    min_bars_parabolic_sar,
+)
 from strat_trade.domain.indicators.protocol import IndicatorCalculator
 from strat_trade.domain.indicators.rsi_wilder import RSI_WILDER_ID, RsiWilderCalculator
+from strat_trade.domain.indicators.stochastic import (
+    STOCHASTIC_ID,
+    StochasticCalculator,
+    min_bars_stochastic,
+)
 
 # Known indicator ids for validation / OpenAPI; new indicators extend this set.
-REGISTERED_INDICATOR_IDS = frozenset({RSI_WILDER_ID, BOLLINGER_BANDS_ID, MACD_ID})
+REGISTERED_INDICATOR_IDS = frozenset(
+    {
+        RSI_WILDER_ID,
+        BOLLINGER_BANDS_ID,
+        MACD_ID,
+        STOCHASTIC_ID,
+        CCI_ID,
+        PARABOLIC_SAR_ID,
+    }
+)
 
 _MAX_RSI_LENGTH = 500
 _MAX_BB_LENGTH = 500
 _MAX_BB_MULT = 50.0
 _MAX_MACD_LENGTH = 500
+_MAX_STOCH_LENGTH = 500
+_MAX_CCI_LENGTH = 500
+_MAX_SAR_AF = 1.0
 
 
 def _coerce_positive_int(value: object, field: str, *, default: int, max_value: int) -> int:
@@ -97,6 +120,36 @@ def min_bars_for_indicator(indicator_id: str, params: Mapping[str, Any]) -> int:
             max_value=_MAX_MACD_LENGTH,
         )
         return min_bars_macd(fast, slow, sig)
+    if indicator_id == STOCHASTIC_ID:
+        k = _coerce_positive_int(
+            params.get("k_length", 14),
+            "k_length",
+            default=14,
+            max_value=_MAX_STOCH_LENGTH,
+        )
+        d = _coerce_positive_int(
+            params.get("d_length", 3),
+            "d_length",
+            default=3,
+            max_value=_MAX_STOCH_LENGTH,
+        )
+        sk = _coerce_positive_int(
+            params.get("smooth_k", 1),
+            "smooth_k",
+            default=1,
+            max_value=_MAX_STOCH_LENGTH,
+        )
+        return min_bars_stochastic(k, d, sk)
+    if indicator_id == CCI_ID:
+        length = _coerce_positive_int(
+            params.get("length", 20),
+            "length",
+            default=20,
+            max_value=_MAX_CCI_LENGTH,
+        )
+        return length
+    if indicator_id == PARABOLIC_SAR_ID:
+        return min_bars_parabolic_sar()
     raise UnknownIndicatorError(f"Unknown indicator_id: {indicator_id!r}.")
 
 
@@ -143,6 +196,62 @@ def build_calculator(indicator_id: str, params: Mapping[str, Any]) -> IndicatorC
             max_value=_MAX_MACD_LENGTH,
         )
         return MacdCalculator(fast_length=fast, slow_length=slow, signal_length=sig)
+    if indicator_id == STOCHASTIC_ID:
+        k = _coerce_positive_int(
+            params.get("k_length", 14),
+            "k_length",
+            default=14,
+            max_value=_MAX_STOCH_LENGTH,
+        )
+        d = _coerce_positive_int(
+            params.get("d_length", 3),
+            "d_length",
+            default=3,
+            max_value=_MAX_STOCH_LENGTH,
+        )
+        sk = _coerce_positive_int(
+            params.get("smooth_k", 1),
+            "smooth_k",
+            default=1,
+            max_value=_MAX_STOCH_LENGTH,
+        )
+        return StochasticCalculator(k_length=k, d_length=d, smooth_k=sk)
+    if indicator_id == CCI_ID:
+        length = _coerce_positive_int(
+            params.get("length", 20),
+            "length",
+            default=20,
+            max_value=_MAX_CCI_LENGTH,
+        )
+        return CciCalculator(length=length)
+    if indicator_id == PARABOLIC_SAR_ID:
+        af_start = _coerce_positive_float(
+            params.get("af_start", 0.02),
+            "af_start",
+            default=0.02,
+            max_value=_MAX_SAR_AF,
+        )
+        af_inc = _coerce_positive_float(
+            params.get("af_increment", 0.02),
+            "af_increment",
+            default=0.02,
+            max_value=_MAX_SAR_AF,
+        )
+        af_max = _coerce_positive_float(
+            params.get("af_max", 0.2),
+            "af_max",
+            default=0.2,
+            max_value=_MAX_SAR_AF,
+        )
+        if af_start > af_max:
+            raise IndicatorParameterError("af_start must be <= af_max.")
+        if af_inc > af_max:
+            raise IndicatorParameterError("af_increment must be <= af_max.")
+        return ParabolicSarCalculator(
+            af_start=af_start,
+            af_increment=af_inc,
+            af_max=af_max,
+        )
     raise UnknownIndicatorError(f"Unknown indicator_id: {indicator_id!r}.")
 
 

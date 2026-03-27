@@ -101,6 +101,56 @@ def test_get_bollinger_bands_indicator_info(client: TestClient) -> None:
     assert names == {"length", "mult"}
 
 
+def test_get_stochastic_indicator_info(client: TestClient) -> None:
+    r = client.get("/api/v1/indicators/stochastic")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["indicator_id"] == "stochastic"
+    assert set(body["outputs"]) == {"k", "d"}
+    names = {p["name"] for p in body["parameters"]}
+    assert names == {"k_length", "d_length", "smooth_k"}
+
+
+def test_get_cci_indicator_info(client: TestClient) -> None:
+    r = client.get("/api/v1/indicators/cci")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["indicator_id"] == "cci"
+    assert body["outputs"] == ["cci"]
+
+
+def test_get_parabolic_sar_indicator_info(client: TestClient) -> None:
+    r = client.get("/api/v1/indicators/parabolic-sar")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["indicator_id"] == "parabolic_sar"
+    assert body["outputs"] == ["sar"]
+    names = {p["name"] for p in body["parameters"]}
+    assert names == {"af_start", "af_increment", "af_max"}
+
+
+def test_post_market_indicators_stochastic_cci_sar(client: TestClient) -> None:
+    payload = {
+        "asset": "EURUSD_otc",
+        "timeframe_seconds": 60,
+        "count": 50,
+        "indicators": [
+            {"indicator_id": "stochastic", "params": {"k_length": 14, "d_length": 3, "smooth_k": 1}},
+            {"indicator_id": "cci", "params": {"length": 20}},
+            {"indicator_id": "parabolic_sar", "params": {}},
+        ],
+    }
+    r = client.post("/api/v1/market/indicators", json=payload)
+    assert r.status_code == 200
+    rows = r.json()["indicators"]
+    assert rows[0]["indicator_id"] == "stochastic"
+    assert set(rows[0]["outputs"].keys()) == {"k", "d"}
+    assert rows[1]["indicator_id"] == "cci"
+    assert set(rows[1]["outputs"].keys()) == {"cci"}
+    assert rows[2]["indicator_id"] == "parabolic_sar"
+    assert set(rows[2]["outputs"].keys()) == {"sar"}
+
+
 def test_post_market_indicators_requires_enough_bars(client: TestClient) -> None:
     payload = {
         "asset": "EURUSD_otc",

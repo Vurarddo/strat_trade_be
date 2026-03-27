@@ -15,7 +15,8 @@ router = APIRouter(prefix="/market")
     summary="Gemini analysis on candles + indicators (extends POST /market/indicators body)",
     description=(
         "Same fields as `POST /api/v1/market/indicators`, plus optional `expiration_time_seconds`: "
-        "when set, Gemini must suggest an `expiration` not longer than that many seconds. "
+        "when set, the response uses that exact duration for `expiration` (canonical text) and "
+        "`close_time` (entry + N seconds), regardless of the model wording. "
         "Sends combined JSON (candles, indicators, optional cap) to Gemini and returns "
         "`direction`, `expiration`, `win_probability`, `analysis`, `entry_time`, `close_time`, "
         "plus model and echo. "

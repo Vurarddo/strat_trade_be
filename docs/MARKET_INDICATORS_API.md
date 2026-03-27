@@ -8,13 +8,13 @@ Uses the **same JSON request body** as `POST /api/v1/market/indicators` (see bel
 
 | Field                      | Type    | Required | Description |
 | -------------------------- | ------- | -------- | ----------- |
-| `expiration_time_seconds`  | integer | no       | If set (`>= 1`), Gemini must suggest an `expiration` duration **not exceeding** this many seconds. Omitted = no cap in the prompt. |
+| `expiration_time_seconds`  | integer | no       | If set (`>= 1`), the API **fixes** the trade length to exactly this many seconds: canonical `expiration` text (e.g. `300` → `5 min`) and `close_time = entry_time + N seconds`. The model cannot shorten or lengthen this in the final response. Omitted = expiry chosen only by the model. |
 
 The server:
 
 1. Fetches the candle window and computes the requested indicators (identical to the batch endpoint).
 2. Sends Gemini a JSON user message: `candles`, `indicators`, and — when provided — top-level `expiration_time_seconds`.
-3. Parses the model’s **JSON** reply into structured fields (`direction`, `expiration`, `win_probability`, `analysis`, `entry_time`, `close_time`).
+3. Parses the model’s **JSON** reply into structured fields (`direction`, `expiration`, `win_probability`, `analysis`, `entry_time`, `close_time`). If `expiration_time_seconds` was sent, **`expiration` and `close_time` are overwritten** to match that duration (using `entry_time` from the model).
 
 **Configuration:** set one of `STRAT_TRADE_GOOGLE_GEMINI_API_KEY`, `GOOGLE_API_KEY`, or `GEMINI_API_KEY` in the environment (or `.env`). Optional: `STRAT_TRADE_GOOGLE_GEMINI_MODEL` (default `gemini-2.0-flash`). If no key is configured, the endpoint responds with **503** and `code: GEMINI_NOT_CONFIGURED`.
 
@@ -69,6 +69,24 @@ Before calling `POST /market/indicators`, read the static schema for each indica
   - Outputs: `macd`, `signal`, `histogram` (each a list of `{ open_time, value }`)
   - Minimum `count`: `max(fast_length, slow_length) + signal_length - 1` (e.g. 12/26/9 → **34**)
 
+- **Stochastic Oscillator:** `GET /api/v1/indicators/stochastic`
+  - Stable id: `stochastic`
+  - Params: `{ "k_length": 14, "d_length": 3, "smooth_k": 1 }` (integers ≥ 1; `smooth_k` = SMA of raw %K before %D; use `3` for typical “slow” stoch)
+  - Outputs: `k`, `d`
+  - Minimum `count`: `k_length + smooth_k + d_length - 2` (defaults 14/3/1 → **16**)
+
+- **CCI:** `GET /api/v1/indicators/cci`
+  - Stable id: `cci`
+  - Params: `{ "length": 20 }` (integer ≥ 1; typical price (H+L+C)/3, Lambert 0.015)
+  - Outputs: `cci`
+  - Minimum `count`: `length` (first value at bar index `length - 1`)
+
+- **Parabolic SAR:** `GET /api/v1/indicators/parabolic-sar`
+  - Stable id: `parabolic_sar`
+  - Params: `{ "af_start": 0.02, "af_increment": 0.02, "af_max": 0.2 }` (Wilder-style AF; all > 0, `af_start` ≤ `af_max`)
+  - Outputs: `sar` (first bar has no SAR; values start from the second bar in the window)
+  - Minimum `count`: **2**
+
 ## Request
 
 `POST /api/v1/market/indicators`  
@@ -80,7 +98,7 @@ Before calling `POST /market/indicators`, read the static schema for each indica
 | ------------------- | ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `asset`             | string            | yes      | Broker symbol, e.g. `EURUSD_otc`                                                                                                |
 | `timeframe_seconds` | integer           | yes      | Bar size in seconds (PO native: `1`, `5`, `15`, `30`, `60`, `300`)                                                              |
-| `count`             | integer           | yes      | How many bars to fetch (1–5000, capped by server env). Must be ≥ **largest warmup** among runs (`rsi_wilder`: `length + 1`; `bollinger_bands`: `length`; `macd`: `max(fast,slow)+signal−1`) |
+| `count`             | integer           | yes      | How many bars to fetch (1–5000, capped by server env). Must be ≥ **largest warmup** among runs: `rsi_wilder` → `length + 1`; `bollinger_bands` → `length`; `macd` → `max(fast,slow)+signal−1`; `stochastic` → `k_length + smooth_k + d_length − 2`; `cci` → `length`; `parabolic_sar` → `2` |
 | `indicators`        | array             | yes      | Non-empty list of runs (see below)                                                                                              |
 | `end_at`            | string (ISO 8601) | no       | Anchor window end for the **first** page only                                                                                   |
 | `cursor`            | string (ISO 8601) | no       | Older pages: pass `next_cursor` from a previous response (do not combine with `end_at`)                                         |
@@ -89,7 +107,7 @@ Before calling `POST /market/indicators`, read the static schema for each indica
 
 | Field          | Type   | Required | Description                                                                                                              |
 | -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `indicator_id` | string | yes      | Registered id, e.g. `rsi_wilder`, `bollinger_bands`, `macd`                                                              |
+| `indicator_id` | string | yes      | Registered id, e.g. `rsi_wilder`, `bollinger_bands`, `macd`, `stochastic`, `cci`, `parabolic_sar`                        |
 | `params`       | object | no       | Indicator-specific parameters (defaults apply if omitted)                                                                |
 | `key`          | string | no       | Must be **unique** within the request if set. If omitted, internal keys `run_0`, `run_1`, … are used for validation only |
 
@@ -148,6 +166,32 @@ Omit `params` to use defaults (`length` 20, `mult` 2.0). The response includes t
 ```
 
 `count` must be at least **34** for these defaults. Omit `params` to use 12 / 26 / 9.
+
+### Example: Stochastic (14, 3, 1), CCI (20), Parabolic SAR (defaults)
+
+```json
+{
+  "asset": "EURUSD_otc",
+  "timeframe_seconds": 60,
+  "count": 120,
+  "indicators": [
+    {
+      "indicator_id": "stochastic",
+      "params": { "k_length": 14, "d_length": 3, "smooth_k": 1 }
+    },
+    {
+      "indicator_id": "cci",
+      "params": { "length": 20 }
+    },
+    {
+      "indicator_id": "parabolic_sar",
+      "params": { "af_start": 0.02, "af_increment": 0.02, "af_max": 0.2 }
+    }
+  ]
+}
+```
+
+`count` must be at least **16** here because of Stochastic (14+1+3−2). Omit `params` on `parabolic_sar` to use the same AF defaults as above.
 
 ### Example: two RSI runs (14 and 21) with explicit keys
 

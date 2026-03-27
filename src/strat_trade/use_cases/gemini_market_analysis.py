@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
 
@@ -19,6 +20,47 @@ from strat_trade.use_cases.market_indicators_batch import (
     compute_market_indicators_batch,
 )
 from strat_trade.use_cases.prompts.pro_trader_gemini import PRO_TRADER_SYSTEM_INSTRUCTION
+
+
+def format_expiration_from_seconds(seconds: int) -> str:
+    """Canonical human-readable expiry for API responses (matches `expiration_time_seconds`)."""
+    if seconds < 1:
+        seconds = 1
+    if seconds % 60 == 0 and seconds >= 60:
+        return f"{seconds // 60} min"
+    if seconds < 60:
+        return f"{seconds} sec"
+    minutes, rem = divmod(seconds, 60)
+    return f"{minutes} min {rem} sec"
+
+
+def _parse_iso_utc(s: str) -> datetime:
+    t = s.strip()
+    if t.endswith("Z"):
+        t = t[:-1] + "+00:00"
+    dt = datetime.fromisoformat(t)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _format_iso_utc_z(dt: datetime) -> str:
+    return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _apply_fixed_expiration_duration(
+    *,
+    parsed: GeminiLlmJsonPayload,
+    seconds: int,
+) -> tuple[str, str, str]:
+    """Force `expiration` text and `close_time` to match `seconds` (entry from model)."""
+    expiration = format_expiration_from_seconds(seconds)
+    try:
+        entry = _parse_iso_utc(parsed.entry_time)
+    except ValueError:
+        return expiration, parsed.entry_time, parsed.close_time
+    close_time = _format_iso_utc_z(entry + timedelta(seconds=seconds))
+    return expiration, parsed.entry_time.strip(), close_time
 
 
 def _strip_markdown_json_fence(raw: str) -> str:
@@ -113,13 +155,22 @@ async def run_gemini_market_analysis(
         model=gemini_model,
     )
     parsed = parse_gemini_structured_json(raw)
+    expiration = parsed.expiration
+    entry_time = parsed.entry_time
+    close_time = parsed.close_time
+    if body.expiration_time_seconds is not None:
+        sec = body.expiration_time_seconds
+        expiration, entry_time, close_time = _apply_fixed_expiration_duration(
+            parsed=parsed,
+            seconds=sec,
+        )
     return GeminiMarketAnalysisResult(
         direction=parsed.direction,
-        expiration=parsed.expiration,
+        expiration=expiration,
         win_probability=parsed.win_probability,
         analysis=parsed.analysis,
-        entry_time=parsed.entry_time,
-        close_time=parsed.close_time,
+        entry_time=entry_time,
+        close_time=close_time,
         model=gemini_model,
         asset=body.asset.strip(),
         timeframe_seconds=body.timeframe_seconds,
