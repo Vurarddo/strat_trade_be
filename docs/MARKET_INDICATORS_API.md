@@ -14,7 +14,7 @@ The server:
 
 1. Fetches the candle window and computes the requested indicators (identical to the batch endpoint).
 2. Sends Gemini a JSON user message: `candles`, `indicators`, and — when provided — top-level `expiration_time_seconds`.
-3. Parses the model’s **JSON** reply into structured fields (`direction`, `expiration`, `win_probability`, `analysis`).
+3. Parses the model’s **JSON** reply into structured fields (`direction`, `expiration`, `win_probability`, `analysis`, `entry_time`, `close_time`).
 
 **Configuration:** set one of `STRAT_TRADE_GOOGLE_GEMINI_API_KEY`, `GOOGLE_API_KEY`, or `GEMINI_API_KEY` in the environment (or `.env`). Optional: `STRAT_TRADE_GOOGLE_GEMINI_MODEL` (default `gemini-2.0-flash`). If no key is configured, the endpoint responds with **503** and `code: GEMINI_NOT_CONFIGURED`.
 
@@ -26,6 +26,8 @@ The server:
 | `expiration`        | string  | Suggested expiry window (e.g. `2 min`)           |
 | `win_probability`   | string  | e.g. `78%`                                       |
 | `analysis`          | string  | Qualitative analysis (trend, RSI, patterns)      |
+| `entry_time`        | string  | Suggested entry time (ISO 8601 UTC)              |
+| `close_time`        | string  | Suggested close time (ISO 8601 UTC)              |
 | `model`             | string  | Model id used for the call                        |
 | `asset`             | string  | Echo from request                               |
 | `timeframe_seconds` | integer | Echo from request                                |
@@ -38,6 +40,8 @@ The server:
   "expiration": "2 min",
   "win_probability": "78%",
   "analysis": "Trend is … RSI …",
+  "entry_time": "2026-03-27T12:34:00Z",
+  "close_time": "2026-03-27T12:36:00Z",
   "model": "gemini-2.0-flash",
   "asset": "EURUSD_otc",
   "timeframe_seconds": 60

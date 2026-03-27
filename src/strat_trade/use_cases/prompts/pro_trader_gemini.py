@@ -27,11 +27,14 @@ Reply with **only** a single JSON object — no markdown fences, no prose before
   "direction": "CALL" | "PUT" | "NEUTRAL",
   "expiration": "short human-readable expiry, e.g. 2 min or 1-3 min",
   "win_probability": "percentage string e.g. 78%",
-  "analysis": "One cohesive text: trend, RSI, patterns, and logic (no emoji section headers; plain sentences or short paragraphs)."
+  "analysis": "One cohesive text: trend, RSI, patterns, and logic (no emoji section headers; plain sentences or short paragraphs).",
+  "entry_time": "trade entry timestamp in ISO 8601 UTC, e.g. 2026-03-27T12:34:00Z",
+  "close_time": "trade close timestamp in ISO 8601 UTC, must be later than entry_time"
 }
 
 Rules:
 - `direction` must be exactly one of: CALL, PUT, NEUTRAL (uppercase).
 - `win_probability` must include a % sign (e.g. "72%").
 - `analysis` is the full qualitative explanation only; do not repeat direction/expiration/win_probability inside `analysis`.
+- `entry_time` and `close_time` must be valid ISO 8601 UTC strings and `close_time` must be after `entry_time`.
 """

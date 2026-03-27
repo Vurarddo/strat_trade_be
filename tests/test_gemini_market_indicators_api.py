@@ -80,6 +80,8 @@ class FakeLlmMarketAnalysis:
                 "expiration": "1 min",
                 "win_probability": "50%",
                 "analysis": "mock analysis body",
+                "entry_time": "2026-03-27T12:34:00Z",
+                "close_time": "2026-03-27T12:36:00Z",
             },
         )
 
@@ -112,6 +114,8 @@ def test_post_market_indicators_gemini_returns_llm_text(gemini_client: TestClien
     assert body["expiration"] == "1 min"
     assert body["win_probability"] == "50%"
     assert body["analysis"] == "mock analysis body"
+    assert body["entry_time"] == "2026-03-27T12:34:00Z"
+    assert body["close_time"] == "2026-03-27T12:36:00Z"
     assert body["model"] == "gemini-test-model"
     assert body["asset"] == "EURUSD_otc"
     assert body["timeframe_seconds"] == 60

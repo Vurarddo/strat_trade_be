@@ -17,7 +17,8 @@ router = APIRouter(prefix="/market")
         "Same fields as `POST /api/v1/market/indicators`, plus optional `expiration_time_seconds`: "
         "when set, Gemini must suggest an `expiration` not longer than that many seconds. "
         "Sends combined JSON (candles, indicators, optional cap) to Gemini and returns "
-        "`direction`, `expiration`, `win_probability`, `analysis`, plus model and echo. "
+        "`direction`, `expiration`, `win_probability`, `analysis`, `entry_time`, `close_time`, "
+        "plus model and echo. "
         "Requires `STRAT_TRADE_GOOGLE_GEMINI_API_KEY` (or `GOOGLE_API_KEY` / `GEMINI_API_KEY`)."
     ),
     operation_id="postMarketIndicatorsGemini",
@@ -41,6 +42,8 @@ async def gemini_market_indicators(
         expiration=out.expiration,
         win_probability=out.win_probability,
         analysis=out.analysis,
+        entry_time=out.entry_time,
+        close_time=out.close_time,
         model=out.model,
         asset=out.asset,
         timeframe_seconds=out.timeframe_seconds,

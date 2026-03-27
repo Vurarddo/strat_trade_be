@@ -52,6 +52,8 @@ class GeminiMarketAnalysisResult:
     expiration: str
     win_probability: str
     analysis: str
+    entry_time: str
+    close_time: str
     model: str
     asset: str
     timeframe_seconds: int
@@ -116,6 +118,8 @@ async def run_gemini_market_analysis(
         expiration=parsed.expiration,
         win_probability=parsed.win_probability,
         analysis=parsed.analysis,
+        entry_time=parsed.entry_time,
+        close_time=parsed.close_time,
         model=gemini_model,
         asset=body.asset.strip(),
         timeframe_seconds=body.timeframe_seconds,

@@ -337,6 +337,8 @@ class GeminiLlmJsonPayload(BaseModel):
     expiration: str = Field(description="Expiry hint, e.g. 2 min.")
     win_probability: str = Field(description='Percentage string, e.g. "78%".')
     analysis: str = Field(description="Qualitative analysis only.")
+    entry_time: str = Field(description="Entry timestamp in ISO 8601 UTC.")
+    close_time: str = Field(description="Close timestamp in ISO 8601 UTC.")
 
     @field_validator("direction")
     @classmethod
@@ -367,6 +369,14 @@ class GeminiMarketIndicatorsResponse(BaseModel):
         description=(
             "Qualitative market analysis from Gemini (trend, indicators, patterns, logic)."
         ),
+    )
+    entry_time: str = Field(
+        description="Suggested entry time in ISO 8601 UTC.",
+        examples=["2026-03-27T12:34:00Z"],
+    )
+    close_time: str = Field(
+        description="Suggested deal close time in ISO 8601 UTC.",
+        examples=["2026-03-27T12:36:00Z"],
     )
     model: str = Field(description="Gemini model id used for this call.")
     asset: str = Field(description="Echo from request.")
