@@ -286,7 +286,7 @@ class PocketOptionTradingGateway:
                     raise BrokerUnavailableError(
                         "Pocket Option session could not be established (asset sync failed). "
                         "Typical causes: expired SSID, network/VPN blocking, or invalid SSID. "
-                        "Copy a fresh ssid / 42[\"auth\",…] from the browser if needed."
+                        'Copy a fresh ssid / 42["auth",…] from the browser if needed.'
                     ) from exc
             return self._client
 
@@ -333,9 +333,7 @@ class PocketOptionTradingGateway:
                 et = et.astimezone(UTC)
                 end_u = int(et.timestamp())
                 offset = _history_offset_seconds(period=period, count=count)
-                raw_list = await client.get_candles_advanced(
-                    asset.strip(), period, offset, end_u
-                )
+                raw_list = await client.get_candles_advanced(asset.strip(), period, offset, end_u)
         except InvalidMarketParametersError:
             raise
         except ValueError as exc:
@@ -360,3 +358,26 @@ class PocketOptionTradingGateway:
                     logger.debug("Pocket Option shutdown error (ignored): %s", exc)
                 finally:
                     self._client = None
+
+    async def place_trade(
+        self, asset: str, direction: str, amount: float, expiration_in_seconds: int
+    ) -> bool:
+        if direction not in ("BUY", "SELL"):
+            return False
+
+        try:
+            client = await self._client_connected()
+            if direction == "BUY":
+                result = await client.buy(asset.strip(), amount, expiration_in_seconds)
+            else:
+                result = await client.sell(asset.strip(), amount, expiration_in_seconds)
+
+            print(
+                f"🟢 [AUTO-TRADE] Placed {direction} on {asset} for "
+                f"${amount} ({expiration_in_seconds}s) | Result: {result}",
+                flush=True,
+            )
+            return True
+        except Exception as exc:
+            logger.error("Failed to place auto-trade: %s", exc)
+            return False

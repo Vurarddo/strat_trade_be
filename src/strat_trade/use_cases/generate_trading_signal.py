@@ -7,6 +7,7 @@ from strat_trade.domain.trade_record import TradeSignalRecord
 from strat_trade.ports.candles import CandleFeed
 from strat_trade.ports.llm_gateway import LlmGateway
 from strat_trade.ports.signal_repository import SignalRepository
+from strat_trade.ports.trading_gateway import TradingGateway
 from strat_trade.use_cases.fetch_candles import fetch_recent_candles
 
 
@@ -18,15 +19,24 @@ class GenerateTradingSignalUseCase:
         candle_feed: CandleFeed,
         llm_gateway: LlmGateway,
         signal_repository: SignalRepository,
+        trading_gateway: TradingGateway,
         max_count: int = 5000,
     ) -> None:
         self._candle_feed = candle_feed
         self._llm_gateway = llm_gateway
         self._signal_repository = signal_repository
+        self._trading_gateway = trading_gateway
         self._max_count = max_count
         self._evaluator = MarketStateEvaluator()
 
-    async def execute(self, asset: str, timeframe_seconds: int, count: int) -> dict[str, Any]:
+    async def execute(
+        self,
+        asset: str,
+        timeframe_seconds: int,
+        count: int,
+        auto_trade: bool = False,
+        amount: float = 1.0,
+    ) -> dict[str, Any]:
         t0 = time.time()
 
         # 1. Fetch candles via CandleFeed
@@ -78,24 +88,38 @@ class GenerateTradingSignalUseCase:
             print(f"🚀 [PROFILER] LLM Inference: {t3 - t2:.3f}s", flush=True)
             print(f"🚀 [PROFILER] TOTAL PIPELINE: {t3 - t0:.3f}s", flush=True)
 
-        # 6. Save State-Action Signal to Persistence
-        current_utc_time = datetime.now(UTC)
+        # 6. Auto Trade Execution
+        direction = llm_verdict.get("direction", "NEUTRAL")
         exp_seconds = llm_verdict.get("expiration_in_seconds", timeframe_seconds)
+        auto_executed = False
+
+        if direction != "NEUTRAL" and auto_trade:
+            # Place the trade via trading gateway
+            success = await self._trading_gateway.place_trade(
+                asset=asset, direction=direction, amount=amount, expiration_in_seconds=exp_seconds
+            )
+            auto_executed = success
+
+        # 7. Save State-Action Signal to Persistence
+        current_utc_time = datetime.now(UTC)
         record = TradeSignalRecord(
             asset=asset,
             timestamp=current_utc_time,
-            direction=llm_verdict.get("direction", "NEUTRAL"),
+            direction=direction,
             entry_price=market_state.current_price,
             expiration_in_seconds=exp_seconds,
             expected_close_time=current_utc_time + timedelta(seconds=exp_seconds),
             strategy_name=llm_verdict.get("strategy_name", "Unknown"),
             win_probability_percentage=llm_verdict.get("win_probability_percentage", 0),
+            auto_executed=auto_executed,
         )
         saved_record = await self._signal_repository.save_signal(record)
 
-        # 7. Return the LLM's parsed dictionary alongside the original MarketStateVector
+        # 8. Return the LLM's parsed dictionary alongside the original MarketStateVector
         return {
             "market_state": market_state.model_dump(),
             "llm_signal": llm_verdict,
             "signal_id": saved_record.id,
+            "auto_executed": auto_executed,
+            "amount": amount,
         }

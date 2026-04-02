@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, and_, desc, select, update
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, and_, delete, desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
@@ -139,6 +139,12 @@ class SqliteSignalRepository(SignalRepository):
                     )
                 )
             return records
+
+    async def delete_signal(self, signal_id: int) -> bool:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(delete(SignalModel).where(SignalModel.id == signal_id))
+            await session.commit()
+            return (result.rowcount or 0) > 0
 
     async def update_signal_resolution(
         self, signal_id: int, actual_close_price: float, pnl_result: str

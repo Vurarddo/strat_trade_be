@@ -15,3 +15,8 @@ class TradingGateway(Protocol):
     async def aclose(self) -> None:
         """Release connections and other resources held by the gateway."""
         ...
+
+    async def place_trade(self, asset: str, direction: str, amount: float, expiration_in_seconds: int) -> bool:
+        """Places a trade on the broker platform. Returns True if successful."""
+        ...
+

@@ -15,5 +15,6 @@ class TradeSignalRecord(BaseModel):
     win_probability_percentage: int
     # Fields for later evaluation:
     is_resolved: bool = False
+    auto_executed: bool = False
     actual_close_price: float | None = None
     pnl_result: str | None = None  # "WIN", "LOSS", "TIE"

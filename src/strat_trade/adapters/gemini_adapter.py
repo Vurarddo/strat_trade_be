@@ -14,8 +14,9 @@ RULES:
 1. If 'is_choppy' is true, heavily favor NEUTRAL.
 2. FVG (Fair Value Gaps) act as magnets.
 3. 'rsi_divergence' is the STRONGEST reversal signal.
-4. EXPIRATION RULE: 'expiration_in_seconds' MUST be strictly between 1 to 5 times the provided
-   timeframe_seconds. (e.g., if timeframe is 60, expiration must be 60, 120, 180, 240, or 300).
+4. EXPIRATION RULE: 'expiration_in_seconds' MUST be strictly between 3 to 5 times the provided
+   timeframe_seconds (e.g., if timeframe is 60, expiration MUST be 180, 240, or 300).
+   DO NOT suggest 1 or 2 candle expirations.
 
 OUTPUT SCHEMA (Return strictly raw JSON):
 {

@@ -23,3 +23,7 @@ class SignalRepository(abc.ABC):
         self, signal_id: int, actual_close_price: float, pnl_result: str
     ) -> None:
         """Persist settlement price, PnL label, and mark the signal resolved."""
+
+    @abc.abstractmethod
+    async def delete_signal(self, signal_id: int) -> bool:
+        """Remove a signal row by primary key. Returns True if a row was deleted."""

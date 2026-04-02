@@ -3,15 +3,22 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, status
 
-from strat_trade.api.deps import CandleFeedDep, LlmGatewayDep, SettingsDep, SignalRepositoryDep
-from strat_trade.api.schemas import CandleBarResponse, CandlesResponse
+from strat_trade.api.deps import (
+    CandleFeedDep,
+    LlmGatewayDep,
+    SettingsDep,
+    SignalRepositoryDep,
+    TradingGatewayDep,
+)
+from strat_trade.api.schemas import CandleBarResponse, CandlesResponse, ErrorBody, ErrorEnvelope
 from strat_trade.domain.market_state import MarketStateVector
 from strat_trade.domain.trade_record import TradeSignalRecord
 from strat_trade.use_cases.evaluate_market import EvaluateMarketUseCase
 from strat_trade.use_cases.fetch_candles import fetch_candles_in_range, fetch_recent_candles
 from strat_trade.use_cases.generate_trading_signal import GenerateTradingSignalUseCase
+from strat_trade.use_cases.delete_trade_signal import DeleteTradeSignalUseCase
 from strat_trade.use_cases.get_recent_signals import GetRecentSignalsUseCase
 
 router = APIRouter(prefix="/market")
@@ -226,6 +233,7 @@ async def generate_trading_signal(
     feed: CandleFeedDep,
     llm_gateway: LlmGatewayDep,
     signal_repository: SignalRepositoryDep,
+    trading_gateway: TradingGatewayDep,
     settings: SettingsDep,
     asset: str = Query(
         "EURUSD_otc",
@@ -245,14 +253,25 @@ async def generate_trading_signal(
         le=5000,
         description="Number of candles to fetch for the evaluation (minimum 15 for ADX).",
     ),
+    auto_trade: bool = Query(
+        False, description="Whether to automatically execute the generated signal."
+    ),
+    amount: float = Query(1.0, ge=1.0, description="Amount to trade if auto_trade is True."),
 ) -> dict[str, Any]:
     use_case = GenerateTradingSignalUseCase(
         candle_feed=feed,
         llm_gateway=llm_gateway,
         signal_repository=signal_repository,
+        trading_gateway=trading_gateway,
         max_count=settings.max_candles_per_request,
     )
-    return await use_case.execute(asset=asset, timeframe_seconds=timeframe_seconds, count=count)
+    return await use_case.execute(
+        asset=asset,
+        timeframe_seconds=timeframe_seconds,
+        count=count,
+        auto_trade=auto_trade,
+        amount=amount,
+    )
 
 
 @router.get(
@@ -268,3 +287,38 @@ async def get_recent_signals(
 ) -> list[TradeSignalRecord]:
     use_case = GetRecentSignalsUseCase(signal_repository=signal_repository)
     return await use_case.execute(limit=limit)
+
+
+@router.delete(
+    "/signals/{signal_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a forward-test trade signal",
+    description=(
+        "Deletes one row from the `trade_signals` table in the forward-test SQLite database "
+        "(`forward_test.db`) by primary key."
+    ),
+    operation_id="deleteTradeSignal",
+    responses={
+        status.HTTP_204_NO_CONTENT: {"description": "Row removed."},
+        status.HTTP_404_NOT_FOUND: {
+            "description": "No signal with the given id.",
+            "model": ErrorEnvelope,
+        },
+    },
+)
+async def delete_trade_signal(
+    signal_id: int,
+    signal_repository: SignalRepositoryDep,
+) -> None:
+    use_case = DeleteTradeSignalUseCase(signal_repository=signal_repository)
+    deleted = await use_case.execute(signal_id=signal_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorEnvelope(
+                error=ErrorBody(
+                    code="SIGNAL_NOT_FOUND",
+                    message=f"No trade signal with id={signal_id}.",
+                )
+            ).model_dump(),
+        )
