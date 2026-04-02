@@ -40,6 +40,7 @@ ruff format --check .
 | [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) | Product scope, user flows, glossary |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, ports/adapters, extension points |
 | [docs/CODE_STYLE.md](docs/CODE_STYLE.md) | Python style and layering examples |
+| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Endpoints, request schemas, and responses |
 
 ## Cursor rules
 

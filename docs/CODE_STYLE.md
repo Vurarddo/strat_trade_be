@@ -1,120 +1,36 @@
-# Strat Trade — code style and examples
+# Code Style & General Guidelines
 
-Stack target: **Python 3.12+**, **FastAPI**, **Pydantic v2**, **Ruff** (lint + format). Adjust versions in `pyproject.toml` when the project is bootstrapped.
+This repository follows standardized conventions to maintain a clean codebase, encourage maintainability, and keep layer boundaries secure.
 
-## General principles
+## Python Environment
 
-- **SOLID / DRY / KISS**: one reason to change per module; reuse ports; avoid speculative abstractions.
-- **Types on boundaries**: public functions and port methods are typed; prefer `Protocol` for ports.
-- **I/O at edges**: no `httpx` or SQLAlchemy in `domain/` or pure engine code.
+- **Python Version**: Minimum requirement is **3.12**.
+- **Package Management**: Dependencies are defined in `pyproject.toml` (and a `.venv` is standard for local iteration).
 
-## Naming
+## Linting and Code Formatting
 
-| Area | Convention |
-|------|------------|
-| Modules | `snake_case` |
-| Classes | `PascalCase` |
-| Functions / methods | `snake_case` |
-| Constants | `UPPER_SNAKE` |
-| Ports | Noun + role: `CandleFeed`, `StrategyRepository` |
-| Adapters | Implementation name: `PocketOptionCandleFeed` |
+We use **Ruff** to combine the responsibilities of linting and formatting, providing a speedy and cohesive experience.
+- To format: `ruff format .`
+- To check: `ruff check .`
 
-## Layering example (good)
+It is required to maintain a warning-free state before committing. Note the specific configuration mapped in `pyproject.toml` (if available) or the defaults enforced by `.cursor/rules/strat-trade-backend.mdc`.
 
-**Port** (`ports/candles.py`):
+## Core Coding Patterns
 
-```python
-from typing import Protocol
-from datetime import datetime
-from strat_trade.domain.entities import Candle
+### Validations and Error Handling
+- **Domain Errors**: Internal invariants must trigger structured custom exception classes existing inside `domain/errors.py`. 
+- **HTTP Errors**: Never throw HTTPExceptions deeply embedded inside the `domain/` or `use_cases/` folders. Hand-off domain errors back to the `api/` layer, which catches domain-specific errors and maps them dynamically to precise 4xx / 5xx code responses (`http_errors.py`).
 
-class CandleFeed(Protocol):
-    async def get_candles(
-        self,
-        *,
-        symbol: str,
-        timeframe: str,
-        start: datetime,
-        end: datetime,
-    ) -> list[Candle]:
-        ...
-```
+### Typing
+- We strive for strict, explicit typing.
+- Always annotate function signatures and variables where ambiguity might arise. 
+- Use **Pydantic** extensively at the boundaries (`adapters/` / `api/`) to sanitize data strictly before entering the domain layers.
 
-**Use case** (`use_cases/run_backtest.py`):
+### Testing
+- Place test suites in the `tests/` directory matching the module path you are testing (e.g. `tests/domain/test_entities.py`).
+- Since external behaviors are hidden behind **Ports**, test domain files and use cases using simple in-memory mocks / fakes, achieving extremely fast uncoupled test execution. 
+- Ensure that side-effect operations mock out time (using `Clock` ports if needed) so that backtest behavior holds reproducible assertions across runs.
 
-```python
-from strat_trade.ports.candles import CandleFeed
-from strat_trade.domain.backtest import BacktestEngine
-
-async def run_backtest(
-    feed: CandleFeed,
-    engine: BacktestEngine,
-    *,
-    symbol: str,
-    timeframe: str,
-) -> BacktestSummary:
-    candles = await feed.get_candles(...)
-    return engine.run(candles)
-```
-
-**Adapter** (`adapters/pocket_option/candles.py`): implements `CandleFeed`, maps PO JSON → `Candle`.
-
-**Route** (`adapters/http/routes/backtests.py`): parses body → calls `run_backtest` → returns DTO.
-
-## Anti-patterns (avoid)
-
-```python
-# BAD: domain importing FastAPI or requests
-from fastapi import Depends
-import httpx
-
-def compute_rsi(candles: list) -> list[float]:
-    r = httpx.get("https://api.broker/...")  # never here
-    ...
-```
-
-```python
-# BAD: god use case doing HTTP + SQL + math in one function
-async def backtest(...):
-    rows = await db.execute(...)
-    po = httpx.get(...)
-    rsi = manual_rsi(po.json())
-    await db.insert(...)
-```
-
-Prefer three units: **repository**, **feed adapter**, **engine**.
-
-## Pydantic
-
-- **Settings**: `pydantic-settings`, env prefixes, no secrets in defaults.
-- **API models**: separate from domain entities when shapes differ; map explicitly.
-
-```python
-from pydantic import BaseModel, Field
-
-class BacktestRequest(BaseModel):
-    strategy_id: str = Field(examples=["strat_01"])
-    range_start: datetime
-    range_end: datetime
-```
-
-## Errors
-
-- Raise **domain exceptions** in core; map to HTTP in a single exception handler or per-router dependency.
-- Use stable **error codes** in JSON for clients, e.g. `{ "code": "INVALID_RANGE", "message": "..." }`.
-
-## Tests
-
-- **Unit**: engine + indicators with synthetic candles.
-- **API**: `TestClient` with overridden dependencies (fake `CandleFeed`).
-- File names: `test_<module>.py`; test functions `test_<behavior>_<expected>()`.
-
-## Imports
-
-- Stdlib → third party → local (`isort` / Ruff isort rules).
-- No wildcard imports.
-
-## Formatting
-
-- Line length **100** or **88** — pick one in Ruff and stay consistent.
-- Trailing commas in multi-line collections.
+### Defensive Boundaries
+- **Dependency Injection**: Instantiate concrete adapters inside the `main.py` entrypoint or through FastAPI dependencies (`deps.py`), and inject them into `use_cases/` as their standard abstractions (Ports).
+- **Payload Boundaries**: Broker (Pocket Option) structures are confined to `adapters/`. Do not bleed fields representing PO-specific concepts into core `entities.py`. Everything external must be uniformly mapped.

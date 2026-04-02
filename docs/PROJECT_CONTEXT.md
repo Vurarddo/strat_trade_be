@@ -1,62 +1,22 @@
-# Strat Trade — project context
+# Project Context
 
-This document is the **source of truth for product intent and domain language**. Keep it updated when flows or boundaries change.
+## Product Scope
+Strat Trade is an automated **indicator-based trading bot** deeply integrated with **Pocket Option**.
 
-## Product summary
+The product consists of two main components:
+1. **Python Backend**: Handles complex operations such as fetching data from the broker natively, computing indicator values, orchestrating backtests over historical datasets, and continuously evaluating live data to emit trading signals.
+2. **Flutter Client**: A modern interface (utilizing GenUI) allowing users to visually construct trading strategies, monitor live indicator values, review backtest metrics (win rate, profitability), and receive real-time signals when their configured strategies execute.
 
-**Strat Trade** is a backend that integrates with the **Pocket Option** API and lets users define **indicator-based trading strategies**, **backtest** them on a chosen time range, inspect **win rate** and other metrics, then **save** and **activate** strategies. An **active** strategy runs in (near) real time, detects **signals** according to its rules, and **delivers** those signals to the user (push, websocket, or another channel — to be implemented per delivery adapter).
+## Key Features
+- **Data Ingestion**: Directly consumes candlestick data, currency pairs, and various indicator parameters from the Pocket Option API.
+- **Custom Strategies**: Users can define tailored strategies by combining multiple indicators (e.g., CCI, Parabolic SAR) with specific configuration conditions (e.g., "Buy when CCI crosses above 100").
+- **Backtesting Engine**: A reproducible engine capable of mapping a configured strategy over historical candle windows to estimate the potential win rate and metrics.
+- **Real-Time Signals**: Fast evaluation of user strategies against live feed ticks. When the configured criteria are met, real-time signals are delivered to the client side.
 
-## Primary user journeys
-
-1. **Compose a strategy**  
-   User picks indicators (e.g. RSI, MACD), sets parameters and combination logic (e.g. “RSI oversold AND MACD cross up”). The strategy is a persisted configuration + rules, not executable broker orders unless explicitly scoped later.
-
-2. **Backtest**  
-   User selects an **instrument**, **timeframe**, and **time window** (start/end). The system loads historical candles (via Pocket Option or a normalized internal series), runs the strategy engine over that series, and returns **aggregated results** (win rate, trade count, PnL proxy if defined, drawdown, etc.).
-
-3. **Save**  
-   If the user accepts the configuration, the strategy is stored as a versioned **Strategy** (draft vs published can be a later refinement).
-
-4. **Activate**  
-   User marks a saved strategy as **active**. A **runtime** component subscribes to live/market data, evaluates the same rules on sliding windows, and emits **signals** when conditions match.
-
-5. **Receive signals**  
-   User receives notifications through the chosen channel; API must support listing recent signals and subscription status.
-
-## Domain glossary
-
-| Term | Meaning |
-|------|--------|
-| **Strategy** | Named configuration: instrument(s), timeframe, indicator set, parameters, and rule graph (how indicators combine into entries/exits). |
-| **Indicator** | Pluggable computation over OHLCV (or derived) series (e.g. RSI, MACD). Each has a stable **id**, **parameter schema**, and **output schema**. |
-| **Backtest run** | One execution of a strategy over a fixed historical window; produces metrics and optional per-signal log. |
-| **Signal** | A time-stamped outcome of rule evaluation (e.g. “LONG”, “SHORT”, “EXIT”) with optional metadata (price, indicator snapshot). |
-| **Pocket Option gateway** | Outbound adapter: auth, candles, balances, and any other supported PO operations. Domain must not depend on PO SDK types. |
-
-## Non-goals (initial phases)
-
-- Guaranteeing execution or profit; backtest is **simulation** unless explicitly connected to execution features later.
-- UI implementation (this repo is **backend-only**).
-- Storing raw third-party responses without normalization where a stable domain model is required.
-
-## Integration assumptions (Pocket Option)
-
-- Credentials and session identifiers live in **config/secrets**, never in code or committed files.
-- All PO calls go through a **port** (`TradingGateway` / `MarketDataGateway` or split ports) implemented by **one adapter** so the broker can be swapped or mocked in tests.
-- Respect **rate limits** and **timeouts**; retries only where idempotent and safe.
-- **Candle history depth:** the Pocket Option adapter uses **BinaryOptionsToolsV2** (`get_candles` / `get_candles_advanced`) for native periods (1, 5, 15, 30, 60, 300 seconds). `GET /api/v1/market/candles/range` (and range-based winrate) loads `[from, to]` by **paging backward** from `to`: each call requests up to `STRAT_TRADE_MAX_CANDLES_PER_REQUEST` bars, then repeats with an end cursor before the oldest bar until `from` is covered or `STRAT_TRADE_MAX_CANDLES_RANGE_FETCH_ROUNDS` / broker history limits apply. Very long ranges may still need **persisted candles** or adapter extensions.
-- **Indicator series:** Indicator math lives in pure domain calculators (see `src/strat_trade/domain/indicators/*`). The HTTP endpoint `POST /api/v1/market/indicators` is temporarily removed in this iteration.
-- **Winrate strategy test (MVP):** The HTTP endpoint `POST /api/v1/strategy/test-winrate` and related winrate strategy evaluation are temporarily removed from the API in this iteration; strategy evaluation core is being rebuilt on top of the indicator calculators.
-
-## Documentation map
-
-| Document | Purpose |
-|----------|--------|
-| `PROJECT_CONTEXT.md` (this file) | Product and domain vocabulary |
-| `ARCHITECTURE.md` | Layers, extension points, data flow |
-| `CODE_STYLE.md` | Conventions and examples |
-
-## Related Cursor rules
-
-- `.cursor/rules/strat-trade-backend.mdc` — architecture and extensibility for this codebase  
-- `.cursor/rules/strat-trade-openapi.mdc` — OpenAPI / Swagger conventions for HTTP APIs  
+## Glossary
+- **Strategy**: A configuration consisting of indicators and a combination of rules/conditions that define a specific trading behavior.
+- **Indicator**: A mathematical calculation based on historical price, volume, or open interest that aims to forecast financial market direction (e.g., SMA, EMA, CCI, Parabolic SAR).
+- **Signal**: A discrete event generated by the engine during live evaluation indicating that a strategy's rules have been met (e.g., "BUY" or "SELL").
+- **Backtest**: A simulation of a strategy on historical data. Used to predict its viability and measure its historical win rate.
+- **Rule Graph / AST**: The underlying data structure mapping the logic defined by the user into evaluable structures on the backend.
+- **Candle**: A representation of price movement over a defined period. Contains Open, High, Low, and Close (OHLC) prices.

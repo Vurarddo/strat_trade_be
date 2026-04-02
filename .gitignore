@@ -23,6 +23,9 @@ dist/
 # IDE
 .idea/
 .vscode/
+
+# Cursor (local-only rules)
+.cursor/rules/comunication-language.mdc
 *.swp
 *.swo
 

@@ -1,77 +1,43 @@
-# Strat Trade — architecture
+# Architecture
 
-## Goals
+Strat Trade Backend is built using **Hexagonal Architecture** (also known as Ports and Adapters). This promotes a clear separation of concerns, ensures business logic is entirely decoupled from external dependencies (e.g., FastAPI, Pocket Option SDK), and optimizes testability.
 
-- **Hexagonal (ports & adapters)** so domain and use cases stay free of FastAPI, Pocket Option SDK, and database details.
-- **Easy extension**: new indicators, new strategy rule types, and new outbound channels without rewriting the core engine.
-- **Testability**: backtest and signal logic unit-tested with in-memory candle series; adapters integration-tested or contract-tested.
+## Layers
 
-## Suggested package layout (Python)
+1. **`domain/`** 
+   - Contains the core business logic: entities, value objects, domain exceptions, pure mathematics for strategy evaluation, and the backtest engine core.
+   - **Rule**: Absolutely no imports from FastAPI, database dependencies, or external HTTP libraries.
+2. **`use_cases/`** 
+   - Contains the orchestration layer. Use cases load necessary configuration, call the requisite feeders (`CandleFeed`), pipe data to the domain engine, and act on the results (e.g., saving to the DB or publishing a live signal).
+   - **Rule**: Depends strictly on internal domain features and **ports** (Abstract Base Classes / Protocols).
+3. **`ports/`** 
+   - Define the narrow interfaces for interacting outside the core. Examples: `CandleFeed`, `TradingGateway`, `SignalPublisher`, `StrategyRepository`.
+4. **`adapters/`** 
+   - Implement the actual details for the defined `ports/`. Examples include Pocket Option API adapters, WebSocket streams, SQLAlchemy persistence structures, and FastAPI routes (mapping HTTP requests to `use_cases`). FastAPI routes reside in `api/` which functionally serves as a primary driving adapter.
 
-```text
-src/strat_trade/
-  domain/           # Entities, value objects, domain errors (no I/O)
-  use_cases/        # Application services; orchestrate ports
-  ports/            # Protocols / ABCs: gateways, repositories, clocks
-  adapters/
-    http/           # FastAPI routes, deps, OpenAPI-only DTOs mapping
-    pocket_option/  # PO client implementation of ports
-    persistence/    # SQLAlchemy / repositories
-    realtime/       # Websockets, SSE, or message fan-out
-```
+## Primary Flows
 
-Routes stay **thin**: validate input → call use case → map result to response. **No** indicator math or PO JSON parsing in route handlers.
+- **FastAPI / HTTP Flow**: 
+  HTTP Request -> FastAPI Route validation (`api/`) -> Invocation of a specific Use Case (`use_cases/`) -> Use Case calls Domain Rules / Ports -> Returns payload back through FastAPI.
+- **Real-Time Evaluation Loop**:
+  Continuous polling or streaming through an infrastructure adapter pushes data into the same engine primitives used in backtests, applying a "rolling window" for indicator calculations.
 
-## Core flows
-
-### Backtest
-
-1. HTTP layer receives `strategy_id` or inline strategy definition + `from` / `to` / timeframe.
-2. Use case loads strategy (if persisted) and resolves **indicator pipeline** from a **registry**.
-3. **Market data port** fetches candles for the window (PO adapter or fake in tests).
-4. **Strategy engine** walks the series (or chunked stream), updates indicator state, evaluates rules, records hypothetical trades/signals.
-5. Use case returns **BacktestResult** (metrics + optional detail).
-
-### Live signals
-
-1. **Scheduler or streaming consumer** ticks on new candles or poll interval.
-2. For each **active** strategy, engine evaluates the latest window.
-3. On match, persist **Signal** (optional) and publish via **NotificationPort** / websocket adapter.
-
-## Extension points
+## Extension Points
 
 ### 1. Indicators
+Indicators are designed to be easily pluggable:
+- **Identifier**: Each indicator requires a stable, unique string ID.
+- **Schema**: It requires a Pydantic (or similar) parameter schema for validation.
+- **Calculator**: A calculator class implementing the shared indicator protocol.
+- **Registry**: The indicator must be mapped in the central registry so that adding a new indicator implies no side effects on disjoint modules.
 
-- Define a small interface, e.g. `IndicatorSpec` (id, params) + `IndicatorCalculator` protocol: `(series_window) -> IndicatorValues`.
-- Register calculators in a **registry** keyed by indicator id (string or enum).
-- Adding RSI v2 = new class + registration; no changes to the engine’s core loop beyond generic “run registered indicator”.
+### 2. Strategy Rules
+To maintain security and stability, strategy rules are strictly **data-driven**:
+- Instead of using raw Python strings (which are risky via `eval`), rules are structured as an AST (Abstract Syntax Tree) or directed graph.
+- These nodes are interpreted by a central `RuleEvaluator`.
+- **To add new rules/conditions**: Introduce new node objects, a validation rule, and a branch in the evaluator.
 
-### 2. Strategy rules
-
-- Represent rules as **data** (AST or JSON-serializable graph) interpreted by a **RuleEvaluator**, not as arbitrary Python lambdas from the API (security and reproducibility).
-- New rule types = new evaluator node + schema validation; keep evaluator table-driven where possible.
-
-### 3. Pocket Option and other brokers
-
-- New broker = new adapter package implementing the same **ports**. Domain types use **normalized** candles and account views.
-
-### 4. API surface
-
-- Version prefix `/api/v1/`. Breaking changes → v2 or additive fields with defaults.
-
-## Persistence (evolution)
-
-- **Strategy** and **BacktestRun** are natural aggregates for storage.
-- **Signal** rows or event log for audit and “recent signals” API.
-- Migrations via Alembic when SQLAlchemy is introduced.
-
-## Observability
-
-- Structured logging with `strategy_id`, `backtest_id`, `correlation_id` on requests.
-- Metrics: backtest duration, PO call latency/error rate, signals emitted per minute.
-
-## Security
-
-- Authenticate API users (mechanism TBD: JWT, API keys).
-- Never log secrets or full PO payloads containing credentials.
-- Validate and bound all time ranges and candle limits to prevent abuse.
+### 3. Broker Integrations
+If integrating an alternative broker / data provider:
+- Implement a new **adapter** corresponding precisely to the existing **ports** (e.g., `TradingGateway`, `CandleFeed`).
+- Ensure output types map directly back to pure domain structures like `Candle` or `Balance` rather than introducing platform-specific entities into the domain.
