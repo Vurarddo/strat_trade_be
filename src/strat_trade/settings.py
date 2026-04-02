@@ -96,6 +96,14 @@ class Settings(BaseSettings):
         ),
     )
 
+    job_api_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("STRAT_TRADE_JOB_API_SECRET", "JOB_API_SECRET"),
+        description=(
+            "If non-empty, POST /api/v1/jobs/* requires header X-Job-Secret with this value."
+        ),
+    )
+
     gemini_api_key: str = Field(
         default="",
         validation_alias=AliasChoices("STRAT_TRADE_GOOGLE_GEMINI_API_KEY", "GEMINI_API_KEY"),

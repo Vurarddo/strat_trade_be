@@ -4,9 +4,11 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
+from strat_trade.adapters.db.sqlite_signal_repository import SqliteSignalRepository
 from strat_trade.adapters.gemini_adapter import GeminiAdapter
 from strat_trade.ports.candles import CandleFeed
 from strat_trade.ports.llm_gateway import LlmGateway
+from strat_trade.ports.signal_repository import SignalRepository
 from strat_trade.ports.trading_gateway import TradingGateway
 from strat_trade.settings import Settings
 
@@ -40,7 +42,12 @@ def get_llm_gateway(request: Request) -> LlmGateway:
     )
 
 
+def get_signal_repository(_request: Request) -> SignalRepository:
+    return SqliteSignalRepository()
+
+
 TradingGatewayDep = Annotated[TradingGateway, Depends(get_trading_gateway)]
 CandleFeedDep = Annotated[CandleFeed, Depends(get_candle_feed)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 LlmGatewayDep = Annotated[LlmGateway, Depends(get_llm_gateway)]
+SignalRepositoryDep = Annotated[SignalRepository, Depends(get_signal_repository)]
