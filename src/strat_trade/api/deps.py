@@ -4,7 +4,9 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
+from strat_trade.adapters.gemini_adapter import GeminiAdapter
 from strat_trade.ports.candles import CandleFeed
+from strat_trade.ports.llm_gateway import LlmGateway
 from strat_trade.ports.trading_gateway import TradingGateway
 from strat_trade.settings import Settings
 
@@ -30,6 +32,15 @@ def get_candle_feed(request: Request) -> CandleFeed:
     return gateway
 
 
+def get_llm_gateway(request: Request) -> LlmGateway:
+    settings = get_settings(request)
+    return GeminiAdapter(
+        api_key=settings.gemini_api_key,
+        model=settings.gemini_model,
+    )
+
+
 TradingGatewayDep = Annotated[TradingGateway, Depends(get_trading_gateway)]
 CandleFeedDep = Annotated[CandleFeed, Depends(get_candle_feed)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+LlmGatewayDep = Annotated[LlmGateway, Depends(get_llm_gateway)]

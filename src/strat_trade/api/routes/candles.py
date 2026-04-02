@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Query
 
-from strat_trade.api.deps import CandleFeedDep, SettingsDep
+from strat_trade.api.deps import CandleFeedDep, LlmGatewayDep, SettingsDep
 from strat_trade.api.schemas import CandleBarResponse, CandlesResponse
+from strat_trade.domain.market_state import MarketStateVector
+from strat_trade.use_cases.evaluate_market import EvaluateMarketUseCase
 from strat_trade.use_cases.fetch_candles import fetch_candles_in_range, fetch_recent_candles
+from strat_trade.use_cases.generate_trading_signal import GenerateTradingSignalUseCase
 
 router = APIRouter(prefix="/market")
 
@@ -166,3 +170,82 @@ async def read_recent_candles(
         cursor=cursor,
     )
     return _bars_to_response(asset, timeframe_seconds, page)
+
+
+@router.get(
+    "/evaluate",
+    response_model=MarketStateVector,
+    summary="Evaluate Market State (SMC + Math/Regime)",
+    description=(
+        "**Test via Swagger (Feature Engineering pipeline):**\n"
+        "Execute this endpoint with the defaults to test the integration of the Math/SMC Core:\n\n"
+        "`GET /api/v1/market/evaluate?asset=EURUSD_otc&timeframe_seconds=60&count=100`"
+    ),
+    operation_id="evaluateMarketState",
+)
+async def evaluate_market_state(
+    feed: CandleFeedDep,
+    settings: SettingsDep,
+    asset: str = Query(
+        "EURUSD_otc",
+        min_length=1,
+        max_length=128,
+        description="Pocket Option asset / pair identifier.",
+    ),
+    timeframe_seconds: int = Query(
+        60,
+        ge=1,
+        le=2_592_000,
+        description="Candle period in seconds.",
+    ),
+    count: int = Query(
+        100,
+        ge=15,
+        le=5000,
+        description="Number of candles to fetch for the evaluation (minimum 15 for ADX).",
+    ),
+) -> MarketStateVector:
+    use_case = EvaluateMarketUseCase(candle_feed=feed, max_count=settings.max_candles_per_request)
+    return await use_case.execute(asset=asset, timeframe_seconds=timeframe_seconds, count=count)
+
+
+@router.get(
+    "/signal",
+    response_model=dict[str, Any],
+    summary="Generate LLM Trading Signal",
+    description=(
+        "**Test via Swagger (AI Feature pipeline):**\n"
+        "Execute this endpoint with the defaults to test the integration of Gemini LLM:\n\n"
+        "`GET /api/v1/market/signal?asset=EURUSD_otc&timeframe_seconds=60&count=100`"
+    ),
+    operation_id="generateTradingSignal",
+)
+async def generate_trading_signal(
+    feed: CandleFeedDep,
+    llm_gateway: LlmGatewayDep,
+    settings: SettingsDep,
+    asset: str = Query(
+        "EURUSD_otc",
+        min_length=1,
+        max_length=128,
+        description="Pocket Option asset / pair identifier.",
+    ),
+    timeframe_seconds: int = Query(
+        60,
+        ge=1,
+        le=2_592_000,
+        description="Candle period in seconds.",
+    ),
+    count: int = Query(
+        100,
+        ge=15,
+        le=5000,
+        description="Number of candles to fetch for the evaluation (minimum 15 for ADX).",
+    ),
+) -> dict[str, Any]:
+    use_case = GenerateTradingSignalUseCase(
+        candle_feed=feed,
+        llm_gateway=llm_gateway,
+        max_count=settings.max_candles_per_request,
+    )
+    return await use_case.execute(asset=asset, timeframe_seconds=timeframe_seconds, count=count)

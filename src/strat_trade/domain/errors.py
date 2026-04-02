@@ -35,3 +35,19 @@ class IndicatorParameterError(DomainError):
     def __init__(self, message: str, *, code: str = "INDICATOR_PARAMETER_ERROR") -> None:
         self.code = code
         super().__init__(message)
+
+
+class InsufficientMarketDataError(DomainError):
+    """Not enough market data to perform evaluation."""
+
+    def __init__(self, message: str, *, code: str = "INSUFFICIENT_MARKET_DATA") -> None:
+        self.code = code
+        super().__init__(message)
+
+
+class LlmParsingError(DomainError):
+    """LLM failed to return a valid JSON structure or mismatched schema."""
+
+    def __init__(self, message: str, *, code: str = "LLM_PARSING_ERROR") -> None:
+        self.code = code
+        super().__init__(message)

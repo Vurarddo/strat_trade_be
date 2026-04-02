@@ -46,8 +46,8 @@ class Settings(BaseSettings):
             "POCKET_OPTION_USE_RAW_AUTH_FRAME",
         ),
         description=(
-            'Legacy flag for the old pocketoptionapi-async adapter. '
-            'BinaryOptionsToolsV2 sanitizes SSID internally; this setting is ignored.'
+            "Legacy flag for the old pocketoptionapi-async adapter. "
+            "BinaryOptionsToolsV2 sanitizes SSID internally; this setting is ignored."
         ),
     )
     pocket_option_sdk_debug: bool = Field(
@@ -91,13 +91,26 @@ class Settings(BaseSettings):
         ),
         description=(
             "Max broker pages when loading GET /market/candles/range and range-based winrate: "
-            "each page is up to max_candles_per_request bars, walking backward from `to` until `from` "
-            "is covered or history ends."
+            "each page is up to max_candles_per_request bars, walking backward from `to` until "
+            "`from` is covered or history ends."
         ),
+    )
+
+    gemini_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("STRAT_TRADE_GOOGLE_GEMINI_API_KEY", "GEMINI_API_KEY"),
+        description="Google Gemini API Key for LLM trading decisions.",
+    )
+    gemini_model: str = Field(
+        default="gemini-3.1-flash-lite-preview",
+        validation_alias=AliasChoices("STRAT_TRADE_GOOGLE_GEMINI_MODEL", "GEMINI_MODEL"),
+        description="Model identifier to use for Gemini API.",
     )
 
     @model_validator(mode="after")
     def resolve_pocket_option_ssid(self) -> Self:
+        print(f"🚀 [INIT] Active LLM Model: {self.gemini_model}", flush=True)
+
         # BaseSettings does not support returning model_copy from a top-level after
         # validator; mutate in place and return self.
         direct = self.pocket_option_ssid.strip()

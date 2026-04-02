@@ -8,6 +8,7 @@ from strat_trade.domain.errors import (
     BrokerUnavailableError,
     DomainError,
     InvalidMarketParametersError,
+    LlmParsingError,
 )
 
 
@@ -31,6 +32,14 @@ def register_domain_exception_handlers(app: FastAPI) -> None:
             error=ErrorBody(code=exc.code, message=str(exc)),
         ).model_dump()
         return JSONResponse(status_code=400, content=body)
+
+    @app.exception_handler(LlmParsingError)
+    async def llm_parsing_handler(
+        _request: Request,
+        exc: LlmParsingError,
+    ) -> JSONResponse:
+        body = ErrorEnvelope(error=ErrorBody(code=exc.code, message=str(exc))).model_dump()
+        return JSONResponse(status_code=502, content=body)
 
     @app.exception_handler(DomainError)
     async def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:
