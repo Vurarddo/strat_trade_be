@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, Any
 
 from strat_trade.domain.entities import AccountBalance
 
@@ -16,7 +16,13 @@ class TradingGateway(Protocol):
         """Release connections and other resources held by the gateway."""
         ...
 
-    async def place_trade(self, asset: str, direction: str, amount: float, expiration_in_seconds: int) -> bool:
-        """Places a trade on the broker platform. Returns True if successful."""
+    async def place_trade(self, asset: str, direction: str, amount: float, expiration_in_seconds: int) -> dict[str, Any]:
+        """
+        Places a trade on the broker platform.
+        Must return a dict containing at least:
+        - "success": bool
+        - "trade_id": str (if successful)
+        - "strike_price": float (the exact entry price on the broker)
+        """
         ...
 

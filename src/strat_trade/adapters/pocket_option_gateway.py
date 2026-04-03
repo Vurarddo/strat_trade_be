@@ -361,23 +361,49 @@ class PocketOptionTradingGateway:
 
     async def place_trade(
         self, asset: str, direction: str, amount: float, expiration_in_seconds: int
-    ) -> bool:
+    ) -> dict[str, Any]:
         if direction not in ("BUY", "SELL"):
-            return False
+            return {"success": False, "trade_id": None, "strike_price": 0.0}
 
         try:
             client = await self._client_connected()
             if direction == "BUY":
-                result = await client.buy(asset.strip(), amount, expiration_in_seconds)
+                trade_id, trade_dict = await client.buy(asset.strip(), amount, expiration_in_seconds)
             else:
-                result = await client.sell(asset.strip(), amount, expiration_in_seconds)
+                trade_id, trade_dict = await client.sell(asset.strip(), amount, expiration_in_seconds)
+
+            # Extract details from the BinaryOptionsToolsV2 response
+            is_success = True
+            
+            # trade_dict is the second element of the tuple
+            if isinstance(trade_dict, dict):
+                # Different brokers/versions might use different keys for the entry price
+                strike_price = float(trade_dict.get("openPrice", trade_dict.get("open_price", trade_dict.get("start_price", trade_dict.get("strike", 0.0)))))
+                if not trade_id:
+                    trade_id = str(trade_dict.get("id", trade_dict.get("uuid", "")))
+            else:
+                strike_price = float(getattr(trade_dict, "openPrice", getattr(trade_dict, "open_price", getattr(trade_dict, "start_price", 0.0))))
+                if not trade_id:
+                    trade_id = str(getattr(trade_dict, "id", getattr(trade_dict, "uuid", "")))
+
+            if not strike_price:
+                logger.warning(f"⚠️ Could not parse exact strike price from broker, falling back to 0.0. Trade dict: {trade_dict}")
+
+            if not trade_id:
+                logger.warning(f"⚠️ Trade ID is empty. Trade might have failed. Trade dict: {trade_dict}")
+                is_success = False
 
             print(
                 f"🟢 [AUTO-TRADE] Placed {direction} on {asset} for "
-                f"${amount} ({expiration_in_seconds}s) | Result: {result}",
+                f"${amount} ({expiration_in_seconds}s) | Trade ID: {trade_id} | Strike: {strike_price} | Success: {is_success}",
                 flush=True,
             )
-            return True
+            return {
+                "success": is_success,
+                "trade_id": trade_id,
+                "strike_price": strike_price,
+                "raw_response": trade_dict
+            }
         except Exception as exc:
             logger.error("Failed to place auto-trade: %s", exc)
-            return False
+            return {"success": False, "trade_id": None, "strike_price": 0.0}

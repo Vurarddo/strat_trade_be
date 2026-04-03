@@ -18,3 +18,4 @@ class TradeSignalRecord(BaseModel):
     auto_executed: bool = False
     actual_close_price: float | None = None
     pnl_result: str | None = None  # "WIN", "LOSS", "TIE"
+    broker_trade_id: str | None = None

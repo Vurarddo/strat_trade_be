@@ -106,20 +106,26 @@ class GenerateTradingSignalUseCase:
         direction = llm_verdict.get("direction", "NEUTRAL")
         exp_seconds = llm_verdict.get("expiration_in_seconds", timeframe_seconds)
         auto_executed = False
+        actual_entry_price = float(market_state.current_price)
+        broker_trade_id = None
 
         if direction != "NEUTRAL":
             if auto_trade:
                 # Place the trade via trading gateway
-                success = await self._trading_gateway.place_trade(
+                exec_result = await self._trading_gateway.place_trade(
                     asset=asset, direction=direction, amount=amount, expiration_in_seconds=exp_seconds
                 )
-                auto_executed = success
-                if success:
-                    print(f"🟢 [TRADE OPENED] Asset: {asset} | Dir: {direction} | Amount: ${amount} | Exp: {exp_seconds}s | Entry: {market_state.current_price}", flush=True)
+                auto_executed = exec_result.get("success", False)
+                if auto_executed:
+                    # OVERRIDE the signal price with the REAL broker execution price
+                    if exec_result.get("strike_price"):
+                        actual_entry_price = float(exec_result["strike_price"])
+                    broker_trade_id = exec_result.get("trade_id")
+                    print(f"🟢 [TRADE OPENED] Asset: {asset} | Dir: {direction} | Amount: ${amount} | Exp: {exp_seconds}s | Entry: {actual_entry_price} | Trade ID: {broker_trade_id}", flush=True)
                 else:
-                    print(f"🔴 [TRADE FAILED] Asset: {asset} | Dir: {direction} | Amount: ${amount} | Exp: {exp_seconds}s | Entry: {market_state.current_price}", flush=True)
+                    print(f"🔴 [TRADE FAILED] Asset: {asset} | Dir: {direction} | Amount: ${amount} | Exp: {exp_seconds}s | Entry: {actual_entry_price}", flush=True)
             else:
-                print(f"🔵 [PAPER TRADE OPENED] Asset: {asset} | Dir: {direction} | Exp: {exp_seconds}s | Entry: {market_state.current_price} (Auto-trade OFF)", flush=True)
+                print(f"🔵 [PAPER TRADE OPENED] Asset: {asset} | Dir: {direction} | Exp: {exp_seconds}s | Entry: {actual_entry_price} (Auto-trade OFF)", flush=True)
 
         # 7. Save State-Action Signal to Persistence
         current_utc_time = datetime.now(UTC)
@@ -127,12 +133,13 @@ class GenerateTradingSignalUseCase:
             asset=asset,
             timestamp=current_utc_time,
             direction=direction,
-            entry_price=market_state.current_price,
+            entry_price=actual_entry_price,
             expiration_in_seconds=exp_seconds,
             expected_close_time=current_utc_time + timedelta(seconds=exp_seconds),
             strategy_name=llm_verdict.get("strategy_name", "Unknown"),
             win_probability_percentage=llm_verdict.get("win_probability_percentage", 0),
             auto_executed=auto_executed,
+            broker_trade_id=broker_trade_id,
         )
         saved_record = await self._signal_repository.save_signal(record)
 

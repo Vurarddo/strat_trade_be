@@ -26,6 +26,7 @@ class SignalModel(Base):
     is_resolved = Column(Boolean, default=False, nullable=False)
     actual_close_price = Column(Float, nullable=True)
     pnl_result = Column(String(20), nullable=True)
+    broker_trade_id = Column(String(100), nullable=True)
 
 
 engine = create_async_engine("sqlite+aiosqlite:///./forward_test.db", echo=False)
@@ -54,6 +55,7 @@ class SqliteSignalRepository(SignalRepository):
                 is_resolved=record.is_resolved,
                 actual_close_price=record.actual_close_price,
                 pnl_result=record.pnl_result,
+                broker_trade_id=record.broker_trade_id,
             )
             session.add(model)
             await session.commit()
@@ -92,6 +94,7 @@ class SqliteSignalRepository(SignalRepository):
                     is_resolved=model.is_resolved,
                     actual_close_price=model.actual_close_price,
                     pnl_result=model.pnl_result,
+                    broker_trade_id=model.broker_trade_id,
                 )
                 records.append(record)
 
