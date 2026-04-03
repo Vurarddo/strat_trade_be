@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from strat_trade.adapters.db.sqlite_signal_repository import init_db
 from strat_trade.adapters.pocket_option_gateway import PocketOptionTradingGateway
 from strat_trade.api.http_errors import register_domain_exception_handlers
+from strat_trade.api.routes.assets import router as assets_router
 from strat_trade.api.routes.balance import router as balance_router
 from strat_trade.api.routes.bot import router as bot_router
 from strat_trade.api.routes.candles import router as candles_router
@@ -74,6 +75,7 @@ async def health() -> dict[str, str]:
 
 
 app.include_router(balance_router, prefix="/api/v1", tags=["Account"])
+app.include_router(assets_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(candles_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(jobs_router, prefix="/api/v1")
 app.include_router(bot_router, prefix="/api/v1")

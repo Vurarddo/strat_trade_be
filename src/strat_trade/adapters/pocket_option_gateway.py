@@ -407,3 +407,14 @@ class PocketOptionTradingGateway:
         except Exception as exc:
             logger.error("Failed to place auto-trade: %s", exc)
             return {"success": False, "trade_id": None, "strike_price": 0.0}
+
+    async def get_available_assets(self) -> list[dict[str, Any]]:
+        """Return a list of available assets and their full data from the broker."""
+        try:
+            client = await self._client_connected()
+            return await client.active_assets()
+        except BrokerUnavailableError:
+            raise
+        except Exception as exc:
+            logger.warning("Pocket Option get_available_assets error: %s", exc)
+            raise BrokerUnavailableError(str(exc)) from exc
