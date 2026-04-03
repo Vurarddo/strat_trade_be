@@ -88,17 +88,38 @@ class GenerateTradingSignalUseCase:
             print(f"🚀 [PROFILER] LLM Inference: {t3 - t2:.3f}s", flush=True)
             print(f"🚀 [PROFILER] TOTAL PIPELINE: {t3 - t0:.3f}s", flush=True)
 
+        # Strict LLM Expiration Rejection (Risk Management)
+        min_expiration = timeframe_seconds * 3
+        if llm_verdict.get("direction", "NEUTRAL") != "NEUTRAL" and llm_verdict.get("expiration_in_seconds", timeframe_seconds) < min_expiration:
+            exp_sec = llm_verdict.get("expiration_in_seconds", timeframe_seconds)
+            print(f"🛑 [RISK MANAGEMENT] LLM suggested {exp_sec}s (Below minimum {min_expiration}s). Rejecting trade.", flush=True)
+            
+            # Mutate the signal into a rejected state
+            llm_verdict["direction"] = "NEUTRAL"
+            llm_verdict["strategy_name"] = "REJECTED: Invalid LLM Expiration"
+            llm_verdict["win_probability_percentage"] = 0
+            if "chain_of_thought" not in llm_verdict:
+                llm_verdict["chain_of_thought"] = {}
+            llm_verdict["chain_of_thought"]["step_4_verdict"] = f"Trade rejected due to invalid expiration ({exp_sec}s)"
+
         # 6. Auto Trade Execution
         direction = llm_verdict.get("direction", "NEUTRAL")
         exp_seconds = llm_verdict.get("expiration_in_seconds", timeframe_seconds)
         auto_executed = False
 
-        if direction != "NEUTRAL" and auto_trade:
-            # Place the trade via trading gateway
-            success = await self._trading_gateway.place_trade(
-                asset=asset, direction=direction, amount=amount, expiration_in_seconds=exp_seconds
-            )
-            auto_executed = success
+        if direction != "NEUTRAL":
+            if auto_trade:
+                # Place the trade via trading gateway
+                success = await self._trading_gateway.place_trade(
+                    asset=asset, direction=direction, amount=amount, expiration_in_seconds=exp_seconds
+                )
+                auto_executed = success
+                if success:
+                    print(f"🟢 [TRADE OPENED] Asset: {asset} | Dir: {direction} | Amount: ${amount} | Exp: {exp_seconds}s | Entry: {market_state.current_price}", flush=True)
+                else:
+                    print(f"🔴 [TRADE FAILED] Asset: {asset} | Dir: {direction} | Amount: ${amount} | Exp: {exp_seconds}s | Entry: {market_state.current_price}", flush=True)
+            else:
+                print(f"🔵 [PAPER TRADE OPENED] Asset: {asset} | Dir: {direction} | Exp: {exp_seconds}s | Entry: {market_state.current_price} (Auto-trade OFF)", flush=True)
 
         # 7. Save State-Action Signal to Persistence
         current_utc_time = datetime.now(UTC)

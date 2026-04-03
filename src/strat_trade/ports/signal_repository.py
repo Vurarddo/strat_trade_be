@@ -27,3 +27,11 @@ class SignalRepository(abc.ABC):
     @abc.abstractmethod
     async def delete_signal(self, signal_id: int) -> bool:
         """Remove a signal row by primary key. Returns True if a row was deleted."""
+
+    @abc.abstractmethod
+    async def has_unresolved_signal(self, asset: str) -> bool:
+        """Returns True if there is an active/unresolved trade for the given asset."""
+
+    @abc.abstractmethod
+    async def get_trade_statistics(self) -> dict:
+        """Returns a dictionary with aggregated PnL statistics."""

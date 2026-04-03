@@ -160,3 +160,38 @@ class SqliteSignalRepository(SignalRepository):
                 )
             )
             await session.commit()
+
+    async def has_unresolved_signal(self, asset: str) -> bool:
+        async with AsyncSessionLocal() as session:
+            stmt = select(SignalModel).where(
+                and_(
+                    SignalModel.asset == asset,
+                    SignalModel.is_resolved.is_(False)
+                )
+            ).limit(1)
+            result = await session.execute(stmt)
+            return result.first() is not None
+
+    async def get_trade_statistics(self) -> dict:
+        async with AsyncSessionLocal() as session:
+            stmt = select(SignalModel).where(SignalModel.is_resolved.is_(True))
+            result = await session.execute(stmt)
+            models = result.scalars().all()
+            
+            stats = {
+                "total_trades": len(models),
+                "total_won_trades": 0,
+                "total_loss_trades": 0,
+                "total_tied_trades": 0
+            }
+            
+            for model in models:
+                if model.pnl_result == "WIN":
+                    stats["total_won_trades"] += 1
+                elif model.pnl_result == "LOSS":
+                    stats["total_loss_trades"] += 1
+                elif model.pnl_result == "TIE":
+                    stats["total_tied_trades"] += 1
+                    
+            return stats
+

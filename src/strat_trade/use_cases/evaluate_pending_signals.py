@@ -123,5 +123,6 @@ class EvaluatePendingSignalsUseCase:
                 pnl_result,
             )
             updated += 1
+            print(f"🏁 [TRADE RESOLVED] {signal.asset} | Dir: {signal.direction} | Entry: {signal.entry_price} | Close: {actual_close_price} | Result: {pnl_result}", flush=True)
 
         return {"signals_evaluated": updated, "status": "success"}

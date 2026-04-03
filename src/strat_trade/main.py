@@ -10,8 +10,10 @@ from strat_trade.adapters.db.sqlite_signal_repository import init_db
 from strat_trade.adapters.pocket_option_gateway import PocketOptionTradingGateway
 from strat_trade.api.http_errors import register_domain_exception_handlers
 from strat_trade.api.routes.balance import router as balance_router
+from strat_trade.api.routes.bot import router as bot_router
 from strat_trade.api.routes.candles import router as candles_router
 from strat_trade.api.routes.jobs import router as jobs_router
+from strat_trade.core.scheduler import start_scheduler
 from strat_trade.settings import Settings
 
 if TYPE_CHECKING:
@@ -34,7 +36,14 @@ async def lifespan(app: FastAPI):
     app.state.settings = settings
     app.state.trading_gateway: TradingGateway = gateway
     logger.info("Strat Trade started (Pocket Option demo=%s).", settings.pocket_option_is_demo)
+    
+    # Startup: Start the scheduler
+    scheduler = start_scheduler(app)
+    
     yield
+    
+    # Shutdown: Stop the scheduler
+    scheduler.shutdown()
     await gateway.aclose()
     logger.info("Strat Trade shutdown complete.")
 
@@ -67,3 +76,5 @@ async def health() -> dict[str, str]:
 app.include_router(balance_router, prefix="/api/v1", tags=["Account"])
 app.include_router(candles_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(jobs_router, prefix="/api/v1")
+app.include_router(bot_router, prefix="/api/v1")
+
