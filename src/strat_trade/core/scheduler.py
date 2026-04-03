@@ -45,8 +45,8 @@ async def poll_assets_job(app: FastAPI) -> None:
             logger.info(f"Polling asset {asset}...")
             result = await use_case.execute(
                 asset=asset,
-                timeframe_seconds=60,
-                count=200,
+                timeframe_seconds=state.timeframe_seconds,
+                count=state.count,
                 auto_trade=state.auto_trade,
                 amount=state.amount,
             )
