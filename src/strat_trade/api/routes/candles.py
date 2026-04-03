@@ -258,6 +258,7 @@ async def generate_trading_signal(
         False, description="Whether to automatically execute the generated signal."
     ),
     amount: float = Query(1.0, ge=1.0, description="Amount to trade if auto_trade is True."),
+    min_payout: int = Query(75, ge=0, le=100, description="Minimum payout percentage required to trade."),
 ) -> dict[str, Any]:
     use_case = GenerateTradingSignalUseCase(
         candle_feed=feed,
@@ -272,6 +273,7 @@ async def generate_trading_signal(
         count=count,
         auto_trade=auto_trade,
         amount=amount,
+        min_payout=min_payout,
     )
 
 

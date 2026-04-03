@@ -7,6 +7,7 @@ class BotState:
     amount: float = 1.0
     timeframe_seconds: int = 60
     count: int = 200
+    min_payout: int = 75
 
 # Global singleton
 state = BotState()

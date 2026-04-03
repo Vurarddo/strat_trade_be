@@ -32,3 +32,7 @@ class TradingGateway(Protocol):
         """Return a list of available assets and their full data from the broker."""
         ...
 
+    async def get_asset_payout(self, asset: str) -> int:
+        """Return the current integer payout percentage for the given asset (e.g., 80 for 80%)."""
+        ...
+

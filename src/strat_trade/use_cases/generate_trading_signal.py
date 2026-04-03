@@ -36,8 +36,29 @@ class GenerateTradingSignalUseCase:
         count: int,
         auto_trade: bool = False,
         amount: float = 1.0,
+        min_payout: int = 75,
     ) -> dict[str, Any]:
         t0 = time.time()
+
+        # 0. Pre-Flight Risk Check (Payout)
+        current_payout = await self._trading_gateway.get_asset_payout(asset)
+        if current_payout < min_payout:
+            print(f"⏩ [SKIP] {asset} payout is {current_payout}% (Below minimum {min_payout}%). Short-circuiting.", flush=True)
+            return {
+                "market_state": None,
+                "llm_signal": {
+                    "direction": "NEUTRAL",
+                    "expiration_in_seconds": timeframe_seconds,
+                    "win_probability_percentage": 0,
+                    "strategy_name": f"REJECTED: Low Payout ({current_payout}%)",
+                    "chain_of_thought": {
+                        "step_1_regime": "Skipped",
+                        "step_2_smc": "Skipped",
+                        "step_3_confluence": "Skipped",
+                        "step_4_verdict": f"Payout too low ({current_payout}%)"
+                    }
+                }
+            }
 
         # 1. Fetch candles via CandleFeed
         page = await fetch_recent_candles(

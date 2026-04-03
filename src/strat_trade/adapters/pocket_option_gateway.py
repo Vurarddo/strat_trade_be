@@ -418,3 +418,15 @@ class PocketOptionTradingGateway:
         except Exception as exc:
             logger.warning("Pocket Option get_available_assets error: %s", exc)
             raise BrokerUnavailableError(str(exc)) from exc
+
+    async def get_asset_payout(self, asset: str) -> int:
+        """Return the current integer payout percentage for the given asset (e.g., 80 for 80%)."""
+        try:
+            client = await self._client_connected()
+            payout = await client.payout(asset.strip())
+            if payout is None:
+                return 0
+            return int(payout)
+        except Exception as exc:
+            logger.warning("Pocket Option get_asset_payout error: %s", exc)
+            return 0

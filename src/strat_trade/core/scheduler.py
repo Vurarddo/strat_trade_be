@@ -49,6 +49,7 @@ async def poll_assets_job(app: FastAPI) -> None:
                 count=state.count,
                 auto_trade=state.auto_trade,
                 amount=state.amount,
+                min_payout=state.min_payout,
             )
             logger.info(f"Poll result for {asset}: {result.get('llm_signal', {}).get('direction')}")
         except Exception as e:
