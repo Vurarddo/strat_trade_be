@@ -1,3 +1,5 @@
+import asyncio
+import json
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -29,6 +31,24 @@ class GenerateTradingSignalUseCase:
         self._max_count = max_count
         self._evaluator = MarketStateEvaluator()
 
+    async def _resolve_asset_object(self, asset: str, *, fallback_payout: int = 0) -> dict[str, Any]:
+        """Broker full asset row for API responses; falls back if list lookup fails."""
+        try:
+            available_assets = await self._trading_gateway.get_available_assets()
+            found = next(
+                (
+                    a
+                    for a in available_assets
+                    if a.get("symbol") == asset or a.get("name") == asset
+                ),
+                None,
+            )
+            if found is not None:
+                return found
+        except Exception:
+            pass
+        return {"symbol": asset, "name": asset, "payout": fallback_payout}
+
     async def execute(
         self,
         asset: str,
@@ -36,29 +56,44 @@ class GenerateTradingSignalUseCase:
         count: int,
         auto_trade: bool = False,
         amount: float = 1.0,
-        min_payout: int = 75,
+        min_payout: int | None = None,
     ) -> dict[str, Any]:
         t0 = time.time()
+        current_utc_time = datetime.now(UTC)
 
-        # 0. Pre-Flight Risk Check (Payout)
-        current_payout = await self._trading_gateway.get_asset_payout(asset)
-        if current_payout < min_payout:
-            print(f"⏩ [SKIP] {asset} payout is {current_payout}% (Below minimum {min_payout}%). Short-circuiting.", flush=True)
-            return {
-                "market_state": None,
-                "llm_signal": {
-                    "direction": "NEUTRAL",
-                    "expiration_in_seconds": timeframe_seconds,
-                    "win_probability_percentage": 0,
-                    "strategy_name": f"REJECTED: Low Payout ({current_payout}%)",
-                    "chain_of_thought": {
-                        "step_1_regime": "Skipped",
-                        "step_2_smc": "Skipped",
-                        "step_3_confluence": "Skipped",
-                        "step_4_verdict": f"Payout too low ({current_payout}%)"
-                    }
+        # Optional pre-flight payout gate (e.g. scheduler / bot); HTTP signal omits this.
+        if min_payout is not None:
+            current_payout = await self._trading_gateway.get_asset_payout(asset)
+            if current_payout < min_payout:
+                print(
+                    f"⏩ [SKIP] {asset} payout is {current_payout}% "
+                    f"(below bot minimum {min_payout}%). Short-circuiting.",
+                    flush=True,
+                )
+                asset_obj = await self._resolve_asset_object(
+                    asset, fallback_payout=current_payout
+                )
+                return {
+                    "market_state": None,
+                    "llm_signal": {
+                        "direction": "NEUTRAL",
+                        "expiration_in_seconds": timeframe_seconds,
+                        "win_probability_percentage": 0,
+                        "strategy_name": f"REJECTED: Low Payout ({current_payout}%)",
+                        "chain_of_thought": {
+                            "step_1_regime": "Skipped",
+                            "step_2_smc": "Skipped",
+                            "step_3_confluence": "Skipped",
+                            "step_4_verdict": f"Payout too low ({current_payout}%)",
+                        },
+                    },
+                    "asset": asset_obj,
+                    "timeframe_seconds": timeframe_seconds,
+                    "entry_time": current_utc_time.isoformat(),
+                    "expected_close_time": (
+                        current_utc_time + timedelta(seconds=timeframe_seconds)
+                    ).isoformat(),
                 }
-            }
 
         # 1. Fetch candles via CandleFeed
         try:
@@ -71,6 +106,7 @@ class GenerateTradingSignalUseCase:
             )
         except Exception as exc:
             print(f"⏩ [SKIP] {asset} candle fetch failed: {exc}. Short-circuiting.", flush=True)
+            asset_obj = await self._resolve_asset_object(asset)
             return {
                 "market_state": None,
                 "llm_signal": {
@@ -84,7 +120,11 @@ class GenerateTradingSignalUseCase:
                         "step_3_confluence": "Skipped",
                         "step_4_verdict": f"Fetch failed: {exc}"
                     }
-                }
+                },
+                "asset": asset_obj,
+                "timeframe_seconds": timeframe_seconds,
+                "entry_time": current_utc_time.isoformat(),
+                "expected_close_time": (current_utc_time + timedelta(seconds=timeframe_seconds)).isoformat(),
             }
 
         t1 = time.time()
@@ -92,6 +132,7 @@ class GenerateTradingSignalUseCase:
 
         if not page.candles:
             print(f"⏩ [SKIP] {asset} returned 0 candles. Short-circuiting.", flush=True)
+            asset_obj = await self._resolve_asset_object(asset)
             return {
                 "market_state": None,
                 "llm_signal": {
@@ -105,7 +146,11 @@ class GenerateTradingSignalUseCase:
                         "step_3_confluence": "Skipped",
                         "step_4_verdict": "No candles returned by broker"
                     }
-                }
+                },
+                "asset": asset_obj,
+                "timeframe_seconds": timeframe_seconds,
+                "entry_time": current_utc_time.isoformat(),
+                "expected_close_time": (current_utc_time + timedelta(seconds=timeframe_seconds)).isoformat(),
             }
 
         # 2. Pass them to MarketStateEvaluator to get MarketStateVector
@@ -130,14 +175,21 @@ class GenerateTradingSignalUseCase:
                 "win_probability_percentage": 0,
                 "strategy_name": "Hard Filter - Low Volatility",
             }
+            asset_obj = await self._resolve_asset_object(asset)
+            return {
+                "market_state": market_state.model_dump(),
+                "llm_signal": llm_verdict,
+                "asset": asset_obj,
+                "timeframe_seconds": timeframe_seconds,
+                "entry_time": current_utc_time.isoformat(),
+                "expected_close_time": (current_utc_time + timedelta(seconds=timeframe_seconds)).isoformat(),
+            }
         else:
             # 4. Convert MarketStateVector + Context to a JSON string
             payload_dict = {
                 "timeframe_seconds": timeframe_seconds,
                 "market_state": market_state.model_dump(),
             }
-            import json
-
             state_json = json.dumps(payload_dict)
 
             # 5. LLM Inference (Only executed if market is trending)
@@ -186,7 +238,6 @@ class GenerateTradingSignalUseCase:
                 print(f"🔵 [PAPER TRADE OPENED] Asset: {asset} | Dir: {direction} | Exp: {exp_seconds}s | Entry: {actual_entry_price} (Auto-trade OFF)", flush=True)
 
         # 7. Save State-Action Signal to Persistence
-        current_utc_time = datetime.now(UTC)
         record = TradeSignalRecord(
             asset=asset,
             timestamp=current_utc_time,
@@ -199,7 +250,10 @@ class GenerateTradingSignalUseCase:
             auto_executed=auto_executed,
             broker_trade_id=broker_trade_id,
         )
-        saved_record = await self._signal_repository.save_signal(record)
+        saved_record, asset_obj = await asyncio.gather(
+            self._signal_repository.save_signal(record),
+            self._resolve_asset_object(asset),
+        )
 
         # 8. Return the LLM's parsed dictionary alongside the original MarketStateVector
         return {
@@ -208,4 +262,8 @@ class GenerateTradingSignalUseCase:
             "signal_id": saved_record.id,
             "auto_executed": auto_executed,
             "amount": amount,
+            "asset": asset_obj,
+            "timeframe_seconds": timeframe_seconds,
+            "entry_time": current_utc_time.isoformat(),
+            "expected_close_time": (current_utc_time + timedelta(seconds=exp_seconds)).isoformat(),
         }

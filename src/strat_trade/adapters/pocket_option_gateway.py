@@ -11,6 +11,7 @@ from typing import Any
 from BinaryOptionsToolsV2.config import Config
 from BinaryOptionsToolsV2.pocketoption import PocketOptionAsync
 
+from strat_trade.adapters.broker_asset_normalization import normalize_broker_asset_rows
 from strat_trade.domain.entities import AccountBalance, Candle
 from strat_trade.domain.errors import BrokerUnavailableError, InvalidMarketParametersError
 
@@ -412,7 +413,10 @@ class PocketOptionTradingGateway:
         """Return a list of available assets and their full data from the broker."""
         try:
             client = await self._client_connected()
-            return await client.active_assets()
+            raw = await client.active_assets()
+            if not isinstance(raw, list):
+                return []
+            return normalize_broker_asset_rows(raw)
         except BrokerUnavailableError:
             raise
         except Exception as exc:
