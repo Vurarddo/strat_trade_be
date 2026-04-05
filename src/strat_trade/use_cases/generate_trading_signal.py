@@ -61,15 +61,52 @@ class GenerateTradingSignalUseCase:
             }
 
         # 1. Fetch candles via CandleFeed
-        page = await fetch_recent_candles(
-            feed=self._candle_feed,
-            asset=asset,
-            timeframe_seconds=timeframe_seconds,
-            count=count,
-            max_count=self._max_count,
-        )
+        try:
+            page = await fetch_recent_candles(
+                feed=self._candle_feed,
+                asset=asset,
+                timeframe_seconds=timeframe_seconds,
+                count=count,
+                max_count=self._max_count,
+            )
+        except Exception as exc:
+            print(f"⏩ [SKIP] {asset} candle fetch failed: {exc}. Short-circuiting.", flush=True)
+            return {
+                "market_state": None,
+                "llm_signal": {
+                    "direction": "NEUTRAL",
+                    "expiration_in_seconds": timeframe_seconds,
+                    "win_probability_percentage": 0,
+                    "strategy_name": f"REJECTED: Fetch Failed ({type(exc).__name__})",
+                    "chain_of_thought": {
+                        "step_1_regime": "Skipped",
+                        "step_2_smc": "Skipped",
+                        "step_3_confluence": "Skipped",
+                        "step_4_verdict": f"Fetch failed: {exc}"
+                    }
+                }
+            }
+
         t1 = time.time()
         print(f"🚀 [PROFILER] Candle Fetch: {t1 - t0:.3f}s", flush=True)
+
+        if not page.candles:
+            print(f"⏩ [SKIP] {asset} returned 0 candles. Short-circuiting.", flush=True)
+            return {
+                "market_state": None,
+                "llm_signal": {
+                    "direction": "NEUTRAL",
+                    "expiration_in_seconds": timeframe_seconds,
+                    "win_probability_percentage": 0,
+                    "strategy_name": "REJECTED: Insufficient Market Data",
+                    "chain_of_thought": {
+                        "step_1_regime": "Skipped",
+                        "step_2_smc": "Skipped",
+                        "step_3_confluence": "Skipped",
+                        "step_4_verdict": "No candles returned by broker"
+                    }
+                }
+            }
 
         # 2. Pass them to MarketStateEvaluator to get MarketStateVector
         market_state = self._evaluator.evaluate(page.candles)
