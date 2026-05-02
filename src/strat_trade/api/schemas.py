@@ -110,7 +110,7 @@ class IndicatorSpecBody(BaseModel):
     )
     params: dict[str, Any] = Field(
         default_factory=dict,
-        description="Indicator-specific parameters (e.g. rsi: `{ \"period\": 14 }`).",
+        description='Indicator-specific parameters (e.g. rsi: `{ "period": 14 }`).',
         examples=[{"period": 14}],
     )
 

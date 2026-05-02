@@ -53,7 +53,7 @@ def _rsi_values(closes: list[float], period: int) -> list[float | None]:
     series = pd.Series(closes, dtype="float64")
     try:
         momentum = import_module("ta.momentum")
-        rsi_indicator = momentum.RSIIndicator  # type: ignore[attr-defined]
+        rsi_indicator = momentum.RSIIndicator
     except Exception as exc:
         raise IndicatorParameterError(
             "Technical indicators package `ta` is not available in this environment."

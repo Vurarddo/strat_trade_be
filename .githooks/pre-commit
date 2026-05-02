@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Pre-Commit Quality & Security Gate (project Git hook)
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Cursor hooks.json does not run on `git commit`; this is the supported hook point.
+
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if [[ "$(git config core.hooksPath || true)" != ".githooks" ]]; then
+  echo "hint: enable project hooks with: git config core.hooksPath .githooks" >&2
+fi
+
+exec python3 "$ROOT/scripts/pre_commit_quality_security_gate.py"

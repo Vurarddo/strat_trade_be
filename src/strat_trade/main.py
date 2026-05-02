@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 
@@ -12,9 +11,6 @@ from strat_trade.api.routes.balance import router as balance_router
 from strat_trade.api.routes.candles import router as candles_router
 from strat_trade.api.routes.indicators import router as indicators_router
 from strat_trade.settings import Settings
-
-if TYPE_CHECKING:
-    from strat_trade.ports.trading_gateway import TradingGateway
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +26,7 @@ async def lifespan(app: FastAPI):
         sdk_debug=settings.pocket_option_sdk_debug,
     )
     app.state.settings = settings
-    app.state.trading_gateway: TradingGateway = gateway
+    app.state.trading_gateway = gateway
     logger.info("Strat Trade started (Pocket Option demo=%s).", settings.pocket_option_is_demo)
     yield
     await gateway.aclose()

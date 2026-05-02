@@ -11,4 +11,9 @@ def trim_leading_none_indicator_values(values: list[float | None]) -> tuple[int,
     while idx < n and values[idx] is None:
         idx += 1
     tail = values[idx:]
-    return idx, [float(v) for v in tail]
+    out: list[float] = []
+    for v in tail:
+        if v is None:
+            raise TypeError("trim_leading_none_indicator_values: internal None after leading trim")
+        out.append(float(v))
+    return idx, out

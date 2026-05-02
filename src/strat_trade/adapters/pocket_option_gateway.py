@@ -286,7 +286,7 @@ class PocketOptionTradingGateway:
                     raise BrokerUnavailableError(
                         "Pocket Option session could not be established (asset sync failed). "
                         "Typical causes: expired SSID, network/VPN blocking, or invalid SSID. "
-                        "Copy a fresh ssid / 42[\"auth\",…] from the browser if needed."
+                        'Copy a fresh ssid / 42["auth",…] from the browser if needed.'
                     ) from exc
             return self._client
 
@@ -333,9 +333,7 @@ class PocketOptionTradingGateway:
                 et = et.astimezone(UTC)
                 end_u = int(et.timestamp())
                 offset = _history_offset_seconds(period=period, count=count)
-                raw_list = await client.get_candles_advanced(
-                    asset.strip(), period, offset, end_u
-                )
+                raw_list = await client.get_candles_advanced(asset.strip(), period, offset, end_u)
         except InvalidMarketParametersError:
             raise
         except ValueError as exc:

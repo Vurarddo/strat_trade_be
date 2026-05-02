@@ -36,3 +36,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Cursor (local-only rules)
+.cursor/rules/comunication-language.mdc

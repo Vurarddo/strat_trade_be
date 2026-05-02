@@ -46,8 +46,8 @@ class Settings(BaseSettings):
             "POCKET_OPTION_USE_RAW_AUTH_FRAME",
         ),
         description=(
-            'Legacy flag for the old pocketoptionapi-async adapter. '
-            'BinaryOptionsToolsV2 sanitizes SSID internally; this setting is ignored.'
+            "Legacy flag for the old pocketoptionapi-async adapter. "
+            "BinaryOptionsToolsV2 sanitizes SSID internally; this setting is ignored."
         ),
     )
     pocket_option_sdk_debug: bool = Field(

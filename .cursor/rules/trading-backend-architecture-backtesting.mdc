@@ -1,0 +1,50 @@
+---
+name: Trading Backend Architecture & Backtesting Standards
+description: Three-layer separation (data / strategy / execution), vectorized backtest-ready strategies, OHLCV schema & tz, NaN after TA, env-only secrets.
+globs:
+  - "src/**/*.py"
+  - "tests/**/*.py"
+alwaysApply: false
+---
+
+# Trading Backend Architecture & Backtesting Standards
+
+Complements **`strat-trade-backend.mdc`**, **`python-trading-architecture-clean-code.mdc`**, and **`docs/ARCHITECTURE.md`**. Hexagonal **ports/adapters** remain canonical; this rule adds **layer vocabulary**, **DataFrame-first strategy inputs**, and **backtest performance** norms.
+
+## Architecture (separation of concerns)
+
+Map the three layers to the repo layout:
+
+1. **Data layer** — historical or live series: **`ports/`** (`CandleFeed`, etc.) + **`adapters/`** that fetch/stream; **no** indicator or signal rules here.
+2. **Strategy layer** — **`ta` / pandas-ta**, rules, signals: **`domain/`** (pure) or orchestrated by **`use_cases/`**; consumes **OHLCV as `pandas.DataFrame`** (or equivalent columnar input) and **must not** depend on broker SDKs, HTTP, or where the frame was built.
+3. **Execution layer** — **`BinaryOptionsTools-v2`** or a **simulator** implementing **`TradingGateway`**: only **`adapters/`** behind ports.
+
+At boundaries, convert **`Candle`** (or API DTOs) → DataFrame **once**; strategy code sees a **normalized** frame only.
+
+## Backtesting readiness
+
+- Prefer **vectorized** `pandas` (and TA libs) for indicators and signal columns; **avoid** `for` / **`iterrows()`** for per-bar indicator computation or bulk signal generation.
+- Expose **all strategy parameters** in **Pydantic / settings-style config objects** (or dedicated dataclasses) so sweeps and reproducible backtests do not hunt magic numbers in code.
+
+## Data integrity
+
+- Standard OHLCV column names: **`Open`**, **`High`**, **`Low`**, **`Close`**, **`Volume`** (map from broker fields in adapters before strategy).
+- **Datetime index**, **timezone-aware** (prefer UTC internally; document display TZ if needed).
+- After **pandas-ta** / **`ta`** steps: mandatory **NaN** handling before downstream signals (same policy as **`python-trading-architecture-clean-code.mdc`**).
+
+## Security
+
+- **Never** hardcode credentials or SSID; use **`.env` / environment** and **`Settings`** only (e.g. `POCKET_OPTION_SSID`).
+
+## Examples
+
+```python
+# BAD — strategy coupled to feed + iterrows
+for _, row in df.iterrows():
+    rsi = ta.rsi(row["Close"], length=14)
+
+# GOOD — adapter builds DataFrame; strategy is pure on columns
+def signals(df: pd.DataFrame, cfg: StrategyParams) -> pd.Series:
+    rsi = ta.rsi(df["Close"], length=cfg.rsi_period)
+    return (df["Close"] > rsi).fillna(False)  # explicit NaN policy upstream or here
+```

@@ -68,6 +68,7 @@ async def fetch_recent_candles(
     if not asset_clean:
         raise InvalidMarketParametersError("asset must be a non-empty symbol.")
 
+    effective_end: datetime | None
     if cursor is not None:
         effective_end = cursor - timedelta(microseconds=1)
     else:
