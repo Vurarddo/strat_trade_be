@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "🔧 Install Dependencies",
+      "type": "shell",
+      "command": "([ -d .venv ] || python3 -m venv .venv) && .venv/bin/python -m pip install -e \".[dev]\"",
+      "windows": {
+        "command": "if (-not (Test-Path .venv)) { python -m venv .venv }; .\\.venv\\Scripts\\python.exe -m pip install -e \".[dev]\""
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🚀 Run API: Swagger",
+      "type": "shell",
+      "command": "([ -d .venv ] || python3 -m venv .venv) && .venv/bin/python -m uvicorn strat_trade.main:app --reload --host 127.0.0.1 --port 8000",
+      "windows": {
+        "command": "if (-not (Test-Path .venv)) { python -m venv .venv }; .\\.venv\\Scripts\\python.exe -m uvicorn strat_trade.main:app --reload --host 127.0.0.1 --port 8000"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "uvicorn",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Uvicorn running on"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      }
+    }
+  ]
+}
