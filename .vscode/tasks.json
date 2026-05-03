@@ -4,7 +4,7 @@
     {
       "label": "🔧 Install Dependencies",
       "type": "shell",
-      "command": "([ -d .venv ] || python3 -m venv .venv) && .venv/bin/python -m pip install -e \".[dev]\"",
+      "command": "VENV_PY=$(command -v python3.12 || command -v python3.13); if [ -z \"$VENV_PY\" ]; then echo 'strat-trade needs Python 3.12 or 3.13 (requires-python excludes 3.14+). Install e.g. brew install python@3.12' >&2; exit 1; fi; if [ -d .venv ] && ! .venv/bin/python -c 'import sys; v=sys.version_info[:2]; sys.exit(0 if (3,12)<=v<(3,14) else 1)' 2>/dev/null; then rm -rf .venv; fi; ([ -d .venv ] || \"$VENV_PY\" -m venv .venv) && .venv/bin/python -m pip install -e \".[dev]\"",
       "windows": {
         "command": "if (-not (Test-Path .venv)) { python -m venv .venv }; .\\.venv\\Scripts\\python.exe -m pip install -e \".[dev]\""
       },
@@ -25,7 +25,7 @@
     {
       "label": "🚀 Run API: Swagger",
       "type": "shell",
-      "command": "([ -d .venv ] || python3 -m venv .venv) && .venv/bin/python -m uvicorn strat_trade.main:app --reload --host 127.0.0.1 --port 8000",
+      "command": "VENV_PY=$(command -v python3.12 || command -v python3.13); if [ -z \"$VENV_PY\" ]; then echo 'strat-trade needs Python 3.12 or 3.13 (requires-python excludes 3.14+). Install e.g. brew install python@3.12' >&2; exit 1; fi; if [ -d .venv ] && ! .venv/bin/python -c 'import sys; v=sys.version_info[:2]; sys.exit(0 if (3,12)<=v<(3,14) else 1)' 2>/dev/null; then rm -rf .venv; fi; ([ -d .venv ] || \"$VENV_PY\" -m venv .venv) && .venv/bin/python -m uvicorn strat_trade.main:app --reload --host 127.0.0.1 --port 8000",
       "windows": {
         "command": "if (-not (Test-Path .venv)) { python -m venv .venv }; .\\.venv\\Scripts\\python.exe -m uvicorn strat_trade.main:app --reload --host 127.0.0.1 --port 8000"
       },
