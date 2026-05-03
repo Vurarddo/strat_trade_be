@@ -2,7 +2,7 @@
 
 ## 1. Timestamp
 
-2026-05-03T12:00:00Z
+2026-05-03T18:30:00Z
 
 ## 2. Status
 
@@ -11,7 +11,32 @@
 | Initialization | `gemini_sync.md` template + reporting structure | Success |
 | Datafeed | `tvdatafeed` (git), `TradingViewGateway`, `normalize_tradingview_ohlcv`, port `OhlcvDataFrameSource` | Success |
 | BO metrics | `compute_binary_options_signal_metrics` (vectorized, domain) | Success |
-| Verification | `pytest` (full suite 24 passed), ruff on new modules | Success |
+| Verification | `pytest` (full suite 29 passed), ruff on touched modules | Success |
+| PO indicator pool | `pandas-ta`, `IndicatorMetadata`, singleton `IndicatorRegistry`, 32 calculators, `GET /api/v1/indicators` | Success |
+| Indicator package layout | Monolith `indicator_defs.py` removed; logic split into `oscillators.py`, `trend.py`, `volatility.py`, `volume.py`, `bill_williams.py` + `indicator_support.py` + `catalog.py`; `__init__.py` imports submodules so decorators register on import | Success |
+| TradingView REST OHLCV | `TRADINGVIEW_REST_API_INTERVAL_MAP` + `tradingview_rest_api_interval()` in `trading_view_gateway.py`; `GET /api/v1/tradingview/candles` (`TvCandleResponse`), `TradingViewGateway.fetch_ohlcv`, router `api/routes/tradingview.py`, OpenAPI tag **TradingView** | Success |
+
+**Manual check (Swagger):** after `uvicorn strat_trade.main:app`, open `http://127.0.0.1:8000/docs` → **GET /api/v1/tradingview/candles** — query `symbol`, `exchange`, `interval` (`1m` \| `3m` \| `5m` \| `15m` \| `1h` \| `1d`), optional `limit` (default 500, max 5000).
+
+**Indicator registry init:** `strat_trade.domain.indicators` loads the five category modules from `__init__.py`; `default_indicator_registry` uses `catalog.register_all` so all 32 ids remain registered before HTTP handlers run. `GET /api/v1/indicators` still returns 32 rows (`tests/test_indicators_api.py::test_get_indicators_catalog`).
+
+**Registered indicators (count): 32**
+
+**Not available as a single matching `pandas_ta` function name (implemented manually or as a composition):**
+
+- **DeMarker** — manual vectorized formula on highs/lows.
+- **Accelerator Oscillator (ac)** — `pta.ao` minus rolling mean of AO (5).
+- **Envelopes** — SMA/EMA/WMA mid ± percent (vectorized).
+- **Bulls Power / Bears Power** — Elder-style: high/low minus EMA(close).
+- **Fractal** — Williams 5-bar up/down fractal midpoint series (sparse; `fill_sparse` + ffill for API).
+- **Fractal Chaos Bands** — simplified midline from forward-filled fractal highs/lows + rolling window (not a built-in `fcb` in pandas-ta).
+
+**Implemented via pandas-ta output columns (not a standalone indicator id of that name):**
+
+- **OsMA** — `MACDh_*` from `df.ta.macd(...)`.
+- **Bollinger Bands Width** — `BBB_*` from `df.ta.bbands(...)`.
+
+**Library API notes:** `pandas_ta.alligator` in the installed version is **close-only** (no high/low arguments). ZigZag parameters follow the library: `deviation`, `legs`.
 
 ## 3. Architectural Blockers
 

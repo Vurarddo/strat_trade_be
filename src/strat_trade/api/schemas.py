@@ -44,6 +44,19 @@ class CandleBarResponse(BaseModel):
     volume: float | None = None
 
 
+class TvCandleResponse(BaseModel):
+    """One bar from TradingView (tvdatafeed), normalized to UTC timestamps."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    timestamp: datetime = Field(description="Bar open time (UTC).")
+    open: float | None = Field(None, description="Open; null if missing in source row.")
+    high: float | None = Field(None, description="High; null if missing in source row.")
+    low: float | None = Field(None, description="Low; null if missing in source row.")
+    close: float | None = Field(None, description="Close; null if missing in source row.")
+    volume: float | None = Field(None, description="Volume; null if missing in source row.")
+
+
 class CandlesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -189,6 +202,24 @@ class MarketIndicatorsRequest(BaseModel):
     include_candles: bool = Field(
         True,
         description="If false, omit OHLCV in the response (only timestamps + indicator values).",
+    )
+
+
+class IndicatorCatalogItemResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stable indicator id used in POST /market/indicators `id`.")
+    name: str = Field(description="Human-readable name.")
+    category: str = Field(
+        description="Indicator family (Oscillator, Trend, Volatility, Volume, Other).",
+    )
+    default_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Default tunable parameters merged with client `params` on compute.",
+    )
+    fill_sparse: bool = Field(
+        False,
+        description="If true, sparse series are forward-filled before trimming for the API.",
     )
 
 

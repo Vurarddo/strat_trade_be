@@ -8,7 +8,7 @@ from decimal import Decimal
 import pandas as pd
 
 from strat_trade.domain.entities import Candle
-from strat_trade.domain.indicators import RsiCalculator
+from strat_trade.domain.indicators import default_indicator_registry
 
 
 def test_hundred_row_ohlcv_dataframe_ta_rsi_sanity() -> None:
@@ -37,6 +37,6 @@ def test_hundred_row_ohlcv_dataframe_ta_rsi_sanity() -> None:
         candles.append(
             Candle(open_time=ts_utc, open=o, high=h, low=lo, close=c, volume=vol),
         )
-    series = RsiCalculator(14).compute(candles)
+    series = default_indicator_registry().build("rsi", {"length": 14}).compute(candles)
     assert len(series.values) == n
     assert series.values[-1] is not None

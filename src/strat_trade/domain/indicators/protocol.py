@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from strat_trade.domain.entities import Candle
-from strat_trade.domain.indicators.types import IndicatorSeries
+from strat_trade.domain.indicators.types import IndicatorMetadata, IndicatorSeries
 
 
 @runtime_checkable
@@ -19,3 +19,6 @@ class IndicatorCalculator(Protocol):
         `params` in the result must echo the effective parameters used.
         """
         ...
+
+
+__all__ = ["IndicatorCalculator", "IndicatorMetadata", "IndicatorSeries"]

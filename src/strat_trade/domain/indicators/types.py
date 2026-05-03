@@ -1,6 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class IndicatorCategory(StrEnum):
+    OSCILLATOR = "Oscillator"
+    TREND = "Trend"
+    VOLATILITY = "Volatility"
+    VOLUME = "Volume"
+    BILL_WILLIAMS = "Bill Williams"
+    OTHER = "Other"
+
+
+@dataclass(frozen=True, slots=True)
+class IndicatorMetadata:
+    """Catalog entry for Pocket-Option-style indicators (pandas-ta backed)."""
+
+    id: str
+    name: str
+    category: IndicatorCategory
+    default_params: dict[str, object]
+    fill_sparse: bool = False
 
 
 @dataclass(frozen=True, slots=True)
