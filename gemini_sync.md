@@ -11,8 +11,11 @@
 | Initialization | `gemini_sync.md` template + reporting structure | Success |
 | Datafeed | `tvdatafeed` (git), `TradingViewGateway`, `normalize_tradingview_ohlcv`, port `OhlcvDataFrameSource` | Success |
 | BO metrics | `compute_binary_options_signal_metrics` (vectorized, domain) | Success |
-| Verification | `pytest` (full suite 24 passed), ruff on new modules | Success |
+| Verification | `pytest` (full suite 25 passed), ruff + pyright on indicators package | Success |
 | PO indicator pool | `pandas-ta`, `IndicatorMetadata`, singleton `IndicatorRegistry`, 32 calculators, `GET /api/v1/indicators` | Success |
+| Indicator package layout | Monolith `indicator_defs.py` removed; logic split into `oscillators.py`, `trend.py`, `volatility.py`, `volume.py`, `bill_williams.py` + `indicator_support.py` + `catalog.py`; `__init__.py` imports submodules so decorators register on import | Success |
+
+**Indicator registry init:** `strat_trade.domain.indicators` loads the five category modules from `__init__.py`; `default_indicator_registry` uses `catalog.register_all` so all 32 ids remain registered before HTTP handlers run. `GET /api/v1/indicators` still returns 32 rows (`tests/test_indicators_api.py::test_get_indicators_catalog`).
 
 **Registered indicators (count): 32**
 

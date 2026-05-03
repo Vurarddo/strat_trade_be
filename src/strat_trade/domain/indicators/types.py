@@ -9,6 +9,7 @@ class IndicatorCategory(StrEnum):
     TREND = "Trend"
     VOLATILITY = "Volatility"
     VOLUME = "Volume"
+    BILL_WILLIAMS = "Bill Williams"
     OTHER = "Other"
 
 

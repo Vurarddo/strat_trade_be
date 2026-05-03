@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
-from strat_trade.domain.indicators.indicator_defs import register_all
+from . import bill_williams, oscillators, trend, volatility, volume
+from .registry import IndicatorRegistry
+
+
+def register_all(reg: IndicatorRegistry) -> None:
+    oscillators.register(reg)
+    trend.register(reg)
+    volatility.register(reg)
+    volume.register(reg)
+    bill_williams.register(reg)
+
 
 __all__ = ["register_all"]
