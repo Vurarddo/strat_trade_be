@@ -192,6 +192,24 @@ class MarketIndicatorsRequest(BaseModel):
     )
 
 
+class IndicatorCatalogItemResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(description="Stable indicator id used in POST /market/indicators `id`.")
+    name: str = Field(description="Human-readable name.")
+    category: str = Field(
+        description="Indicator family (Oscillator, Trend, Volatility, Volume, Other).",
+    )
+    default_params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Default tunable parameters merged with client `params` on compute.",
+    )
+    fill_sparse: bool = Field(
+        False,
+        description="If true, sparse series are forward-filled before trimming for the API.",
+    )
+
+
 class IndicatorSeriesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

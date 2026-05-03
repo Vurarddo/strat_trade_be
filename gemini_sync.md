@@ -2,7 +2,7 @@
 
 ## 1. Timestamp
 
-2026-05-03T12:00:00Z
+2026-05-03T18:30:00Z
 
 ## 2. Status
 
@@ -12,6 +12,25 @@
 | Datafeed | `tvdatafeed` (git), `TradingViewGateway`, `normalize_tradingview_ohlcv`, port `OhlcvDataFrameSource` | Success |
 | BO metrics | `compute_binary_options_signal_metrics` (vectorized, domain) | Success |
 | Verification | `pytest` (full suite 24 passed), ruff on new modules | Success |
+| PO indicator pool | `pandas-ta`, `IndicatorMetadata`, singleton `IndicatorRegistry`, 32 calculators, `GET /api/v1/indicators` | Success |
+
+**Registered indicators (count): 32**
+
+**Not available as a single matching `pandas_ta` function name (implemented manually or as a composition):**
+
+- **DeMarker** — manual vectorized formula on highs/lows.
+- **Accelerator Oscillator (ac)** — `pta.ao` minus rolling mean of AO (5).
+- **Envelopes** — SMA/EMA/WMA mid ± percent (vectorized).
+- **Bulls Power / Bears Power** — Elder-style: high/low minus EMA(close).
+- **Fractal** — Williams 5-bar up/down fractal midpoint series (sparse; `fill_sparse` + ffill for API).
+- **Fractal Chaos Bands** — simplified midline from forward-filled fractal highs/lows + rolling window (not a built-in `fcb` in pandas-ta).
+
+**Implemented via pandas-ta output columns (not a standalone indicator id of that name):**
+
+- **OsMA** — `MACDh_*` from `df.ta.macd(...)`.
+- **Bollinger Bands Width** — `BBB_*` from `df.ta.bbands(...)`.
+
+**Library API notes:** `pandas_ta.alligator` in the installed version is **close-only** (no high/low arguments). ZigZag parameters follow the library: `deviation`, `legs`.
 
 ## 3. Architectural Blockers
 
