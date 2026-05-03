@@ -44,6 +44,19 @@ class CandleBarResponse(BaseModel):
     volume: float | None = None
 
 
+class TvCandleResponse(BaseModel):
+    """One bar from TradingView (tvdatafeed), normalized to UTC timestamps."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    timestamp: datetime = Field(description="Bar open time (UTC).")
+    open: float | None = Field(None, description="Open; null if missing in source row.")
+    high: float | None = Field(None, description="High; null if missing in source row.")
+    low: float | None = Field(None, description="Low; null if missing in source row.")
+    close: float | None = Field(None, description="Close; null if missing in source row.")
+    volume: float | None = Field(None, description="Volume; null if missing in source row.")
+
+
 class CandlesResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

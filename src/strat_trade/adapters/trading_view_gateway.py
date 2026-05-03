@@ -14,6 +14,33 @@ except ImportError:  # pragma: no cover - until dependency is installed
 
 TvIntervalLike = str | Any
 
+# Supported `interval` query values for `GET /api/v1/tradingview/candles` (REST contract).
+TRADINGVIEW_REST_API_INTERVAL_MAP: dict[str, str] = {
+    "1m": "in_1_minute",
+    "3m": "in_3_minute",
+    "5m": "in_5_minute",
+    "15m": "in_15_minute",
+    "1h": "in_1_hour",
+    "1d": "in_daily",
+}
+
+
+def tradingview_rest_api_interval(interval: str) -> Any:
+    """
+    Map a REST `interval` string to ``tvDatafeed.Interval`` (enum member).
+
+    Raises:
+        ValueError: if ``interval`` is not one of the supported API tokens.
+    """
+    key = interval.strip().lower()
+    attr = TRADINGVIEW_REST_API_INTERVAL_MAP.get(key)
+    if attr is None:
+        allowed = ", ".join(sorted(TRADINGVIEW_REST_API_INTERVAL_MAP))
+        msg = f"Unsupported interval {interval!r}; allowed: {allowed}."
+        raise ValueError(msg)
+    return getattr(Interval, attr)
+
+
 _INTERVAL_TOKEN_TO_ATTR: dict[str, str] = {
     "1": "in_1_minute",
     "1m": "in_1_minute",
@@ -144,3 +171,14 @@ class TradingViewGateway:
             n_bars=n_bars,
         )
         return normalize_tradingview_ohlcv(raw)
+
+    def fetch_ohlcv(
+        self,
+        symbol: str,
+        exchange: str,
+        interval: TvIntervalLike,
+        *,
+        n_bars: int,
+    ) -> pd.DataFrame:
+        """Alias for :meth:`get_historical_ohlcv` (same ``symbol``/``ticker`` argument)."""
+        return self.get_historical_ohlcv(symbol, exchange, interval, n_bars)

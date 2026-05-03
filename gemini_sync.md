@@ -11,9 +11,12 @@
 | Initialization | `gemini_sync.md` template + reporting structure | Success |
 | Datafeed | `tvdatafeed` (git), `TradingViewGateway`, `normalize_tradingview_ohlcv`, port `OhlcvDataFrameSource` | Success |
 | BO metrics | `compute_binary_options_signal_metrics` (vectorized, domain) | Success |
-| Verification | `pytest` (full suite 25 passed), ruff + pyright on indicators package | Success |
+| Verification | `pytest` (full suite 29 passed), ruff on touched modules | Success |
 | PO indicator pool | `pandas-ta`, `IndicatorMetadata`, singleton `IndicatorRegistry`, 32 calculators, `GET /api/v1/indicators` | Success |
 | Indicator package layout | Monolith `indicator_defs.py` removed; logic split into `oscillators.py`, `trend.py`, `volatility.py`, `volume.py`, `bill_williams.py` + `indicator_support.py` + `catalog.py`; `__init__.py` imports submodules so decorators register on import | Success |
+| TradingView REST OHLCV | `TRADINGVIEW_REST_API_INTERVAL_MAP` + `tradingview_rest_api_interval()` in `trading_view_gateway.py`; `GET /api/v1/tradingview/candles` (`TvCandleResponse`), `TradingViewGateway.fetch_ohlcv`, router `api/routes/tradingview.py`, OpenAPI tag **TradingView** | Success |
+
+**Manual check (Swagger):** after `uvicorn strat_trade.main:app`, open `http://127.0.0.1:8000/docs` → **GET /api/v1/tradingview/candles** — query `symbol`, `exchange`, `interval` (`1m` \| `3m` \| `5m` \| `15m` \| `1h` \| `1d`), optional `limit` (default 500, max 5000).
 
 **Indicator registry init:** `strat_trade.domain.indicators` loads the five category modules from `__init__.py`; `default_indicator_registry` uses `catalog.register_all` so all 32 ids remain registered before HTTP handlers run. `GET /api/v1/indicators` still returns 32 rows (`tests/test_indicators_api.py::test_get_indicators_catalog`).
 

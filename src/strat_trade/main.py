@@ -11,6 +11,7 @@ from strat_trade.api.routes.balance import router as balance_router
 from strat_trade.api.routes.candles import router as candles_router
 from strat_trade.api.routes.indicator_catalog import router as indicator_catalog_router
 from strat_trade.api.routes.indicators import router as indicators_router
+from strat_trade.api.routes.tradingview import router as tradingview_router
 from strat_trade.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,10 @@ app = FastAPI(
     openapi_tags=[
         {"name": "Account", "description": "Broker-linked account views (balance, etc.)."},
         {"name": "Market data", "description": "Historical candles and read-only market series."},
+        {
+            "name": "TradingView",
+            "description": "TradingView historical OHLCV for data preview before backtests.",
+        },
         {"name": "System", "description": "Health and process metadata."},
     ],
 )
@@ -58,3 +63,4 @@ app.include_router(balance_router, prefix="/api/v1", tags=["Account"])
 app.include_router(candles_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(indicators_router, prefix="/api/v1", tags=["Market data"])
 app.include_router(indicator_catalog_router, prefix="/api/v1", tags=["Market data"])
+app.include_router(tradingview_router, prefix="/api/v1", tags=["TradingView"])
