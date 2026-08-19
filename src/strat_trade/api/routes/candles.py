@@ -5,10 +5,167 @@ from datetime import datetime
 from fastapi import APIRouter, Query
 
 from strat_trade.api.deps import CandleFeedDep, SettingsDep
-from strat_trade.api.schemas import CandleBarResponse, CandlesResponse
+from strat_trade.api.schemas import AssetItemResponse, CandleBarResponse, CandlesResponse
 from strat_trade.use_cases.fetch_candles import fetch_candles_in_range, fetch_recent_candles
 
 router = APIRouter(prefix="/market")
+
+_CURATED_ASSETS = [
+    {
+        "symbol": "EURUSD_otc",
+        "name": "EUR/USD OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "GBPUSD_otc",
+        "name": "GBP/USD OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "USDJPY_otc",
+        "name": "USD/JPY OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "AUDUSD_otc",
+        "name": "AUD/USD OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "USDCAD_otc",
+        "name": "USD/CAD OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "USDCHF_otc",
+        "name": "USD/CHF OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "EURGBP_otc",
+        "name": "EUR/GBP OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "EURJPY_otc",
+        "name": "EUR/JPY OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "USDRUB_otc",
+        "name": "USD/RUB OTC",
+        "payout": 92,
+        "is_otc": True,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "EURUSD",
+        "name": "EUR/USD",
+        "payout": 80,
+        "is_otc": False,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "GBPUSD",
+        "name": "GBP/USD",
+        "payout": 80,
+        "is_otc": False,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "USDJPY",
+        "name": "USD/JPY",
+        "payout": 80,
+        "is_otc": False,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "AUDUSD",
+        "name": "AUD/USD",
+        "payout": 80,
+        "is_otc": False,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "USDCAD",
+        "name": "USD/CAD",
+        "payout": 80,
+        "is_otc": False,
+        "asset_type": "currency",
+    },
+    {
+        "symbol": "BTCUSD_otc",
+        "name": "Bitcoin OTC",
+        "payout": 85,
+        "is_otc": True,
+        "asset_type": "cryptocurrency",
+    },
+    {
+        "symbol": "ETHUSD_otc",
+        "name": "Ethereum OTC",
+        "payout": 85,
+        "is_otc": True,
+        "asset_type": "cryptocurrency",
+    },
+    {
+        "symbol": "LTCUSD_otc",
+        "name": "Litecoin OTC",
+        "payout": 80,
+        "is_otc": True,
+        "asset_type": "cryptocurrency",
+    },
+    {
+        "symbol": "USCrude_otc",
+        "name": "WTI Crude Oil OTC",
+        "payout": 85,
+        "is_otc": True,
+        "asset_type": "commodity",
+    },
+    {
+        "symbol": "AAPL_otc",
+        "name": "Apple OTC",
+        "payout": 85,
+        "is_otc": True,
+        "asset_type": "stock",
+    },
+    {
+        "symbol": "AMZN_otc",
+        "name": "Amazon OTC",
+        "payout": 85,
+        "is_otc": True,
+        "asset_type": "stock",
+    },
+    {
+        "symbol": "MSFT_otc",
+        "name": "Microsoft OTC",
+        "payout": 85,
+        "is_otc": True,
+        "asset_type": "stock",
+    },
+    {
+        "symbol": "TSLA_otc",
+        "name": "Tesla OTC",
+        "payout": 85,
+        "is_otc": True,
+        "asset_type": "stock",
+    },
+]
 
 
 def _bars_to_response(
@@ -165,3 +322,22 @@ async def read_recent_candles(
         cursor=cursor,
     )
     return _bars_to_response(asset, timeframe_seconds, page)
+
+
+@router.get(
+    "/assets",
+    response_model=list[AssetItemResponse],
+    summary="List available trading assets and payout rates",
+    description=(
+        "Returns all active assets from Pocket Option with human-readable names and payout rates."
+    ),
+    operation_id="getMarketAssets",
+)
+async def read_active_assets(
+    feed: CandleFeedDep,
+) -> list[AssetItemResponse]:
+    if hasattr(feed, "get_assets"):
+        raw_assets = await feed.get_assets()
+        if raw_assets:
+            return [AssetItemResponse(**a) for a in raw_assets]
+    return [AssetItemResponse(**a) for a in _CURATED_ASSETS]

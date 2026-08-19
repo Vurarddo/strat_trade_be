@@ -1,0 +1,2044 @@
+<!DOCTYPE html>
+<html lang="uk" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pocket Option AutoTrader Pro | Terminal & Portfolio Backtester</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lightweight Charts (TradingView) v4.2.1 Stable Standalone -->
+  <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfeff',
+              500: '#06b6d4',
+              600: '#0891b2',
+              700: '#0e7490',
+            },
+            surface: {
+              900: '#0b0f17',
+              800: '#111827',
+              700: '#1f2937',
+              600: '#374151',
+            },
+            call: '#10b981',
+            put: '#ef4444',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #172033 0%, #0b0f17 75%);
+      color: #f3f4f6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+    .glass-input {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #f3f4f6;
+    }
+    .glass-input:focus {
+      border-color: #06b6d4;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(11, 15, 23, 0.5); }
+    ::-webkit-scrollbar-thumb { background: rgba(55, 65, 81, 0.7); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(75, 85, 99, 0.9); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- Header / Navigation -->
+  <header class="border-b border-gray-800 bg-surface-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <i data-lucide="activity" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Pocket Option AutoTrader Pro
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-400 border border-brand-500/30">v0.2 Multi-Asset</span>
+          </h1>
+          <p class="text-xs text-gray-400">Autonomous Binary Options Algorithmic Trading, Backtester & Portfolio Suite</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4">
+        <div id="connectionStatus" class="flex items-center space-x-2 text-xs px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="connectionText">API Online</span>
+        </div>
+        <button onclick="fetchAccountBalance()" class="flex items-center space-x-2 text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-200 border border-gray-700 transition">
+          <i data-lucide="wallet" class="w-4 h-4 text-emerald-400"></i>
+          <span id="balanceDisplay">Balance: Loading...</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Grid -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Top Tabs Navigation -->
+    <div class="flex border-b border-gray-800 space-x-2 sm:space-x-6 overflow-x-auto">
+      <button onclick="switchTab('portfolio')" id="tabBtnPortfolio" class="tab-btn px-4 py-2.5 border-b-2 border-brand-500 text-brand-400 font-bold text-sm flex items-center gap-2 whitespace-nowrap">
+        <i data-lucide="layers" class="w-4 h-4"></i> Портфельний бектест (Multi-Asset)
+        <span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">Multi</span>
+      </button>
+      <button onclick="switchTab('single')" id="tabBtnSingle" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
+        <i data-lucide="line-chart" class="w-4 h-4"></i> Одиночний бектест (Single)
+      </button>
+      <button onclick="switchTab('optimizer')" id="tabBtnOptimizer" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
+        <i data-lucide="sliders-horizontal" class="w-4 h-4 text-amber-400"></i> Оптимізатор (Grid Search)
+        <span class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 text-[10px] font-bold">New</span>
+      </button>
+      <button onclick="switchTab('apiTester')" id="tabBtnApi" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
+        <i data-lucide="terminal" class="w-4 h-4"></i> Тестер API Ендпоінтів
+      </button>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: MULTI-ASSET PORTFOLIO BACKTESTER                                   -->
+    <!-- ========================================================================= -->
+    <div id="tabPortfolio" class="space-y-6">
+      
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Multi-Asset Configuration Dock -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="layers" class="w-4 h-4 text-cyan-400"></i> Конфігурація портфеля
+              </h2>
+              <p class="text-[11px] text-gray-400">Симуляція єдиного капіталу з паралельним трейдингом</p>
+            </div>
+            <span id="pAssetSelectedBadge" class="text-xs text-brand-400 font-semibold px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/20">
+              0 обрано
+            </span>
+          </div>
+
+          <form id="portfolioForm" class="space-y-3" onsubmit="event.preventDefault(); runPortfolioBacktest();">
+            
+            <!-- Strategy Selector -->
+            <div>
+              <label class="text-xs font-semibold text-gray-300 block mb-1">Квантова стратегія:</label>
+              <select id="pCfgStrategy" class="w-full glass-input text-xs rounded-lg px-2.5 py-2 font-medium text-cyan-300 border-cyan-500/30">
+                <!-- Loaded dynamically via loadStrategiesList() -->
+              </select>
+            </div>
+
+            <!-- Asset Selection Multi-Selector & Quick Filters -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-xs font-semibold text-gray-300">Вибір активів (Сортування за виплатою Payout %):</label>
+              </div>
+              
+              <!-- Quick Filter Buttons -->
+              <div class="flex flex-wrap gap-1.5 mb-2">
+                <button type="button" onclick="selectTopNAssets(5)" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-cyan-400 border border-cyan-500/30 transition">⚡ Топ-5 за Payout</button>
+                <button type="button" onclick="selectTopNAssets(10)" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-cyan-400 border border-cyan-500/30 transition">⚡ Топ-10</button>
+                <button type="button" onclick="selectOtcAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-emerald-400 border border-emerald-500/30 transition">🟢 Усі OTC (92%)</button>
+                <button type="button" onclick="selectForexAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-amber-400 border border-amber-500/30 transition">💱 Валюти</button>
+                <button type="button" onclick="clearSelectedAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-gray-400 border border-gray-700 transition">❌ Очистити</button>
+              </div>
+
+              <!-- Checkbox Assets Container with Scroll -->
+              <div id="portfolioAssetsContainer" class="max-h-44 overflow-y-auto p-2 rounded-xl bg-surface-900/90 border border-gray-800 space-y-1">
+                <div class="text-center py-4 text-xs text-gray-500">Завантаження списку активів Pocket Option...</div>
+              </div>
+            </div>
+
+            <!-- Concurrency & Capital -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Спільний депозит ($)</label>
+                <input type="number" id="pCfgDeposit" value="1000" min="10" step="10" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Макс. паралельних угод</label>
+                <input type="number" id="pCfgMaxConcurrent" value="3" min="1" max="20" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Stake Model & Sizing -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Модель ставки</label>
+                <select id="pCfgStakeModel" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" onchange="togglePortfolioStakeInputs()">
+                  <option value="flat" selected>Flat (Фіксована $)</option>
+                  <option value="percent">Dynamic (% балансу)</option>
+                  <option value="martingale">Martingale (Recovery)</option>
+                </select>
+              </div>
+              <div id="pFlatStakeBox">
+                <label class="text-xs text-gray-400 block mb-1">Сума угоди ($)</label>
+                <input type="number" id="pCfgStakeAmount" value="10" min="1" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div id="pPercentStakeBox" class="hidden">
+                <label class="text-xs text-gray-400 block mb-1">% від балансу</label>
+                <input type="number" id="pCfgStakePercent" value="1.0" min="0.1" max="100" step="0.1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Timeframe & Candles -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Таймфрейм</label>
+                <select id="pCfgTimeframe" class="w-full glass-input text-xs rounded-lg px-2.5 py-2">
+                  <option value="5">5s (5 сек)</option>
+                  <option value="15">15s (15 сек)</option>
+                  <option value="30">30s (30 сек)</option>
+                  <option value="60" selected>60s (1 хв - M1)</option>
+                  <option value="300">300s (5 хв - M5)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Свічок на актив</label>
+                <input type="number" id="pCfgCandleCount" value="300" min="50" max="2000" step="10" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Expiration & Stop-Loss -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Експірація (барів)</label>
+                <input type="number" id="pCfgExpBars" value="3" min="1" max="20" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Сесійний Stop-Loss (%)</label>
+                <input type="number" id="pCfgStopLoss" value="5" min="1" max="50" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Adaptive Expiration Toggle -->
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-surface-800/50 border border-gray-700/50">
+              <span class="text-xs text-gray-300 flex items-center gap-1.5">
+                <i data-lucide="zap" class="w-3.5 h-3.5 text-cyan-400"></i> Адаптивна ATR-експірація
+              </span>
+              <input type="checkbox" id="pCfgAdaptiveExp" class="w-4 h-4 text-brand-600 rounded bg-gray-900 border-gray-700" />
+            </div>
+
+            <!-- Action Button -->
+            <div class="pt-2">
+              <button type="submit" id="btnRunPortfolio" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2">
+                <i data-lucide="play" class="w-4 h-4"></i> Запустити портфельний бектест
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- Right: Portfolio Metrics & Two-Level Charts -->
+        <div class="lg:col-span-7 space-y-4">
+          
+          <!-- Key Metrics Summary Ribbon (Portfolio) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            
+            <!-- Final Deposit Highlight -->
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-cyan-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Депозит портфеля</div>
+              <div id="pMetricDepositChange" class="text-lg font-bold text-cyan-400">$1000.00 ➔ $1000.00</div>
+              <div id="pMetricProfitDelta" class="text-[11px] font-semibold text-emerald-400">+$0.00 (0.00% ROI)</div>
+            </div>
+
+            <!-- Portfolio Win Rate -->
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-emerald-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Portfolio Win Rate</div>
+              <div id="pMetricWinRate" class="text-lg font-bold text-emerald-400">0.00%</div>
+              <div id="pMetricActiveCount" class="text-[10px] text-gray-500">0 активів у портфелі</div>
+            </div>
+
+            <!-- Portfolio Profit Factor -->
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-amber-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Profit Factor</div>
+              <div id="pMetricPF" class="text-lg font-bold text-amber-400">0.00</div>
+              <div id="pMetricTrades" class="text-[10px] text-gray-500">0 угод (0W / 0L / 0D)</div>
+            </div>
+
+            <!-- Portfolio Drawdown -->
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-rose-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Max Drawdown</div>
+              <div id="pMetricDD" class="text-lg font-bold text-rose-400">0.00%</div>
+              <div id="pMetricStreak" class="text-[10px] text-gray-500">Max Win/Loss: 0 / 0</div>
+            </div>
+
+          </div>
+
+          <!-- 1. Portfolio Equity Curve Chart -->
+          <div class="glass-card rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="trending-up" class="w-4 h-4 text-cyan-400"></i> Зведена динаміка депозиту портфеля (Portfolio Equity)
+              </h3>
+            </div>
+            <div id="pEquityChartContainer" class="w-full h-44 rounded-lg overflow-hidden relative"></div>
+          </div>
+
+          <!-- 2. Asset Candlestick Inspector -->
+          <div class="glass-card rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <i data-lucide="candlestick-chart" class="w-4 h-4 text-emerald-400"></i> Свічковий інспектор активу:
+                </h3>
+                <select id="pInspectorAssetSelect" class="glass-input text-xs rounded px-2 py-1 font-semibold text-cyan-400" onchange="onInspectorAssetChanged()">
+                  <option value="">Оберіть актив для перегляду свічок</option>
+                </select>
+              </div>
+              <div class="flex items-center space-x-3 text-[11px] text-gray-400">
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> CALL</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> PUT</span>
+              </div>
+            </div>
+            <div id="pCandleChartContainer" class="w-full h-64 rounded-lg overflow-hidden relative"></div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Asset Leaderboard & Comparison Table -->
+      <div class="glass-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
+          <div>
+            <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+              <i data-lucide="trophy" class="w-4 h-4 text-amber-400"></i> Лідерборд та порівняння активів портфеля
+            </h3>
+            <p class="text-xs text-gray-400">Індивідуальна результативність кожного активу у спільному прогоні</p>
+          </div>
+          <span id="pLeaderboardCount" class="text-xs text-gray-400">0 активів</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-gray-300">
+            <thead class="bg-surface-800/80 text-[11px] uppercase tracking-wider text-gray-400 sticky top-0">
+              <tr>
+                <th class="px-3 py-2">Ранг</th>
+                <th class="px-3 py-2">Актив</th>
+                <th class="px-3 py-2">Payout %</th>
+                <th class="px-3 py-2">Угоди (W/L/D)</th>
+                <th class="px-3 py-2">Частка угод</th>
+                <th class="px-3 py-2">Win Rate</th>
+                <th class="px-3 py-2">Net P&L ($)</th>
+                <th class="px-3 py-2">ROI %</th>
+                <th class="px-3 py-2">Profit Factor</th>
+                <th class="px-3 py-2">Дії</th>
+              </tr>
+            </thead>
+            <tbody id="pLeaderboardBody" class="divide-y divide-gray-800/60 font-mono">
+              <tr>
+                <td colspan="10" class="text-center py-6 text-gray-500">Запустіть портфельний бектест для побудови лідерборду.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Chronological Portfolio Trades Log -->
+      <div class="glass-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
+          <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+            <i data-lucide="list-ordered" class="w-4 h-4 text-brand-400"></i> Хронологічний журнал усіх угод портфеля
+          </h3>
+          <span id="pTradeTableCount" class="text-xs text-gray-400">0 записів</span>
+        </div>
+
+        <div class="overflow-x-auto max-h-96">
+          <table class="w-full text-left text-xs text-gray-300">
+            <thead class="bg-surface-800/80 text-[11px] uppercase tracking-wider text-gray-400 sticky top-0">
+              <tr>
+                <th class="px-3 py-2">#</th>
+                <th class="px-3 py-2">Актив</th>
+                <th class="px-3 py-2">Час входу (UTC)</th>
+                <th class="px-3 py-2">Дія</th>
+                <th class="px-3 py-2">Вхід</th>
+                <th class="px-3 py-2">Вихід</th>
+                <th class="px-3 py-2">Ставка</th>
+                <th class="px-3 py-2">Результат</th>
+                <th class="px-3 py-2">P&L ($)</th>
+                <th class="px-3 py-2">Баланс ($)</th>
+                <th class="px-3 py-2">Впевненість</th>
+              </tr>
+            </thead>
+            <tbody id="pTradeLogBody" class="divide-y divide-gray-800/60 font-mono">
+              <tr>
+                <td colspan="11" class="text-center py-6 text-gray-500">Запустіть портфельний бектест для відображення угод.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: SINGLE-ASSET BACKTESTER                                            -->
+    <!-- ========================================================================= -->
+    <div id="tabSingle" class="hidden space-y-6">
+      
+      <!-- Top Control & Settings Panel -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Configuration Dock -->
+        <div class="lg:col-span-4 glass-card rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <h2 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-brand-400"></i> Параметри одиночного бектесту
+            </h2>
+            <span class="text-xs text-brand-400 font-medium" id="assetCountBadge">Завантаження...</span>
+          </div>
+
+          <form id="backtestForm" class="space-y-3" onsubmit="event.preventDefault(); runSingleBacktest();">
+            <!-- Strategy Selector -->
+            <div>
+              <label class="text-xs font-semibold text-gray-300 block mb-1">Квантова стратегія:</label>
+              <select id="cfgStrategy" class="w-full glass-input text-xs rounded-lg px-2.5 py-2 font-medium text-cyan-300 border-cyan-500/30" onchange="onSingleStrategyChanged()">
+                <!-- Loaded dynamically via loadStrategiesList() -->
+              </select>
+              <div id="singleStrategyInfoBox" class="mt-1.5 p-2 rounded-lg bg-surface-900/80 border border-gray-800 text-[11px] text-gray-400">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+
+            <!-- Asset & Timeframe -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Актив Pocket Option</label>
+                <select id="cfgAsset" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" onchange="onAssetChanged()">
+                  <option value="EURUSD_otc" data-payout="92" selected>EUR/USD OTC (92%)</option>
+                  <option value="GBPUSD_otc" data-payout="92">GBP/USD OTC (92%)</option>
+                  <option value="USDJPY_otc" data-payout="92">USD/JPY OTC (92%)</option>
+                  <option value="EURUSD" data-payout="80">EUR/USD (80%)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Таймфрейм</label>
+                <select id="cfgTimeframe" class="w-full glass-input text-xs rounded-lg px-2.5 py-2">
+                  <option value="5">5s (5 сек)</option>
+                  <option value="15">15s (15 сек)</option>
+                  <option value="30">30s (30 сек)</option>
+                  <option value="60" selected>60s (1 хв - M1)</option>
+                  <option value="300">300s (5 хв - M5)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Deposit & Money Management -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Стартовий депозит ($)</label>
+                <input type="number" id="cfgDeposit" value="1000" min="10" step="10" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Модель ставки</label>
+                <select id="cfgStakeModel" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" onchange="toggleSingleStakeInputs()">
+                  <option value="flat" selected>Flat (Фіксована $)</option>
+                  <option value="percent">Dynamic (% балансу)</option>
+                  <option value="martingale">Martingale (Recovery)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Stake details -->
+            <div class="grid grid-cols-2 gap-3" id="stakeRow">
+              <div id="flatStakeContainer">
+                <label class="text-xs text-gray-400 block mb-1">Сума угоди ($)</label>
+                <input type="number" id="cfgStakeAmount" value="10" min="1" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div id="percentStakeContainer" class="hidden">
+                <label class="text-xs text-gray-400 block mb-1">% від балансу</label>
+                <input type="number" id="cfgStakePercent" value="1.0" min="0.1" max="100" step="0.1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Кількість свічок</label>
+                <input type="number" id="cfgCandleCount" value="500" min="50" max="2000" step="10" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Martingale Options -->
+            <div id="martingaleDetails" class="hidden p-2.5 rounded-lg bg-surface-800/80 border border-gray-700/60 space-y-2">
+              <div class="text-[11px] font-semibold text-amber-400 flex items-center gap-1">
+                <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> Налаштування Martingale (Max 2-3 кроки)
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-[10px] text-gray-400 block">Множник</label>
+                  <input type="number" id="cfgMartingaleMult" value="2.0" min="1.0" max="4.0" step="0.1" class="w-full glass-input text-xs rounded px-2 py-1" />
+                </div>
+                <div>
+                  <label class="text-[10px] text-gray-400 block">Макс. кроків</label>
+                  <input type="number" id="cfgMartingaleSteps" value="2" min="1" max="5" step="1" class="w-full glass-input text-xs rounded px-2 py-1" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Payout Filter & Expiration -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Payout брокера (%)</label>
+                <input type="number" id="cfgPayout" value="92" min="10" max="100" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Мін. Payout фільтр (%)</label>
+                <input type="number" id="cfgMinPayout" value="80" min="10" max="100" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Експірація (барів)</label>
+                <input type="number" id="cfgExpBars" value="3" min="1" max="20" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Сесійний Stop-Loss (%)</label>
+                <input type="number" id="cfgStopLoss" value="5" min="1" max="50" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Adaptive Expiration Toggle -->
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-surface-800/50 border border-gray-700/50">
+              <span class="text-xs text-gray-300 flex items-center gap-1.5">
+                <i data-lucide="zap" class="w-3.5 h-3.5 text-cyan-400"></i> Адаптивна ATR-експірація
+              </span>
+              <input type="checkbox" id="cfgAdaptiveExp" class="w-4 h-4 text-brand-600 rounded bg-gray-900 border-gray-700" />
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="pt-2 space-y-2">
+              <button type="submit" id="btnRunBacktest" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 text-white font-semibold text-xs shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2">
+                <i data-lucide="play" class="w-4 h-4"></i> Запустити одиночний бектест
+              </button>
+
+              <!-- Upload CSV / JSON button -->
+              <div class="relative">
+                <input type="file" id="fileUploadInput" accept=".csv,.json" class="hidden" onchange="handleFileUpload(event)" />
+                <button type="button" onclick="document.getElementById('fileUploadInput').click()" class="w-full py-2 px-4 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 font-medium text-xs border border-gray-700 transition flex items-center justify-center gap-2">
+                  <i data-lucide="upload" class="w-3.5 h-3.5 text-cyan-400"></i> Завантажити CSV / JSON котирувань
+                </button>
+              </div>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- Right: Charts and Key Metrics -->
+        <div class="lg:col-span-8 space-y-4">
+          
+          <!-- Key Metrics Summary Ribbon -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-cyan-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Депозит (Було ➔ Стало)</div>
+              <div id="metricDepositChange" class="text-lg font-bold text-cyan-400">$1000.00 ➔ $1000.00</div>
+              <div id="metricProfitDelta" class="text-[11px] font-semibold text-emerald-400">+$0.00 (0.00% ROI)</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-emerald-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Win Rate</div>
+              <div id="metricWinRate" class="text-lg font-bold text-emerald-400">0.00%</div>
+              <div id="metricBE" class="text-[10px] text-gray-500">Break-even: 52.08% (при 92%)</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-amber-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Profit Factor</div>
+              <div id="metricPF" class="text-lg font-bold text-amber-400">0.00</div>
+              <div id="metricTrades" class="text-[10px] text-gray-500">0 угод (0W / 0L / 0D)</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-rose-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Max Drawdown</div>
+              <div id="metricDD" class="text-lg font-bold text-rose-400">0.00%</div>
+              <div id="metricStreak" class="text-[10px] text-gray-500">Max Win/Loss: 0 / 0</div>
+            </div>
+          </div>
+
+          <!-- Single Candlestick Chart -->
+          <div class="glass-card rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="candlestick-chart" class="w-4 h-4 text-emerald-400"></i> Графік свічок та точки входу
+              </h3>
+              <div class="flex items-center space-x-3 text-[11px] text-gray-400">
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> CALL</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> PUT</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span> Об'єм</span>
+              </div>
+            </div>
+            <div id="candleChartContainer" class="w-full h-80 rounded-lg overflow-hidden relative"></div>
+          </div>
+
+          <!-- Single Equity Curve Chart -->
+          <div class="glass-card rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="trending-up" class="w-4 h-4 text-cyan-400"></i> Динаміка депозиту (Equity Curve)
+              </h3>
+            </div>
+            <div id="equityChartContainer" class="w-full h-44 rounded-lg overflow-hidden relative"></div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Single Trade Log Table -->
+      <div class="glass-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
+          <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+            <i data-lucide="list-ordered" class="w-4 h-4 text-brand-400"></i> Детальний журнал угод
+          </h3>
+          <span id="tradeTableCount" class="text-xs text-gray-400">0 записів</span>
+        </div>
+
+        <div class="overflow-x-auto max-h-96">
+          <table class="w-full text-left text-xs text-gray-300">
+            <thead class="bg-surface-800/80 text-[11px] uppercase tracking-wider text-gray-400 sticky top-0">
+              <tr>
+                <th class="px-3 py-2">#</th>
+                <th class="px-3 py-2">Час входу (UTC)</th>
+                <th class="px-3 py-2">Дія</th>
+                <th class="px-3 py-2">Ціна входу</th>
+                <th class="px-3 py-2">Ціна виходу</th>
+                <th class="px-3 py-2">Ставка</th>
+                <th class="px-3 py-2">Результат</th>
+                <th class="px-3 py-2">P&L ($)</th>
+                <th class="px-3 py-2">Баланс ($)</th>
+                <th class="px-3 py-2">Впевненість</th>
+              </tr>
+            </thead>
+            <tbody id="tradeLogBody" class="divide-y divide-gray-800/60 font-mono">
+              <tr>
+                <td colspan="10" class="text-center py-6 text-gray-500">Запустіть бектест для відображення угод.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: HYPERPARAMETER OPTIMIZER (GRID SEARCH)                             -->
+    <!-- ========================================================================= -->
+    <div id="tabOptimizer" class="hidden space-y-6">
+      
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Optimizer Configuration Dock -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 text-amber-400"></i> Авто-підбір параметрів
+              </h2>
+              <p class="text-[11px] text-gray-400">Квантовий Grid Search для пошуку ідеальних налаштувань</p>
+            </div>
+            <span class="text-xs text-amber-400 font-semibold px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+              Grid Search
+            </span>
+          </div>
+
+          <form id="optimizerForm" class="space-y-3" onsubmit="event.preventDefault(); runStrategyOptimizer();">
+            
+            <!-- Strategy Selection -->
+            <div>
+              <label class="text-xs font-semibold text-gray-300 block mb-1">Стратегія для оптимізації:</label>
+              <select id="optCfgStrategy" class="w-full glass-input text-xs rounded-lg px-2.5 py-2 font-medium text-amber-300 border-amber-500/30" onchange="onOptimizerStrategyChanged()">
+                <!-- Loaded dynamically -->
+              </select>
+              <div id="optStrategyDetailsCard" class="mt-1.5 p-2.5 rounded-lg bg-surface-900/90 border border-gray-800 text-[11px] text-gray-400 space-y-1">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+
+            <!-- Asset & Timeframe -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Актив</label>
+                <select id="optCfgAsset" class="w-full glass-input text-xs rounded-lg px-2.5 py-2">
+                  <!-- Loaded dynamically -->
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Таймфрейм</label>
+                <select id="optCfgTimeframe" class="w-full glass-input text-xs rounded-lg px-2.5 py-2">
+                  <option value="5">5s (5 сек)</option>
+                  <option value="15">15s (15 сек)</option>
+                  <option value="30">30s (30 сек)</option>
+                  <option value="60" selected>60s (1 хв - M1)</option>
+                  <option value="300">300s (5 хв - M5)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Deposit & Candles -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Тестовий депозит ($)</label>
+                <input type="number" id="optCfgDeposit" value="1000" min="10" step="10" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Кількість свічок</label>
+                <input type="number" id="optCfgCandleCount" value="400" min="100" max="2000" step="50" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Grid Search Presets -->
+            <div>
+              <label class="text-xs text-gray-300 block mb-1.5 font-semibold">Пресет глибини пошуку:</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                <button type="button" onclick="setOptimizerPreset('fast')" id="btnPresetFast" class="text-[11px] py-1.5 px-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-amber-300 border border-amber-500/40 font-medium transition text-center">⚡ Швидкий<br><span class="text-[9px] text-gray-400">~16 тестів</span></button>
+                <button type="button" onclick="setOptimizerPreset('balanced')" id="btnPresetBalanced" class="text-[11px] py-1.5 px-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700 font-medium transition text-center">⚖️ Баланс<br><span class="text-[9px] text-gray-400">~36 тестів</span></button>
+                <button type="button" onclick="setOptimizerPreset('deep')" id="btnPresetDeep" class="text-[11px] py-1.5 px-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700 font-medium transition text-center">🔬 Глибокий<br><span class="text-[9px] text-gray-400">~64 тести</span></button>
+              </div>
+            </div>
+
+            <!-- Parameters Grid Config Preview -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs text-gray-400">Діапазони параметрів сітки (JSON):</label>
+                <button type="button" onclick="resetOptimizerGridJson()" class="text-[10px] text-cyan-400 hover:underline">Скинути за замовчуванням</button>
+              </div>
+              <textarea id="optCustomGridJson" rows="4" class="w-full glass-input text-[11px] rounded-lg p-2 font-mono text-gray-300"></textarea>
+            </div>
+
+            <!-- Action Button -->
+            <div class="pt-2">
+              <button type="submit" id="btnRunOptimizer" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-500 hover:to-emerald-500 text-white font-bold text-xs shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2">
+                <i data-lucide="zap" class="w-4 h-4"></i> Запустити Grid Search оптимізацію
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- Right: Optimization Results Leaderboard -->
+        <div class="lg:col-span-7 space-y-4">
+          
+          <!-- Key Metrics Summary (Best Found Set) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-amber-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Найкращий Win Rate</div>
+              <div id="optMetricBestWR" class="text-lg font-bold text-amber-400">--%</div>
+              <div id="optMetricBestWRSub" class="text-[11px] text-gray-400">0 угод</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-emerald-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Найкращий Profit Factor</div>
+              <div id="optMetricBestPF" class="text-lg font-bold text-emerald-400">--</div>
+              <div class="text-[11px] text-gray-400">Hurdle > 1.25</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-cyan-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Макс. Net Profit</div>
+              <div id="optMetricBestPnL" class="text-lg font-bold text-cyan-400">+$0.00</div>
+              <div id="optMetricBestRoi" class="text-[11px] text-emerald-400">0.00% ROI</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-rose-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Перевірено наборів</div>
+              <div id="optMetricTestedCount" class="text-lg font-bold text-gray-200">0</div>
+              <div id="optMetricTimeTaken" class="text-[11px] text-gray-400">Готовий до запуску</div>
+            </div>
+
+          </div>
+
+          <!-- Best Parameters Card with 1-Click Apply -->
+          <div id="optBestBanner" class="hidden glass-card rounded-2xl p-4 border border-amber-500/30 bg-amber-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="space-y-1">
+              <div class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> Оптимальна комбінація параметрів (#1 Rank):
+              </div>
+              <div id="optBestParamsText" class="text-xs font-mono text-gray-200"></div>
+            </div>
+            <button type="button" id="btnApplyBestParams" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-xs transition whitespace-nowrap flex items-center gap-1.5 shadow-lg shadow-amber-500/20">
+              <i data-lucide="check-circle-2" class="w-4 h-4"></i> Застосувати в бектест
+            </button>
+          </div>
+
+          <!-- Results Leaderboard Table -->
+          <div class="glass-card rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
+              <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="trophy" class="w-4 h-4 text-amber-400"></i> Таблиця результатів Grid Search
+              </h3>
+              <span id="optTableCount" class="text-xs text-gray-400">0 комбінацій</span>
+            </div>
+
+            <div class="overflow-x-auto max-h-[500px]">
+              <table class="w-full text-left text-xs text-gray-300">
+                <thead class="bg-surface-800/80 text-[11px] uppercase tracking-wider text-gray-400 sticky top-0">
+                  <tr>
+                    <th class="px-3 py-2">Ранг</th>
+                    <th class="px-3 py-2">Параметри сітки</th>
+                    <th class="px-3 py-2">Win Rate</th>
+                    <th class="px-3 py-2">Угоди (W/L/D)</th>
+                    <th class="px-3 py-2">Profit Factor</th>
+                    <th class="px-3 py-2">Net P&L ($)</th>
+                    <th class="px-3 py-2">Max DD (%)</th>
+                    <th class="px-3 py-2">Дія</th>
+                  </tr>
+                </thead>
+                <tbody id="optLeaderboardBody" class="divide-y divide-gray-800/60 font-mono">
+                  <tr>
+                    <td colspan="8" class="text-center py-8 text-gray-500">
+                      Оберіть стратегію та натисніть «Запустити Grid Search оптимізацію».
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: INTERACTIVE API TESTER                                             -->
+    <!-- ========================================================================= -->
+    <div id="tabApiTester" class="hidden space-y-6">
+      
+      <div class="glass-card rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+          <div>
+            <h2 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+              <i data-lucide="terminal" class="w-4 h-4 text-emerald-400"></i> Інтерактивна консоль тестування API
+            </h2>
+            <p class="text-xs text-gray-400">Тестуйте будь-який ендпоінт бекенду з миттєвим переглядом JSON-відповіді</p>
+          </div>
+          <a href="/docs" target="_blank" class="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
+            Swagger Docs <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+          </a>
+        </div>
+
+        <!-- Preset Quick Buttons -->
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button onclick="presetApi('GET', '/health', '')" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700">GET /health</button>
+          <button onclick="presetApi('GET', '/api/v1/balance', '')" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700">GET /balance</button>
+          <button onclick="presetApi('GET', '/api/v1/market/assets', '')" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700">GET /market/assets</button>
+          <button onclick="presetApi('POST', '/api/v1/backtest/portfolio/run', defaultPortfolioPayload)" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-cyan-400 border border-cyan-500/30">POST /backtest/portfolio/run</button>
+          <button onclick="presetApi('POST', '/api/v1/backtest/run', defaultBacktestPayload)" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700">POST /backtest/run</button>
+        </div>
+
+        <!-- Custom Request Form -->
+        <div class="space-y-3 pt-2">
+          <div class="flex gap-2">
+            <select id="apiMethod" class="glass-input text-xs rounded-lg px-3 py-2 font-bold w-24">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
+            <input type="text" id="apiUrl" value="/health" class="flex-1 glass-input text-xs rounded-lg px-3 py-2 font-mono" />
+            <button onclick="sendApiRequest()" id="btnSendApi" class="px-5 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs transition flex items-center gap-1.5">
+              <i data-lucide="send" class="w-3.5 h-3.5"></i> Надіслати
+            </button>
+          </div>
+
+          <div id="apiBodyContainer">
+            <label class="text-xs text-gray-400 block mb-1">Request Body (JSON для POST запитів):</label>
+            <textarea id="apiBody" rows="5" class="w-full glass-input text-xs rounded-lg p-3 font-mono" placeholder='{ "key": "value" }'></textarea>
+          </div>
+        </div>
+
+        <!-- Response Output -->
+        <div class="space-y-2 pt-2 border-t border-gray-800">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">Відповідь сервера:</span>
+            <div class="flex items-center gap-3 text-xs">
+              <span id="apiStatusBadge" class="hidden px-2 py-0.5 rounded text-[11px] font-bold"></span>
+              <span id="apiTimeBadge" class="text-gray-500 text-[11px]"></span>
+            </div>
+          </div>
+          <pre id="apiOutput" class="w-full max-h-96 overflow-y-auto p-4 rounded-xl bg-surface-900 border border-gray-800 font-mono text-xs text-gray-300">Натисніть «Надіслати» або оберіть пресет зверху для тестування.</pre>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-800/80 py-4 bg-surface-900/60 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-gray-500">
+      Pocket Option AutoTrader Pro — Quantum Engine, Multi-Asset & Risk Guard &copy; 2026. Працюємо виключно заради стабільного прибутку.
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Chart Instances for Single Backtest
+    let candleChart = null;
+    let candleSeries = null;
+    let volumeSeries = null;
+    let equityChart = null;
+    let equitySeries = null;
+
+    // Chart Instances for Portfolio Backtest
+    let pEquityChart = null;
+    let pEquitySeries = null;
+    let pCandleChart = null;
+    let pCandleSeries = null;
+    let pVolumeSeries = null;
+
+    let globalAssetsList = [];
+    let lastPortfolioResult = null;
+
+    const defaultBacktestPayload = JSON.stringify({
+      "asset": "EURUSD_otc",
+      "timeframe_seconds": 60,
+      "initial_deposit": 1000,
+      "stake_model": "flat",
+      "stake_amount": 10,
+      "stake_percent": 1.0,
+      "martingale_multiplier": 2.0,
+      "martingale_max_steps": 2,
+      "payout_rate": 0.92,
+      "min_payout_rate": 0.80,
+      "expiration_bars": 3,
+      "adaptive_expiration": false,
+      "daily_stop_loss_pct": 0.05,
+      "strategy_name": "hybrid_multifactors",
+      "candle_count": 300
+    }, null, 2);
+
+    const defaultPortfolioPayload = JSON.stringify({
+      "assets": ["EURUSD_otc", "GBPUSD_otc", "USDJPY_otc", "AUDUSD_otc", "USDCAD_otc"],
+      "max_concurrent_trades": 3,
+      "timeframe_seconds": 60,
+      "initial_deposit": 1000,
+      "stake_model": "flat",
+      "stake_amount": 10,
+      "stake_percent": 1.0,
+      "martingale_multiplier": 2.0,
+      "martingale_max_steps": 2,
+      "min_payout_rate": 0.80,
+      "expiration_bars": 3,
+      "adaptive_expiration": false,
+      "daily_stop_loss_pct": 0.05,
+      "strategy_name": "hybrid_multifactors",
+      "candle_count": 300
+    }, null, 2);
+
+    function initSingleCharts() {
+      try {
+        if (typeof LightweightCharts === 'undefined') return;
+
+        const candleContainer = document.getElementById('candleChartContainer');
+        if (candleContainer && !candleChart) {
+          candleContainer.innerHTML = '';
+          candleChart = LightweightCharts.createChart(candleContainer, {
+            width: candleContainer.clientWidth || 600,
+            height: 320,
+            layout: { background: { color: 'transparent' }, textColor: '#9ca3af' },
+            grid: {
+              vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+              horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+            },
+            timeScale: { timeVisible: true, secondsVisible: false },
+          });
+
+          candleSeries = candleChart.addCandlestickSeries({
+            upColor: '#10b981', downColor: '#ef4444',
+            borderUpColor: '#10b981', borderDownColor: '#ef4444',
+            wickUpColor: '#10b981', wickDownColor: '#ef4444',
+          });
+
+          volumeSeries = candleChart.addHistogramSeries({
+            color: 'rgba(6, 182, 212, 0.3)',
+            priceFormat: { type: 'volume' },
+            priceScaleId: '',
+            scaleMargins: { top: 0.8, bottom: 0 },
+          });
+        }
+
+        const equityContainer = document.getElementById('equityChartContainer');
+        if (equityContainer && !equityChart) {
+          equityContainer.innerHTML = '';
+          equityChart = LightweightCharts.createChart(equityContainer, {
+            width: equityContainer.clientWidth || 600,
+            height: 176,
+            layout: { background: { color: 'transparent' }, textColor: '#9ca3af' },
+            grid: {
+              vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+              horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+            },
+            timeScale: { timeVisible: true, secondsVisible: false },
+          });
+
+          equitySeries = equityChart.addAreaSeries({
+            topColor: 'rgba(6, 182, 212, 0.4)', bottomColor: 'rgba(6, 182, 212, 0.02)',
+            lineColor: '#06b6d4', lineWidth: 2,
+          });
+        }
+      } catch (err) {
+        console.error("Error in initSingleCharts:", err);
+      }
+    }
+
+    function initPortfolioCharts() {
+      try {
+        if (typeof LightweightCharts === 'undefined') return;
+
+        const pEquityContainer = document.getElementById('pEquityChartContainer');
+        if (pEquityContainer && !pEquityChart) {
+          pEquityContainer.innerHTML = '';
+          pEquityChart = LightweightCharts.createChart(pEquityContainer, {
+            width: pEquityContainer.clientWidth || 600,
+            height: 176,
+            layout: { background: { color: 'transparent' }, textColor: '#9ca3af' },
+            grid: {
+              vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+              horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+            },
+            timeScale: { timeVisible: true, secondsVisible: false },
+          });
+
+          pEquitySeries = pEquityChart.addAreaSeries({
+            topColor: 'rgba(16, 185, 129, 0.4)', bottomColor: 'rgba(16, 185, 129, 0.02)',
+            lineColor: '#10b981', lineWidth: 2,
+          });
+        }
+
+        const pCandleContainer = document.getElementById('pCandleChartContainer');
+        if (pCandleContainer && !pCandleChart) {
+          pCandleContainer.innerHTML = '';
+          pCandleChart = LightweightCharts.createChart(pCandleContainer, {
+            width: pCandleContainer.clientWidth || 600,
+            height: 256,
+            layout: { background: { color: 'transparent' }, textColor: '#9ca3af' },
+            grid: {
+              vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+              horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+            },
+            timeScale: { timeVisible: true, secondsVisible: false },
+          });
+
+          pCandleSeries = pCandleChart.addCandlestickSeries({
+            upColor: '#10b981', downColor: '#ef4444',
+            borderUpColor: '#10b981', borderDownColor: '#ef4444',
+            wickUpColor: '#10b981', wickDownColor: '#ef4444',
+          });
+
+          pVolumeSeries = pCandleChart.addHistogramSeries({
+            color: 'rgba(6, 182, 212, 0.3)',
+            priceFormat: { type: 'volume' },
+            priceScaleId: '',
+            scaleMargins: { top: 0.8, bottom: 0 },
+          });
+        }
+      } catch (err) {
+        console.error("Error in initPortfolioCharts:", err);
+      }
+    }
+
+    function switchTab(tabId) {
+      document.getElementById('tabPortfolio').classList.toggle('hidden', tabId !== 'portfolio');
+      document.getElementById('tabSingle').classList.toggle('hidden', tabId !== 'single');
+      document.getElementById('tabOptimizer').classList.toggle('hidden', tabId !== 'optimizer');
+      document.getElementById('tabApiTester').classList.toggle('hidden', tabId !== 'apiTester');
+
+      const btnP = document.getElementById('tabBtnPortfolio');
+      const btnS = document.getElementById('tabBtnSingle');
+      const btnO = document.getElementById('tabBtnOptimizer');
+      const btnA = document.getElementById('tabBtnApi');
+
+      const activeClass = 'tab-btn px-4 py-2.5 border-b-2 border-brand-500 text-brand-400 font-bold text-sm flex items-center gap-2 whitespace-nowrap';
+      const inactiveClass = 'tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap';
+
+      btnP.className = tabId === 'portfolio' ? activeClass : inactiveClass;
+      btnS.className = tabId === 'single' ? activeClass : inactiveClass;
+      btnO.className = tabId === 'optimizer' ? activeClass : inactiveClass;
+      btnA.className = tabId === 'apiTester' ? activeClass : inactiveClass;
+
+      setTimeout(() => {
+        if (tabId === 'portfolio') {
+          initPortfolioCharts();
+          if (pEquityChart && document.getElementById('pEquityChartContainer')) {
+            pEquityChart.applyOptions({ width: document.getElementById('pEquityChartContainer').clientWidth });
+          }
+          if (pCandleChart && document.getElementById('pCandleChartContainer')) {
+            pCandleChart.applyOptions({ width: document.getElementById('pCandleChartContainer').clientWidth });
+          }
+        } else if (tabId === 'single') {
+          initSingleCharts();
+          if (candleChart && document.getElementById('candleChartContainer')) {
+            candleChart.applyOptions({ width: document.getElementById('candleChartContainer').clientWidth });
+          }
+          if (equityChart && document.getElementById('equityChartContainer')) {
+            equityChart.applyOptions({ width: document.getElementById('equityChartContainer').clientWidth });
+          }
+        }
+      }, 60);
+    }
+
+    function togglePortfolioStakeInputs() {
+      const m = document.getElementById('pCfgStakeModel').value;
+      document.getElementById('pFlatStakeBox').classList.toggle('hidden', m === 'percent');
+      document.getElementById('pPercentStakeBox').classList.toggle('hidden', m !== 'percent');
+    }
+
+    function toggleSingleStakeInputs() {
+      const m = document.getElementById('cfgStakeModel').value;
+      document.getElementById('flatStakeContainer').classList.toggle('hidden', m !== 'flat' && m !== 'martingale');
+      document.getElementById('percentStakeContainer').classList.toggle('hidden', m !== 'percent');
+      document.getElementById('martingaleDetails').classList.toggle('hidden', m !== 'martingale');
+    }
+
+    function onAssetChanged() {
+      const sel = document.getElementById('cfgAsset');
+      const opt = sel.options[sel.selectedIndex];
+      if (opt && opt.dataset.payout) {
+        document.getElementById('cfgPayout').value = opt.dataset.payout;
+        updateBreakEvenLabel(parseInt(opt.dataset.payout));
+      }
+    }
+
+    function updateBreakEvenLabel(payoutPct) {
+      const r = payoutPct / 100.0;
+      const be = (1.0 / (1.0 + r)) * 100.0;
+      document.getElementById('metricBE').textContent = `Break-even: ${be.toFixed(2)}% (при ${payoutPct}%)`;
+    }
+
+    async function loadAssetsList() {
+      const badge = document.getElementById('assetCountBadge');
+      const singleSel = document.getElementById('cfgAsset');
+      const portfolioBox = document.getElementById('portfolioAssetsContainer');
+
+      try {
+        const res = await fetch('/api/v1/market/assets');
+        if (!res.ok) throw new Error('Assets fetch failed');
+        let assets = await res.json();
+        if (!assets || assets.length === 0) return;
+
+        // Sort descending by payout rate (92% -> 85% -> 80% ...)
+        assets.sort((a, b) => b.payout - a.payout || a.name.localeCompare(b.name));
+        globalAssetsList = assets;
+
+        badge.textContent = `${assets.length} активів PO`;
+
+        // 1. Render Single-Asset Dropdown grouped by category
+        const groups = {
+          'Валютні пари OTC': [],
+          'Валютні пари Spot': [],
+          'Криптовалюти': [],
+          'Акції': [],
+          'Товари та Сировина': [],
+          'Індекси': [],
+        };
+
+        assets.forEach(a => {
+          const opt = document.createElement('option');
+          opt.value = a.symbol;
+          opt.dataset.payout = a.payout || 80;
+          opt.textContent = `${a.name} (${a.payout}%)`;
+
+          if (a.asset_type === 'currency' && a.is_otc) groups['Валютні пари OTC'].push(opt);
+          else if (a.asset_type === 'currency') groups['Валютні пари Spot'].push(opt);
+          else if (a.asset_type === 'cryptocurrency') groups['Криптовалюти'].push(opt);
+          else if (a.asset_type === 'stock') groups['Акції'].push(opt);
+          else if (a.asset_type === 'commodity') groups['Товари та Сировина'].push(opt);
+          else groups['Індекси'].push(opt);
+        });
+
+        singleSel.innerHTML = '';
+        for (const [groupName, options] of Object.entries(groups)) {
+          if (options.length > 0) {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = groupName;
+            options.forEach(o => optgroup.appendChild(o));
+            singleSel.appendChild(optgroup);
+          }
+        }
+
+        const optAssetSel = document.getElementById('optCfgAsset');
+        if (optAssetSel) {
+          optAssetSel.innerHTML = singleSel.innerHTML;
+        }
+
+        const eurusd = singleSel.querySelector('option[value="EURUSD_otc"]');
+        if (eurusd) {
+          eurusd.selected = true;
+          onAssetChanged();
+        }
+
+        // 2. Render Multi-Asset Checkboxes for Portfolio Dock
+        portfolioBox.innerHTML = '';
+        assets.forEach((a, idx) => {
+          const isSelected = idx < 5; // Default select top 5
+          const row = document.createElement('label');
+          row.className = 'flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/80 cursor-pointer text-xs transition';
+          row.innerHTML = `
+            <div class="flex items-center gap-2">
+              <input type="checkbox" name="portfolioAsset" value="${a.symbol}" data-payout="${a.payout}" class="portfolio-checkbox w-3.5 h-3.5 text-brand-600 rounded bg-gray-900 border-gray-700" ${isSelected ? 'checked' : ''} onchange="updatePortfolioSelectedCount()" />
+              <span class="font-medium text-gray-200">${a.name}</span>
+            </div>
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${a.payout >= 90 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (a.payout >= 80 ? 'bg-cyan-500/20 text-cyan-400' : 'bg-gray-800 text-gray-400')}">
+              ${a.payout}%
+            </span>
+          `;
+          portfolioBox.appendChild(row);
+        });
+
+        updatePortfolioSelectedCount();
+
+      } catch (err) {
+        badge.textContent = `Default Assets`;
+      }
+    }
+
+    function updatePortfolioSelectedCount() {
+      const checked = document.querySelectorAll('.portfolio-checkbox:checked');
+      document.getElementById('pAssetSelectedBadge').textContent = `${checked.length} обрано`;
+    }
+
+    function selectTopNAssets(n) {
+      const cbs = document.querySelectorAll('.portfolio-checkbox');
+      cbs.forEach((cb, idx) => {
+        cb.checked = idx < n;
+      });
+      updatePortfolioSelectedCount();
+    }
+
+    function selectOtcAssets() {
+      const cbs = document.querySelectorAll('.portfolio-checkbox');
+      cbs.forEach(cb => {
+        cb.checked = cb.value.toLowerCase().includes('otc');
+      });
+      updatePortfolioSelectedCount();
+    }
+
+    function selectForexAssets() {
+      const cbs = document.querySelectorAll('.portfolio-checkbox');
+      cbs.forEach(cb => {
+        const val = cb.value.toLowerCase();
+        cb.checked = val.includes('usd') || val.includes('eur') || val.includes('gbp') || val.includes('jpy') || val.includes('aud') || val.includes('cad');
+      });
+      updatePortfolioSelectedCount();
+    }
+
+    function clearSelectedAssets() {
+      const cbs = document.querySelectorAll('.portfolio-checkbox');
+      cbs.forEach(cb => cb.checked = false);
+      updatePortfolioSelectedCount();
+    }
+
+    async function fetchAccountBalance() {
+      const el = document.getElementById('balanceDisplay');
+      try {
+        const res = await fetch('/api/v1/balance');
+        if (!res.ok) throw new Error('Balance offline');
+        const data = await res.json();
+        el.textContent = `${data.amount.toFixed(2)} ${data.currency} (${data.is_demo ? 'Demo' : 'Real'})`;
+      } catch (err) {
+        el.textContent = 'Demo Mode (Offline)';
+      }
+    }
+
+    // --- STRATEGY CATALOG & OPTIMIZER STATE ---
+    let globalStrategiesList = [];
+    let currentOptimizerPreset = 'fast';
+
+    async function loadStrategiesList() {
+      try {
+        const res = await fetch('/api/v1/backtest/strategies');
+        if (!res.ok) throw new Error('Strategies load failed');
+        const list = await res.json();
+        if (!list || list.length === 0) return;
+
+        globalStrategiesList = list;
+
+        const singleSel = document.getElementById('cfgStrategy');
+        const portSel = document.getElementById('pCfgStrategy');
+        const optSel = document.getElementById('optCfgStrategy');
+
+        singleSel.innerHTML = '';
+        portSel.innerHTML = '';
+        optSel.innerHTML = '';
+
+        list.forEach(s => {
+          const opt1 = document.createElement('option');
+          opt1.value = s.id;
+          opt1.textContent = `${s.name} [${s.category}]`;
+          singleSel.appendChild(opt1);
+
+          const opt2 = document.createElement('option');
+          opt2.value = s.id;
+          opt2.textContent = `${s.name} [${s.category}]`;
+          portSel.appendChild(opt2);
+
+          const opt3 = document.createElement('option');
+          opt3.value = s.id;
+          opt3.textContent = `${s.name} [${s.category}]`;
+          optSel.appendChild(opt3);
+        });
+
+        // Set initial details
+        onSingleStrategyChanged();
+        onOptimizerStrategyChanged();
+      } catch (err) {
+        console.warn('Strategies list error:', err);
+      }
+    }
+
+    function onSingleStrategyChanged() {
+      const id = document.getElementById('cfgStrategy').value;
+      const meta = globalStrategiesList.find(s => s.id === id);
+      const infoBox = document.getElementById('singleStrategyInfoBox');
+      if (meta && infoBox) {
+        infoBox.innerHTML = `
+          <div class="flex items-center justify-between text-gray-300 font-semibold mb-0.5">
+            <span>${meta.name}</span>
+            <span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-400 text-[10px]">${meta.category}</span>
+          </div>
+          <div class="text-[10px] text-gray-400 leading-relaxed">${meta.description}</div>
+        `;
+      }
+    }
+
+    function onOptimizerStrategyChanged() {
+      const id = document.getElementById('optCfgStrategy').value;
+      const meta = globalStrategiesList.find(s => s.id === id);
+      const card = document.getElementById('optStrategyDetailsCard');
+      if (meta && card) {
+        card.innerHTML = `
+          <div class="flex items-center justify-between text-gray-300 font-semibold">
+            <span>${meta.name}</span>
+            <span class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 text-[10px]">${meta.category}</span>
+          </div>
+          <div class="text-[10px] text-gray-400 leading-relaxed">${meta.description}</div>
+          <div class="text-[10px] text-cyan-400 pt-1">
+            <span class="text-gray-500">Рекомендовані таймфрейми:</span> ${meta.recommended_timeframes.map(t => `${t}s`).join(', ')}
+          </div>
+        `;
+      }
+      generateOptimizerGridJson(currentOptimizerPreset);
+    }
+
+    function setOptimizerPreset(preset) {
+      currentOptimizerPreset = preset;
+      const btnF = document.getElementById('btnPresetFast');
+      const btnB = document.getElementById('btnPresetBalanced');
+      const btnD = document.getElementById('btnPresetDeep');
+
+      const active = 'text-[11px] py-1.5 px-2 rounded-lg bg-surface-800 text-amber-300 border border-amber-500/50 font-semibold transition text-center';
+      const inactive = 'text-[11px] py-1.5 px-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700 font-medium transition text-center';
+
+      btnF.className = preset === 'fast' ? active : inactive;
+      btnB.className = preset === 'balanced' ? active : inactive;
+      btnD.className = preset === 'deep' ? active : inactive;
+
+      generateOptimizerGridJson(preset);
+    }
+
+    function generateOptimizerGridJson(preset) {
+      const id = document.getElementById('optCfgStrategy').value;
+      const meta = globalStrategiesList.find(s => s.id === id);
+      if (!meta) return;
+
+      const grid = {};
+      const countSteps = preset === 'fast' ? 2 : (preset === 'balanced' ? 3 : 4);
+
+      meta.parameters.forEach(p => {
+        if (p.options && p.options.length > 0) {
+          grid[p.name] = p.options.slice(0, countSteps);
+        } else if (p.min !== null && p.max !== null) {
+          const min = p.min;
+          const max = p.max;
+          const step = (max - min) / (countSteps - 1);
+          const vals = [];
+          for (let i = 0; i < countSteps; i++) {
+            const val = min + i * step;
+            vals.push(p.type === 'int' ? Math.round(val) : parseFloat(val.toFixed(2)));
+          }
+          grid[p.name] = Array.from(new Set(vals));
+        } else {
+          grid[p.name] = [p.default];
+        }
+      });
+
+      document.getElementById('optCustomGridJson').value = JSON.stringify(grid, null, 2);
+    }
+
+    function resetOptimizerGridJson() {
+      generateOptimizerGridJson(currentOptimizerPreset);
+    }
+
+    async function runStrategyOptimizer() {
+      const btn = document.getElementById('btnRunOptimizer');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin mr-2">&#9696;</span> Оптимізація та Grid Search...`;
+
+      const stratId = document.getElementById('optCfgStrategy').value;
+      const asset = document.getElementById('optCfgAsset').value;
+      const tf = parseInt(document.getElementById('optCfgTimeframe').value);
+      const dep = parseFloat(document.getElementById('optCfgDeposit').value);
+      const count = parseInt(document.getElementById('optCfgCandleCount').value);
+
+      let customGrid = null;
+      try {
+        const rawJson = document.getElementById('optCustomGridJson').value.trim();
+        if (rawJson) customGrid = JSON.parse(rawJson);
+      } catch (err) {
+        alert('Помилка валідації JSON у параметрах сітки: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i> Запустити Grid Search оптимізацію`;
+        lucide.createIcons();
+        return;
+      }
+
+      const payload = {
+        strategy_name: stratId,
+        asset: asset,
+        timeframe_seconds: tf,
+        candle_count: count,
+        initial_deposit: dep,
+        parameter_grid: customGrid,
+        max_combinations: currentOptimizerPreset === 'fast' ? 20 : (currentOptimizerPreset === 'balanced' ? 45 : 80),
+      };
+
+      const startTime = performance.now();
+
+      try {
+        const res = await fetch('/api/v1/backtest/optimize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const msg = data.error ? data.error.message : (data.detail || 'Помилка виконання оптимізації');
+          throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+
+        const duration = ((performance.now() - startTime) / 1000).toFixed(1);
+        renderOptimizerResults(data, duration);
+      } catch (err) {
+        alert(`Помилка оптимізатора: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="zap" class="w-4 h-4"></i> Запустити Grid Search оптимізацію`;
+        lucide.createIcons();
+      }
+    }
+
+    function renderOptimizerResults(data, durationSec) {
+      document.getElementById('optMetricTestedCount').textContent = data.total_combinations_tested;
+      document.getElementById('optMetricTimeTaken').textContent = `Виконано за ${durationSec}s`;
+
+      if (!data.results || data.results.length === 0) {
+        document.getElementById('optLeaderboardBody').innerHTML = `
+          <tr><td colspan="8" class="text-center py-6 text-gray-500">Немає результатів оптимізації.</td></tr>
+        `;
+        return;
+      }
+
+      const best = data.results[0];
+      document.getElementById('optMetricBestWR').textContent = `${best.win_rate_pct.toFixed(2)}%`;
+      document.getElementById('optMetricBestWRSub').textContent = `${best.total_trades} угод (${best.winning_trades}W/${best.losing_trades}L)`;
+      document.getElementById('optMetricBestPF').textContent = best.profit_factor.toFixed(2);
+      document.getElementById('optMetricBestPnL').textContent = `${best.net_profit >= 0 ? '+' : ''}$${best.net_profit.toFixed(2)}`;
+      document.getElementById('optMetricBestRoi').textContent = `${best.roi_pct >= 0 ? '+' : ''}${best.roi_pct.toFixed(2)}% ROI`;
+
+      // Best Banner
+      const banner = document.getElementById('optBestBanner');
+      banner.classList.remove('hidden');
+      const paramChips = Object.entries(best.params).map(([k, v]) => `${k}=${v}`).join(', ');
+      document.getElementById('optBestParamsText').textContent = paramChips;
+
+      document.getElementById('btnApplyBestParams').onclick = () => {
+        applyOptimizedParams(data.strategy_name, best.params, data.asset, data.timeframe_seconds);
+      };
+
+      // Leaderboard Table
+      const tbody = document.getElementById('optLeaderboardBody');
+      tbody.innerHTML = '';
+      document.getElementById('optTableCount').textContent = `${data.results.length} наборів`;
+
+      data.results.forEach(r => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-surface-700/40 transition';
+        const rankBadge = r.rank === 1 ? '🥇 #1' : (r.rank === 2 ? '🥈 #2' : (r.rank === 3 ? '🥉 #3' : `#${r.rank}`));
+        const wrColor = r.win_rate_pct >= 60 ? 'text-emerald-400' : (r.win_rate_pct >= 55 ? 'text-amber-400' : 'text-rose-400');
+        const pnlColor = r.net_profit >= 0 ? 'text-emerald-400' : 'text-rose-400';
+
+        const chipsHtml = Object.entries(r.params).map(([k, v]) => `
+          <span class="px-1.5 py-0.5 rounded bg-surface-800 text-[10px] text-gray-300 border border-gray-700 mr-1 whitespace-nowrap">${k}:${v}</span>
+        `).join('');
+
+        const paramsJsonStr = JSON.stringify(r.params).replace(/"/g, '&quot;');
+
+        row.innerHTML = `
+          <td class="px-3 py-2 font-bold ${r.rank <= 3 ? 'text-amber-400' : 'text-gray-400'}">${rankBadge}</td>
+          <td class="px-3 py-2">${chipsHtml}</td>
+          <td class="px-3 py-2 font-bold ${wrColor}">${r.win_rate_pct.toFixed(2)}%</td>
+          <td class="px-3 py-2 text-gray-300">${r.total_trades} (${r.winning_trades}W / ${r.losing_trades}L)</td>
+          <td class="px-3 py-2 font-semibold ${r.profit_factor >= 1.3 ? 'text-emerald-400' : 'text-gray-300'}">${r.profit_factor.toFixed(2)}</td>
+          <td class="px-3 py-2 font-bold ${pnlColor}">${r.net_profit >= 0 ? '+' : ''}$${r.net_profit.toFixed(2)}</td>
+          <td class="px-3 py-2 text-gray-400">${r.max_drawdown_pct.toFixed(2)}%</td>
+          <td class="px-3 py-2">
+            <button onclick="applyOptimizedParams('${data.strategy_name}', ${paramsJsonStr}, '${data.asset}', ${data.timeframe_seconds})" class="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/40 text-[11px] font-semibold transition">
+              🎯 Застосувати
+            </button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+      lucide.createIcons();
+    }
+
+    function applyOptimizedParams(strategyName, params, asset, tf) {
+      switchTab('single');
+      document.getElementById('cfgStrategy').value = strategyName;
+      onSingleStrategyChanged();
+
+      if (asset) {
+        document.getElementById('cfgAsset').value = asset;
+        onAssetChanged();
+      }
+      if (tf) {
+        document.getElementById('cfgTimeframe').value = tf;
+      }
+      if (params.base_expiration_bars || params.expiration_bars) {
+        document.getElementById('cfgExpBars').value = params.base_expiration_bars || params.expiration_bars;
+      }
+
+      alert(`✅ Параметри стратегії "${strategyName}" успішно перенесені в Одиночний бектест! Натисніть "Запустити одиночний бектест" для детального аналізу.`);
+    }
+
+    // --- MULTI-ASSET PORTFOLIO BACKTEST EXECUTION ---
+    async function runPortfolioBacktest() {
+      initPortfolioCharts();
+      const selectedAssets = Array.from(document.querySelectorAll('.portfolio-checkbox:checked')).map(cb => cb.value);
+      if (selectedAssets.length === 0) {
+        alert('Будь ласка, оберіть хоча б один актив для портфельного бектесту.');
+        return;
+      }
+
+      const btn = document.getElementById('btnRunPortfolio');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin mr-2">&#9696;</span> Обчислення портфеля (${selectedAssets.length} активів)...`;
+
+      const payload = {
+        assets: selectedAssets,
+        max_concurrent_trades: parseInt(document.getElementById('pCfgMaxConcurrent').value),
+        timeframe_seconds: parseInt(document.getElementById('pCfgTimeframe').value),
+        initial_deposit: parseFloat(document.getElementById('pCfgDeposit').value),
+        stake_model: document.getElementById('pCfgStakeModel').value,
+        stake_amount: parseFloat(document.getElementById('pCfgStakeAmount').value),
+        stake_percent: parseFloat(document.getElementById('pCfgStakePercent').value),
+        min_payout_rate: 0.80,
+        expiration_bars: parseInt(document.getElementById('pCfgExpBars').value),
+        adaptive_expiration: document.getElementById('pCfgAdaptiveExp').checked,
+        daily_stop_loss_pct: parseFloat(document.getElementById('pCfgStopLoss').value) / 100.0,
+        strategy_name: document.getElementById('pCfgStrategy').value || 'hybrid_multifactors',
+        candle_count: parseInt(document.getElementById('pCfgCandleCount').value),
+      };
+
+      try {
+        const res = await fetch('/api/v1/backtest/portfolio/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          let msg = 'Помилка виконання портфельного бектесту';
+          if (data.error && data.error.message) msg = data.error.message;
+          else if (data.detail) msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+          throw new Error(msg);
+        }
+        
+        lastPortfolioResult = data;
+        renderPortfolioResults(data);
+      } catch (err) {
+        alert(`Помилка: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Запустити портфельний бектест`;
+        lucide.createIcons();
+      }
+    }
+
+    function renderPortfolioResults(data) {
+      initPortfolioCharts();
+
+      // 1. Portfolio Key Metrics Summary
+      const depEl = document.getElementById('pMetricDepositChange');
+      depEl.textContent = `$${data.initial_deposit.toFixed(2)} ➔ $${data.final_balance.toFixed(2)}`;
+
+      const pDeltaEl = document.getElementById('pMetricProfitDelta');
+      const isProfit = data.net_profit >= 0;
+      pDeltaEl.textContent = `${isProfit ? '+' : ''}$${data.net_profit.toFixed(2)} (${isProfit ? '+' : ''}${data.roi_pct.toFixed(2)}% ROI)`;
+      pDeltaEl.className = isProfit ? 'text-[11px] font-semibold text-emerald-400' : 'text-[11px] font-semibold text-rose-400';
+
+      const wrEl = document.getElementById('pMetricWinRate');
+      wrEl.textContent = `${data.win_rate_pct.toFixed(2)}%`;
+      wrEl.className = data.win_rate_pct >= 55 ? 'text-lg font-bold text-emerald-400' : (data.win_rate_pct >= 50 ? 'text-lg font-bold text-amber-400' : 'text-lg font-bold text-rose-400');
+
+      document.getElementById('pMetricActiveCount').textContent = `${data.assets.length} активів у портфелі`;
+      document.getElementById('pMetricPF').textContent = data.profit_factor.toFixed(2);
+      document.getElementById('pMetricTrades').textContent = `${data.total_trades} угод (${data.winning_trades}W / ${data.losing_trades}L / ${data.draw_trades}D)`;
+      document.getElementById('pMetricDD').textContent = `${data.max_drawdown_pct.toFixed(2)}% ($${data.max_drawdown_amount.toFixed(2)})`;
+      document.getElementById('pMetricStreak').textContent = `Max Win/Loss: ${data.max_consecutive_wins} / ${data.max_consecutive_losses}`;
+
+      // 2. Portfolio Equity Curve
+      if (pEquitySeries && data.equity_curve && data.equity_curve.length > 0) {
+        const eqData = data.equity_curve.map(pt => ({
+          time: Math.floor(new Date(pt.timestamp).getTime() / 1000),
+          value: pt.balance,
+        }));
+        const cleanEq = [];
+        let lastT = 0;
+        for (const pt of eqData) {
+          if (pt.time > lastT) {
+            cleanEq.push(pt);
+            lastT = pt.time;
+          }
+        }
+        if (cleanEq.length > 0) {
+          pEquitySeries.setData(cleanEq);
+          if (pEquityChart) pEquityChart.timeScale().fitContent();
+        }
+      }
+
+      // 3. Populate Inspector Asset Dropdown
+      const inspSel = document.getElementById('pInspectorAssetSelect');
+      inspSel.innerHTML = '';
+      data.per_asset_stats.forEach((s, i) => {
+        const opt = document.createElement('option');
+        opt.value = s.asset;
+        opt.textContent = `${s.name} (${(s.payout_rate * 100).toFixed(0)}%) — WR: ${s.win_rate_pct.toFixed(1)}%, P&L: ${s.net_profit >= 0 ? '+' : ''}$${s.net_profit.toFixed(2)}`;
+        if (i === 0) opt.selected = true;
+        inspSel.appendChild(opt);
+      });
+
+      if (data.per_asset_stats.length > 0) {
+        onInspectorAssetChanged();
+      }
+
+      // 4. Asset Leaderboard Table
+      const lbody = document.getElementById('pLeaderboardBody');
+      lbody.innerHTML = '';
+      document.getElementById('pLeaderboardCount').textContent = `${data.per_asset_stats.length} активів`;
+
+      data.per_asset_stats.forEach((s, idx) => {
+        const isWin = s.net_profit >= 0;
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-surface-700/40 transition';
+        row.innerHTML = `
+          <td class="px-3 py-2 font-bold text-gray-400">#${idx + 1}</td>
+          <td class="px-3 py-2 font-bold text-white">${s.name}</td>
+          <td class="px-3 py-2 text-cyan-400">${(s.payout_rate * 100).toFixed(0)}%</td>
+          <td class="px-3 py-2">${s.total_trades} (${s.winning_trades}W / ${s.losing_trades}L / ${s.draw_trades}D)</td>
+          <td class="px-3 py-2 text-gray-400">${s.trades_count_pct.toFixed(1)}%</td>
+          <td class="px-3 py-2 font-bold ${s.win_rate_pct >= 55 ? 'text-emerald-400' : (s.win_rate_pct >= 50 ? 'text-amber-400' : 'text-rose-400')}">${s.win_rate_pct.toFixed(2)}%</td>
+          <td class="px-3 py-2 font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}">${isWin ? '+' : ''}$${s.net_profit.toFixed(2)}</td>
+          <td class="px-3 py-2 ${isWin ? 'text-emerald-400' : 'text-rose-400'}">${isWin ? '+' : ''}${s.roi_pct.toFixed(2)}%</td>
+          <td class="px-3 py-2 font-bold ${s.profit_factor >= 1.2 ? 'text-emerald-400' : 'text-gray-300'}">${s.profit_factor.toFixed(2)}</td>
+          <td class="px-3 py-2">
+            <button onclick="inspectAsset('${s.asset}')" class="px-2 py-1 rounded bg-surface-700 hover:bg-brand-600 text-[10px] text-gray-200 transition">
+              Графік
+            </button>
+          </td>
+        `;
+        lbody.appendChild(row);
+      });
+
+      // 5. Portfolio Chronological Trades Table
+      const tbody = document.getElementById('pTradeLogBody');
+      tbody.innerHTML = '';
+      document.getElementById('pTradeTableCount').textContent = `${data.trades.length} угод`;
+
+      data.trades.forEach((t, i) => {
+        const isWin = t.outcome === 'WIN';
+        const isLoss = t.outcome === 'LOSS';
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-surface-700/40 transition';
+        row.innerHTML = `
+          <td class="px-3 py-2 text-gray-500">${i + 1}</td>
+          <td class="px-3 py-2 font-bold text-cyan-400">${t.asset}</td>
+          <td class="px-3 py-2">${new Date(t.entry_time).toLocaleTimeString()}</td>
+          <td class="px-3 py-2 font-bold ${t.action === 'CALL' ? 'text-emerald-400' : 'text-rose-400'}">${t.action}</td>
+          <td class="px-3 py-2">${t.entry_price.toFixed(5)}</td>
+          <td class="px-3 py-2">${t.exit_price.toFixed(5)}</td>
+          <td class="px-3 py-2">$${t.stake.toFixed(2)}</td>
+          <td class="px-3 py-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isWin ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (isLoss ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-gray-700 text-gray-300')}">
+              ${t.outcome}
+            </span>
+          </td>
+          <td class="px-3 py-2 font-bold ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}</td>
+          <td class="px-3 py-2">$${t.balance_after.toFixed(2)}</td>
+          <td class="px-3 py-2 text-gray-400">${(t.confidence * 100).toFixed(0)}%</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function inspectAsset(assetSymbol) {
+      const sel = document.getElementById('pInspectorAssetSelect');
+      sel.value = assetSymbol;
+      onInspectorAssetChanged();
+    }
+
+    async function onInspectorAssetChanged() {
+      const asset = document.getElementById('pInspectorAssetSelect').value;
+      if (!asset || !lastPortfolioResult) return;
+
+      const tf = lastPortfolioResult.timeframe_seconds || 60;
+      const assetTrades = lastPortfolioResult.trades.filter(t => t.asset === asset);
+
+      const markers = assetTrades.map(t => ({
+        time: Math.floor(new Date(t.entry_time).getTime() / 1000),
+        position: t.action === 'CALL' ? 'belowBar' : 'aboveBar',
+        color: t.outcome === 'WIN' ? (t.action === 'CALL' ? '#10b981' : '#ef4444') : '#f59e0b',
+        shape: t.action === 'CALL' ? 'arrowUp' : 'arrowDown',
+        text: `${t.action} (${t.outcome})`,
+      }));
+
+      fetchAndRenderPortfolioInspectorCandles(asset, tf, markers);
+    }
+
+    async function fetchAndRenderPortfolioInspectorCandles(asset, tf, markers = []) {
+      try {
+        initPortfolioCharts();
+        const count = document.getElementById('pCfgCandleCount').value || 300;
+        const res = await fetch(`/api/v1/market/candles?asset=${encodeURIComponent(asset)}&timeframe_seconds=${tf}&count=${count}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.candles && data.candles.length > 0 && pCandleSeries) {
+          const cData = [];
+          const vData = [];
+          let lastTime = 0;
+
+          data.candles.forEach(c => {
+            const timeSec = Math.floor(new Date(c.open_time).getTime() / 1000);
+            if (timeSec > lastTime) {
+              cData.push({
+                time: timeSec,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+              });
+              vData.push({
+                time: timeSec,
+                value: c.volume || 0,
+                color: c.close >= c.open ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)',
+              });
+              lastTime = timeSec;
+            }
+          });
+
+          pCandleSeries.setData(cData);
+          if (pVolumeSeries) pVolumeSeries.setData(vData);
+
+          if (markers && markers.length > 0) {
+            const validTimes = new Set(cData.map(c => c.time));
+            const validMarkers = markers.filter(m => validTimes.has(m.time));
+            validMarkers.sort((a, b) => a.time - b.time);
+            pCandleSeries.setMarkers(validMarkers);
+          } else {
+            pCandleSeries.setMarkers([]);
+          }
+
+          if (pCandleChart) pCandleChart.timeScale().fitContent();
+        }
+      } catch (err) {
+        console.warn("Inspector candle render error:", err);
+      }
+    }
+
+    // --- SINGLE BACKTEST EXECUTION ---
+    async function runSingleBacktest() {
+      initSingleCharts();
+      const btn = document.getElementById('btnRunBacktest');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin mr-2">&#9696;</span> Обчислення бектесту...`;
+
+      const payload = {
+        asset: document.getElementById('cfgAsset').value,
+        timeframe_seconds: parseInt(document.getElementById('cfgTimeframe').value),
+        initial_deposit: parseFloat(document.getElementById('cfgDeposit').value),
+        stake_model: document.getElementById('cfgStakeModel').value,
+        stake_amount: parseFloat(document.getElementById('cfgStakeAmount').value),
+        stake_percent: parseFloat(document.getElementById('cfgStakePercent').value),
+        martingale_multiplier: parseFloat(document.getElementById('cfgMartingaleMult').value),
+        martingale_max_steps: parseInt(document.getElementById('cfgMartingaleSteps').value),
+        payout_rate: parseFloat(document.getElementById('cfgPayout').value) / 100.0,
+        min_payout_rate: parseFloat(document.getElementById('cfgMinPayout').value) / 100.0,
+        expiration_bars: parseInt(document.getElementById('cfgExpBars').value),
+        adaptive_expiration: document.getElementById('cfgAdaptiveExp').checked,
+        daily_stop_loss_pct: parseFloat(document.getElementById('cfgStopLoss').value) / 100.0,
+        strategy_name: document.getElementById('cfgStrategy').value || 'hybrid_multifactors',
+        candle_count: parseInt(document.getElementById('cfgCandleCount').value),
+      };
+
+      try {
+        const res = await fetch('/api/v1/backtest/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ? data.error.message : 'Помилка виконання бектесту');
+        renderSingleBacktestResults(data);
+      } catch (err) {
+        alert(`Помилка бектесту: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Запустити одиночний бектест`;
+        lucide.createIcons();
+      }
+    }
+
+    function renderSingleBacktestResults(data) {
+      initSingleCharts();
+
+      const depEl = document.getElementById('metricDepositChange');
+      depEl.textContent = `$${data.initial_deposit.toFixed(2)} ➔ $${data.final_balance.toFixed(2)}`;
+      
+      const pDeltaEl = document.getElementById('metricProfitDelta');
+      const isProfit = data.net_profit >= 0;
+      pDeltaEl.textContent = `${isProfit ? '+' : ''}$${data.net_profit.toFixed(2)} (${isProfit ? '+' : ''}${data.roi_pct.toFixed(2)}% ROI)`;
+      pDeltaEl.className = isProfit ? 'text-[11px] font-semibold text-emerald-400' : 'text-[11px] font-semibold text-rose-400';
+
+      const wrEl = document.getElementById('metricWinRate');
+      wrEl.textContent = `${data.win_rate_pct.toFixed(2)}%`;
+      wrEl.className = data.win_rate_pct >= 55 ? 'text-lg font-bold text-emerald-400' : (data.win_rate_pct >= 50 ? 'text-lg font-bold text-amber-400' : 'text-lg font-bold text-rose-400');
+
+      document.getElementById('metricPF').textContent = data.profit_factor.toFixed(2);
+      document.getElementById('metricTrades').textContent = `${data.total_trades} угод (${data.winning_trades}W / ${data.losing_trades}L / ${data.draw_trades}D)`;
+      document.getElementById('metricDD').textContent = `${data.max_drawdown_pct.toFixed(2)}% ($${data.max_drawdown_amount.toFixed(2)})`;
+      document.getElementById('metricStreak').textContent = `Max Win/Loss: ${data.max_consecutive_wins} / ${data.max_consecutive_losses}`;
+
+      if (equitySeries && data.equity_curve && data.equity_curve.length > 0) {
+        const eqData = data.equity_curve.map(pt => ({
+          time: Math.floor(new Date(pt.timestamp).getTime() / 1000),
+          value: pt.balance,
+        }));
+        const cleanEq = [];
+        let lastT = 0;
+        for (const pt of eqData) {
+          if (pt.time > lastT) {
+            cleanEq.push(pt);
+            lastT = pt.time;
+          }
+        }
+        if (cleanEq.length > 0) {
+          equitySeries.setData(cleanEq);
+          if (equityChart) equityChart.timeScale().fitContent();
+        }
+      }
+
+      const tbody = document.getElementById('tradeLogBody');
+      tbody.innerHTML = '';
+      document.getElementById('tradeTableCount').textContent = `${data.trades.length} угод`;
+
+      const markers = [];
+      data.trades.forEach((t, i) => {
+        const isWin = t.outcome === 'WIN';
+        const isLoss = t.outcome === 'LOSS';
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-surface-700/40 transition';
+        row.innerHTML = `
+          <td class="px-3 py-2 text-gray-500">${i + 1}</td>
+          <td class="px-3 py-2">${new Date(t.entry_time).toLocaleTimeString()}</td>
+          <td class="px-3 py-2 font-bold ${t.action === 'CALL' ? 'text-emerald-400' : 'text-rose-400'}">${t.action}</td>
+          <td class="px-3 py-2">${t.entry_price.toFixed(5)}</td>
+          <td class="px-3 py-2">${t.exit_price.toFixed(5)}</td>
+          <td class="px-3 py-2">$${t.stake.toFixed(2)}</td>
+          <td class="px-3 py-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isWin ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (isLoss ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-gray-700 text-gray-300')}">
+              ${t.outcome}
+            </span>
+          </td>
+          <td class="px-3 py-2 font-bold ${t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}</td>
+          <td class="px-3 py-2">$${t.balance_after.toFixed(2)}</td>
+          <td class="px-3 py-2 text-gray-400">${(t.confidence * 100).toFixed(0)}%</td>
+        `;
+        tbody.appendChild(row);
+
+        const tSec = Math.floor(new Date(t.entry_time).getTime() / 1000);
+        markers.push({
+          time: tSec,
+          position: t.action === 'CALL' ? 'belowBar' : 'aboveBar',
+          color: isWin ? (t.action === 'CALL' ? '#10b981' : '#ef4444') : '#f59e0b',
+          shape: t.action === 'CALL' ? 'arrowUp' : 'arrowDown',
+          text: `${t.action} (${t.outcome})`,
+        });
+      });
+
+      fetchAndRenderSingleCandles(data.asset, data.timeframe_seconds, markers);
+    }
+
+    async function fetchAndRenderSingleCandles(asset, tf, markers = []) {
+      try {
+        initSingleCharts();
+        const count = document.getElementById('cfgCandleCount').value || 300;
+        const res = await fetch(`/api/v1/market/candles?asset=${encodeURIComponent(asset)}&timeframe_seconds=${tf}&count=${count}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.candles && data.candles.length > 0 && candleSeries) {
+          const cData = [];
+          const vData = [];
+          let lastTime = 0;
+
+          data.candles.forEach(c => {
+            const timeSec = Math.floor(new Date(c.open_time).getTime() / 1000);
+            if (timeSec > lastTime) {
+              cData.push({
+                time: timeSec,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+              });
+              vData.push({
+                time: timeSec,
+                value: c.volume || 0,
+                color: c.close >= c.open ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)',
+              });
+              lastTime = timeSec;
+            }
+          });
+
+          candleSeries.setData(cData);
+          if (volumeSeries) volumeSeries.setData(vData);
+
+          if (markers && markers.length > 0) {
+            const validTimes = new Set(cData.map(c => c.time));
+            const validMarkers = markers.filter(m => validTimes.has(m.time));
+            validMarkers.sort((a, b) => a.time - b.time);
+            candleSeries.setMarkers(validMarkers);
+          } else {
+            candleSeries.setMarkers([]);
+          }
+
+          if (candleChart) candleChart.timeScale().fitContent();
+        }
+      } catch (err) {
+        console.warn("Single candle render error:", err);
+      }
+    }
+
+    async function handleFileUpload(event) {
+      initSingleCharts();
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('asset', file.name.replace(/\.[^/.]+$/, ""));
+      formData.append('timeframe_seconds', document.getElementById('cfgTimeframe').value);
+      formData.append('initial_deposit', document.getElementById('cfgDeposit').value);
+      formData.append('stake_model', document.getElementById('cfgStakeModel').value);
+      formData.append('stake_amount', document.getElementById('cfgStakeAmount').value);
+      formData.append('stake_percent', document.getElementById('cfgStakePercent').value);
+      formData.append('martingale_multiplier', document.getElementById('cfgMartingaleMult').value);
+      formData.append('martingale_max_steps', document.getElementById('cfgMartingaleSteps').value);
+      formData.append('payout_rate', (parseFloat(document.getElementById('cfgPayout').value) / 100.0).toString());
+      formData.append('min_payout_rate', (parseFloat(document.getElementById('cfgMinPayout').value) / 100.0).toString());
+      formData.append('expiration_bars', document.getElementById('cfgExpBars').value);
+      formData.append('adaptive_expiration', document.getElementById('cfgAdaptiveExp').checked.toString());
+      formData.append('daily_stop_loss_pct', (parseFloat(document.getElementById('cfgStopLoss').value) / 100.0).toString());
+      formData.append('strategy_name', 'hybrid_multifactors');
+
+      try {
+        const res = await fetch('/api/v1/backtest/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ? data.error.message : 'Помилка завантаження');
+        renderSingleBacktestResults(data);
+      } catch (err) {
+        alert(`Помилка файлу: ${err.message}`);
+      } finally {
+        event.target.value = '';
+      }
+    }
+
+    // --- API Tester Functions ---
+    function presetApi(method, url, body) {
+      document.getElementById('apiMethod').value = method;
+      document.getElementById('apiUrl').value = url;
+      document.getElementById('apiBody').value = body;
+    }
+
+    async function sendApiRequest() {
+      const method = document.getElementById('apiMethod').value;
+      const url = document.getElementById('apiUrl').value.trim();
+      const bodyText = document.getElementById('apiBody').value.trim();
+      const output = document.getElementById('apiOutput');
+      const badge = document.getElementById('apiStatusBadge');
+      const timeBadge = document.getElementById('apiTimeBadge');
+
+      output.textContent = 'Sending request...';
+      badge.classList.add('hidden');
+
+      const startTime = performance.now();
+      try {
+        const options = { method };
+        if (method === 'POST' && bodyText) {
+          options.headers = { 'Content-Type': 'application/json' };
+          options.body = bodyText;
+        }
+        const res = await fetch(url, options);
+        const duration = Math.round(performance.now() - startTime);
+        timeBadge.textContent = `${duration} ms`;
+
+        badge.classList.remove('hidden');
+        badge.textContent = `${res.status} ${res.statusText}`;
+        badge.className = res.ok ? 'px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30';
+
+        const json = await res.json();
+        output.textContent = JSON.stringify(json, null, 2);
+      } catch (err) {
+        const duration = Math.round(performance.now() - startTime);
+        timeBadge.textContent = `${duration} ms`;
+        badge.classList.remove('hidden');
+        badge.textContent = 'FETCH ERROR';
+        badge.className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30';
+        output.textContent = `Error: ${err.message}`;
+      }
+    }
+
+    // Init on DOM ready
+    window.addEventListener('DOMContentLoaded', () => {
+      initPortfolioCharts();
+      initSingleCharts();
+      fetchAccountBalance();
+      loadAssetsList();
+      loadStrategiesList();
+    });
+  </script>
+</body>
+</html>

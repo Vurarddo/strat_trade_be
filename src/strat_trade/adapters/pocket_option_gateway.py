@@ -77,11 +77,15 @@ def _list_to_candle_dict(item: Sequence[Any]) -> dict[str, Any]:
     o_f, a_f, b_f, c_f = float(o), float(a), float(b), float(c)
     # [t, open, high, low, close]
     if _ohlc_sane(o_f, a_f, b_f, c_f):
-        return {"time": t, "open": o, "high": a, "low": b, "close": c}
+        res = {"time": t, "open": o, "high": a, "low": b, "close": c}
     # [t, open, close, high, low] — typical Pocket Option wire order
-    if _ohlc_sane(o_f, b_f, c_f, a_f):
-        return {"time": t, "open": o, "high": b, "low": c, "close": a}
-    return {"time": t, "open": o, "high": b, "low": c, "close": a}
+    elif _ohlc_sane(o_f, b_f, c_f, a_f):
+        res = {"time": t, "open": o, "high": b, "low": c, "close": a}
+    else:
+        res = {"time": t, "open": o, "high": b, "low": c, "close": a}
+    if len(item) >= 6 and item[5] is not None:
+        res["volume"] = item[5]
+    return res
 
 
 def _expand_columnar_candles(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -255,6 +259,7 @@ class PocketOptionTradingGateway:
         self._balance_currency = balance_currency.strip() or "USD"
         self._client: PocketOptionAsync | None = None
         self._lock = asyncio.Lock()
+        self._candles_lock = asyncio.Lock()
 
     def _optional_ws_url(self) -> str | None:
         if not self._region:
@@ -324,30 +329,63 @@ class PocketOptionTradingGateway:
         if count < 1:
             raise InvalidMarketParametersError("count must be >= 1.")
 
-        try:
-            client = await self._client_connected()
-            if end_time is None:
-                raw_list = await client.candles(asset.strip(), period)
-            else:
-                et = end_time if end_time.tzinfo else end_time.replace(tzinfo=UTC)
-                et = et.astimezone(UTC)
-                end_u = int(et.timestamp())
+        async with self._candles_lock:
+            try:
+                client = await self._client_connected()
                 offset = _history_offset_seconds(period=period, count=count)
-                raw_list = await client.get_candles_advanced(asset.strip(), period, offset, end_u)
-        except InvalidMarketParametersError:
-            raise
-        except ValueError as exc:
-            logger.info("Pocket Option rejected candle parameters: %s", exc)
-            raise InvalidMarketParametersError(str(exc)) from exc
-        except BrokerUnavailableError:
-            raise
-        except Exception as exc:
-            logger.warning("Pocket Option candles error: %s", exc)
-            raise BrokerUnavailableError(str(exc)) from exc
+                if end_time is None:
+                    end_dt = datetime.now(UTC)
+                else:
+                    end_dt = end_time if end_time.tzinfo else end_time.replace(tzinfo=UTC)
+                end_u = int(end_dt.astimezone(UTC).timestamp())
+                raw_list = await asyncio.wait_for(
+                    client.get_candles_advanced(asset.strip(), period, offset, end_u),
+                    timeout=8.0,
+                )
+            except TimeoutError as exc:
+                logger.warning("Pocket Option candles timeout for asset %s", asset)
+                raise BrokerUnavailableError(f"Candles request timed out for {asset}") from exc
+            except InvalidMarketParametersError:
+                raise
+            except ValueError as exc:
+                logger.info("Pocket Option rejected candle parameters: %s", exc)
+                raise InvalidMarketParametersError(str(exc)) from exc
+            except BrokerUnavailableError:
+                raise
+            except Exception as exc:
+                logger.warning("Pocket Option candles error: %s", exc)
+                raise BrokerUnavailableError(str(exc)) from exc
 
         normalized = _normalize_candles_payload(raw_list)
         rows = _sort_and_tail(normalized, count=count)
         return [_candle_from_dict(r) for r in rows]
+
+    async def get_assets(self) -> list[dict[str, Any]]:
+        try:
+            client = await self._client_connected()
+            active = await client.active_assets()
+            out: list[dict[str, Any]] = []
+            if isinstance(active, list):
+                for a in active:
+                    if not isinstance(a, dict):
+                        continue
+                    sym = str(a.get("symbol", "")).strip()
+                    if not sym:
+                        continue
+                    out.append(
+                        {
+                            "symbol": sym,
+                            "name": str(a.get("name", sym)).strip(),
+                            "payout": int(a.get("payout", 80)),
+                            "is_otc": bool(a.get("is_otc", "otc" in sym.lower())),
+                            "asset_type": str(a.get("asset_type", "currency")),
+                        }
+                    )
+                if out:
+                    return out
+        except Exception as exc:
+            logger.warning("Pocket Option get_assets error (using fallback): %s", exc)
+        return []
 
     async def aclose(self) -> None:
         async with self._lock:

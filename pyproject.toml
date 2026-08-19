@@ -17,6 +17,7 @@ dependencies = [
   "pandas>=2.0.0",
   "numpy>=1.26.0",
   "pandas-ta>=0.3.14b",
+  "python-multipart>=0.0.9",
   "tvdatafeed @ git+https://github.com/rongardF/tvdatafeed.git",
 ]
 

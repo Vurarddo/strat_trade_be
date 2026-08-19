@@ -190,3 +190,68 @@ def test_range_rejects_future_to(app_candles: tuple[FastAPI, FakeCandleFeed]) ->
     )
     assert r.status_code == 400
     assert "future" in r.json()["error"]["message"].lower()
+
+
+def test_candles_response_includes_volume(app_candles: tuple[FastAPI, FakeCandleFeed]) -> None:
+    app, _feed = app_candles
+    client = TestClient(app)
+    r = client.get(
+        "/api/v1/market/candles",
+        params={
+            "asset": "EURUSD_otc",
+            "timeframe_seconds": 60,
+            "count": 2,
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data["candles"]) == 2
+    for c in data["candles"]:
+        assert c["volume"] == 100.0
+
+
+def test_pocket_option_gateway_payload_normalization() -> None:
+    from strat_trade.adapters.pocket_option_gateway import (
+        _candle_from_dict,
+        _list_to_candle_dict,
+        _normalize_candles_payload,
+    )
+
+    # Advanced candle dict with volume as string or number
+    raw_adv = [
+        {
+            "symbol": "EURUSD_otc",
+            "timestamp": 1700000000,
+            "open": "1.2345",
+            "high": "1.2350",
+            "low": "1.2340",
+            "close": "1.2348",
+            "volume": "85",
+        }
+    ]
+    norm = _normalize_candles_payload(raw_adv)
+    assert len(norm) == 1
+    candle = _candle_from_dict(norm[0])
+    assert candle.volume == Decimal("85")
+
+    # Tuple candle with 6 elements [t, open, high, low, close, volume]
+    tuple_row = [1700000000, 1.2345, 1.2350, 1.2340, 1.2348, 42.0]
+    candle_dict = _list_to_candle_dict(tuple_row)
+    assert candle_dict["volume"] == 42.0
+
+
+def test_market_assets_endpoint(app_candles: tuple[FastAPI, FakeCandleFeed]) -> None:
+    app, _ = app_candles
+    client = TestClient(app)
+    r = client.get("/api/v1/market/assets")
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+    symbols = {a["symbol"] for a in data}
+    assert "EURUSD_otc" in symbols
+    for a in data:
+        assert "symbol" in a
+        assert "name" in a
+        assert "payout" in a
+        assert "is_otc" in a
