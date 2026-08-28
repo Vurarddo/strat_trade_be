@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "brainstorming": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "28ebf8c992661b9daa63f23482bc75ae195b83e3ad776779d92e6c9482aaedd8"
+    }
+  }
+}

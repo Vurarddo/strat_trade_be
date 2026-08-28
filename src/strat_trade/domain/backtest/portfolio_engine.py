@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -17,8 +17,10 @@ from strat_trade.domain.backtest.models import (
     TradeAction,
     TradeOutcome,
 )
-from strat_trade.domain.strategies.base import BaseStrategy
-from strat_trade.domain.strategies.registry import get_strategy_instance
+from strat_trade.domain.trading.correlation import is_correlated_conflict
+
+if TYPE_CHECKING:
+    from strat_trade.domain.strategies.base import BaseStrategy
 
 
 @dataclass
@@ -44,6 +46,8 @@ class PortfolioBacktestEngine:
     """
 
     def __init__(self, config: PortfolioBacktestConfig) -> None:
+        from strat_trade.domain.strategies.registry import get_strategy_instance
+
         self.config = config
         params = dict(config.strategy_params or {})
         params["base_expiration_bars"] = config.expiration_bars
@@ -140,11 +144,15 @@ class PortfolioBacktestEngine:
         consecutive_wins = 0
         max_consecutive_wins = 0
         max_consecutive_losses = 0
+        last_settled_time: dict[str, datetime] = {}
+        last_portfolio_entry_time: datetime | None = None
+        paused_until_time: datetime | None = None
+        halted_by_drawdown = False
 
         def resolve_trade(t: BacktestTrade, exit_close: Decimal) -> None:
             nonlocal current_balance, peak_balance, max_drawdown_amount, max_drawdown_pct
             nonlocal consecutive_losses, consecutive_wins, max_consecutive_wins
-            nonlocal max_consecutive_losses
+            nonlocal max_consecutive_losses, paused_until_time, halted_by_drawdown
 
             # Evaluate binary outcome
             if t.action == TradeAction.CALL:
@@ -173,8 +181,9 @@ class PortfolioBacktestEngine:
             t.pnl = round(pnl, 2)
             current_balance = round(current_balance + t.pnl, 2)
             t.balance_after = current_balance
+            last_settled_time[t.asset] = t.exit_time
 
-            # Update streaks
+            # Update streaks and circuit breaker pause
             if outcome == TradeOutcome.WIN:
                 consecutive_wins += 1
                 consecutive_losses = 0
@@ -183,8 +192,13 @@ class PortfolioBacktestEngine:
                 consecutive_losses += 1
                 consecutive_wins = 0
                 max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+                if (
+                    self.config.max_consecutive_losses > 0
+                    and consecutive_losses >= self.config.max_consecutive_losses
+                ):
+                    paused_until_time = t.exit_time + timedelta(minutes=15)
 
-            # Drawdown metrics
+            # Drawdown metrics and high-watermark halt
             if current_balance > peak_balance:
                 peak_balance = current_balance
             dd_amount = peak_balance - current_balance
@@ -197,6 +211,12 @@ class PortfolioBacktestEngine:
                 max_drawdown_amount = dd_amount
             if dd_pct > max_drawdown_pct:
                 max_drawdown_pct = dd_pct
+
+            if self.config.max_drawdown_pct_limit > Decimal("0.0") and peak_balance > Decimal(
+                "0.0"
+            ):
+                if (dd_amount / peak_balance) >= self.config.max_drawdown_pct_limit:
+                    halted_by_drawdown = True
 
             equity_curve.append(
                 EquityPoint(
@@ -221,10 +241,22 @@ class PortfolioBacktestEngine:
                     still_active.append(t)
             active_trades = still_active
 
+            # Circuit breaker peak drawdown halt check
+            if halted_by_drawdown:
+                break
+
             # Session Stop-Loss Check
             dd_from_start = (session_start_balance - current_balance) / session_start_balance
             if dd_from_start >= self.config.daily_stop_loss_pct:
                 break
+
+            # Circuit breaker pause check
+            if paused_until_time:
+                if sig.entry_time < paused_until_time:
+                    continue
+                else:
+                    paused_until_time = None
+                    consecutive_losses = 0
 
             # Concurrency limit check
             if len(active_trades) >= self.config.max_concurrent_trades:
@@ -233,6 +265,31 @@ class PortfolioBacktestEngine:
             # Don't open multiple trades on the exact same asset simultaneously
             if any(t.asset == sig.asset for t in active_trades):
                 continue
+
+            # Post-trade settlement per-asset cooldown check
+            if self.config.cooldown_bars > 0 and sig.asset in last_settled_time:
+                cooldown_sec = max(180, self.config.cooldown_bars * self.config.timeframe_seconds)
+                cooldown_delta = timedelta(seconds=cooldown_sec)
+                if (sig.entry_time - last_settled_time[sig.asset]) < cooldown_delta:
+                    continue
+
+            # Global portfolio cooldown delay check
+            if self.config.global_cooldown_seconds > 0 and last_portfolio_entry_time is not None:
+                if (
+                    sig.entry_time - last_portfolio_entry_time
+                ).total_seconds() < self.config.global_cooldown_seconds:
+                    continue
+
+            # Currency correlation & directional exposure filter check
+            if self.config.correlation_filter_enabled and active_trades:
+                act_str = sig.action.value if hasattr(sig.action, "value") else str(sig.action)
+                conflict, _ = is_correlated_conflict(
+                    candidate_asset=sig.asset,
+                    candidate_action=act_str,
+                    active_trades=active_trades,
+                )
+                if conflict:
+                    continue
 
             # Calculate Stake
             if self.config.stake_model == StakeModel.FLAT:
@@ -275,6 +332,7 @@ class PortfolioBacktestEngine:
                 metadata=sig.metadata,
             )
             active_trades.append(trade)
+            last_portfolio_entry_time = sig.entry_time
 
         # Resolve any remaining active trades
         for t in active_trades:

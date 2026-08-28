@@ -6,7 +6,8 @@
    ``mypy src/strat_trade`` (requires dev extra ``mypy``).
 3) Backtest sanity: pytest on indicator + mock-DataFrame (~100 bars) tests.
 
-If ``black`` / ``isort`` are on PATH they run (isort then black); otherwise Ruff handles imports + format.
+If ``black`` / ``isort`` are on PATH they run (isort then black);
+otherwise Ruff handles imports + format.
 """
 from __future__ import annotations
 
@@ -87,7 +88,19 @@ def _read_staged_blob(path: str) -> str | None:
         return None
 
 
-_TEXT_SUFFIXES = {".py", ".md", ".json", ".yaml", ".yml", ".toml", ".env", ".txt", ".sh", ".ini", ".cfg"}
+_TEXT_SUFFIXES = {
+    ".py",
+    ".md",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".env",
+    ".txt",
+    ".sh",
+    ".ini",
+    ".cfg",
+}
 
 
 def _is_probably_text(path: str) -> bool:
@@ -148,7 +161,8 @@ def _scan_secrets(paths: list[str]) -> list[str]:
                 )
             if long_ssid_kw.search(line) and "Fake" not in line and "fake" not in line.lower():
                 violations.append(
-                    f"{path}:{i}: long ssid=... literal (possible Pocket Option / broker credential)"
+                    f"{path}:{i}: long ssid=... literal "
+                    "(possible Pocket Option / broker credential)"
                 )
             if path.endswith(".py") and password_literal.search(line):
                 violations.append(

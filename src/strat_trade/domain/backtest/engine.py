@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -13,8 +14,9 @@ from strat_trade.domain.backtest.models import (
     TradeAction,
     TradeOutcome,
 )
-from strat_trade.domain.strategies.base import BaseStrategy
-from strat_trade.domain.strategies.registry import get_strategy_instance
+
+if TYPE_CHECKING:
+    from strat_trade.domain.strategies.base import BaseStrategy
 
 
 class BinaryBacktestEngine:
@@ -31,16 +33,44 @@ class BinaryBacktestEngine:
         self.strategy = self._create_strategy()
 
     def _create_strategy(self) -> BaseStrategy:
+        from strat_trade.domain.strategies.registry import get_strategy_instance
+
         params = dict(self.config.strategy_params or {})
         params["base_expiration_bars"] = self.config.expiration_bars
         params["adaptive_expiration_enabled"] = self.config.adaptive_expiration
         return get_strategy_instance(self.config.strategy_name, **params)
 
-    def run(self, df_raw: pd.DataFrame) -> BacktestSummary:
+    def run(self, df_raw: pd.DataFrame | list[Any]) -> BacktestSummary:
         """
-        Run backtest over a DataFrame with OHLCV data.
-        Columns required: timestamp (datetime), open, high, low, close, volume (optional).
+        Run backtest over a DataFrame or list of Candle objects with OHLCV data.
+        Columns required: timestamp / open_time, open, high, low, close, volume (optional).
         """
+        if isinstance(df_raw, list):
+            df_norm = pd.DataFrame(
+                [
+                    {
+                        "timestamp": getattr(c, "open_time", getattr(c, "timestamp", None)),
+                        "open": float(c.open),
+                        "high": float(c.high),
+                        "low": float(c.low),
+                        "close": float(c.close),
+                        "volume": float(getattr(c, "volume", 0.0)),
+                    }
+                    for c in df_raw
+                ]
+            )
+        else:
+            df_norm = df_raw.copy()
+
+        if "timestamp" not in df_norm.columns and "open_time" in df_norm.columns:
+            df_norm["timestamp"] = df_norm["open_time"]
+        elif "timestamp" not in df_norm.columns:
+            df_norm["timestamp"] = pd.date_range(
+                end=pd.Timestamp.now(tz="UTC"), periods=len(df_norm), freq="1min"
+            )
+
+        df_raw = df_norm
+
         eff_payout = Decimal(str(self.config.payout_rate))
         min_payout = Decimal(str(self.config.min_payout_rate))
 
@@ -55,9 +85,9 @@ class BinaryBacktestEngine:
 
         df = self.strategy.prepare_dataframe(df_raw)
         n = len(df)
-        if n < 60:
+        if n < 40:
             return self._empty_summary(
-                df_raw, "Insufficient historical candles for backtesting (< 60 bars)."
+                df_raw, "Insufficient historical candles for backtesting (< 40 bars)."
             )
 
         current_balance = Decimal(str(self.config.initial_deposit))

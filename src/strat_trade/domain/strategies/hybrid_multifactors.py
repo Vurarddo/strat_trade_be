@@ -32,6 +32,7 @@ class HybridMultiFactorsStrategy(BaseStrategy):
         adx_period: int = 14,
         adx_trend_threshold: float = 25.0,
         adx_range_threshold: float = 20.0,
+        adx_min_threshold: float = 22.0,
         base_expiration_bars: int = 3,
         adaptive_expiration_enabled: bool = False,
     ) -> None:
@@ -47,6 +48,7 @@ class HybridMultiFactorsStrategy(BaseStrategy):
         self.adx_period = adx_period
         self.adx_trend_threshold = adx_trend_threshold
         self.adx_range_threshold = adx_range_threshold
+        self.adx_min_threshold = float(adx_min_threshold)
         self.base_expiration_bars = max(1, base_expiration_bars)
         self.adaptive_expiration_enabled = adaptive_expiration_enabled
 
@@ -116,12 +118,7 @@ class HybridMultiFactorsStrategy(BaseStrategy):
             return SignalResult(None, 0.0, self.base_expiration_bars, "warming_up", {})
 
         row = df.iloc[idx]
-        prev = df.iloc[idx - 1]
-
         close = float(row["close"])
-        open_ = float(row["open"])
-        high = float(row["high"])
-        low = float(row["low"])
 
         ema_f = float(row["ema_fast"]) if pd.notna(row["ema_fast"]) else None
         ema_m = float(row["ema_mid"]) if pd.notna(row["ema_mid"]) else None
@@ -133,6 +130,8 @@ class HybridMultiFactorsStrategy(BaseStrategy):
         bb_l = float(row["bb_low"]) if pd.notna(row["bb_low"]) else None
         bb_m = float(row["bb_mid"]) if pd.notna(row["bb_mid"]) else None
         adx = float(row["adx"]) if pd.notna(row["adx"]) else 15.0
+        adx_pos = float(row["adx_pos"]) if "adx_pos" in row and pd.notna(row["adx_pos"]) else 0.0
+        adx_neg = float(row["adx_neg"]) if "adx_neg" in row and pd.notna(row["adx_neg"]) else 0.0
         atr = float(row["atr"]) if pd.notna(row["atr"]) else 0.0001
         atr_sma = float(row["atr_sma"]) if pd.notna(row["atr_sma"]) else atr
 
@@ -147,6 +146,28 @@ class HybridMultiFactorsStrategy(BaseStrategy):
                 None, 0.0, self.base_expiration_bars, "volatility_spike_suppressed", {}
             )
 
+        metadata = {
+            "adx": round(adx, 2),
+            "adx_pos": round(adx_pos, 2),
+            "adx_neg": round(adx_neg, 2),
+            "rsi": round(rsi, 2),
+            "stoch_k": round(stoch_k, 2),
+            "stoch_d": round(stoch_d, 2),
+            "bb_pband": round(float(row.get("bb_pband", 0.5)), 4),
+            "vol_ratio": round(vol_ratio, 2),
+        }
+
+        # Hard ADX gating check (suppress choppy low-momentum regimes)
+        if adx < self.adx_min_threshold:
+            metadata["regime"] = "adx_sub_threshold_choppy"
+            return SignalResult(
+                action=None,
+                confidence=0.0,
+                expiration_bars=self.base_expiration_bars,
+                regime="adx_sub_threshold_choppy",
+                metadata=metadata,
+            )
+
         # Market Regime
         if adx >= self.adx_trend_threshold:
             regime = "trending"
@@ -154,90 +175,59 @@ class HybridMultiFactorsStrategy(BaseStrategy):
             regime = "ranging"
         else:
             regime = "transitional"
+        metadata["regime"] = regime
+
+        # --- Strict 3-Way Concordance ---
+        # CALL Conditions:
+        # 1. Directional ADX: adx >= adx_min_threshold and adx_pos > adx_neg
+        # 2. Bullish EMA Alignment: ema_fast >= ema_mid and close >= ema_fast * 0.9990
+        # 3. RSI Bullish Corridor: 45.0 <= rsi <= 68.0
+        # 4. Stochastic Confirmation: stoch_k > stoch_d
+        call_valid = (
+            adx >= self.adx_min_threshold
+            and adx_pos > adx_neg
+            and ema_f >= ema_m
+            and close >= ema_f * 0.9990
+            and 45.0 <= rsi <= 68.0
+            and stoch_k > stoch_d
+        )
+
+        # PUT Conditions:
+        # 1. Directional ADX: adx >= adx_min_threshold and adx_neg > adx_pos
+        # 2. Bearish EMA Alignment: ema_fast <= ema_mid and close <= ema_fast * 1.0010
+        # 3. RSI Bearish Corridor: 32.0 <= rsi <= 55.0
+        # 4. Stochastic Confirmation: stoch_k < stoch_d
+        put_valid = (
+            adx >= self.adx_min_threshold
+            and adx_neg > adx_pos
+            and ema_f <= ema_m
+            and close <= ema_f * 1.0010
+            and 32.0 <= rsi <= 55.0
+            and stoch_k < stoch_d
+        )
 
         action: TradeAction | None = None
         confidence = 0.0
-        signals_call = 0
-        signals_put = 0
 
-        # --- MODEL A: TREND PULLBACK / MOMENTUM (Regime: Trending or Transitional) ---
-        uptrend = ema_f > ema_m and (ema_m > ema_s or close > ema_s)
-        downtrend = ema_f < ema_m and (ema_m < ema_s or close < ema_s)
-
-        if regime in ("trending", "transitional"):
-            # Bullish pullback: Price touching EMA 9/21 with RSI recovering
-            # from pullback (<55) and Stoch Bullish Cross
-            if uptrend:
-                if (
-                    low <= ema_f * 1.0005
-                    and close >= ema_f
-                    and rsi < 65
-                    and stoch_k > stoch_d
-                    and prev["stoch_k"] <= prev["stoch_d"]
-                ):
-                    signals_call += 2
-                elif (
-                    close > ema_f
-                    and prev["close"] <= prev["ema_fast"]
-                    and rsi > 50
-                    and stoch_k > 40
-                ):
-                    signals_call += 1
-
-            # Bearish pullback: Price touching EMA 9/21 with RSI recovering
-            # from pullback (>45) and Stoch Bearish Cross
-            if downtrend:
-                if (
-                    high >= ema_f * 0.9995
-                    and close <= ema_f
-                    and rsi > 35
-                    and stoch_k < stoch_d
-                    and prev["stoch_k"] >= prev["stoch_d"]
-                ):
-                    signals_put += 2
-                elif (
-                    close < ema_f
-                    and prev["close"] >= prev["ema_fast"]
-                    and rsi < 50
-                    and stoch_k < 60
-                ):
-                    signals_put += 1
-
-        # --- MODEL B: MEAN REVERSION & EXTREME BOUNDARY REJECTION ---
-        bb_pband = float(row.get("bb_pband", 0.5))
-        # Lower Bollinger Band Bounce + RSI Oversold + Stoch Oversold Cross
-        if (low <= bb_l or close <= bb_l * 1.0003 or bb_pband <= 0.05) and (
-            rsi < self.rsi_oversold or stoch_k < 25
-        ):
-            signals_call += 2
-            if stoch_k > stoch_d:
-                signals_call += 1
-            # Rejection wick pattern (hammer / long lower shadow)
-            body = abs(close - open_)
-            lower_shadow = min(open_, close) - low
-            if lower_shadow > body * 1.0:
-                signals_call += 1
-
-        # Upper Bollinger Band Rejection + RSI Overbought + Stoch Overbought Cross
-        if (high >= bb_h or close >= bb_h * 0.9997 or bb_pband >= 0.95) and (
-            rsi > self.rsi_overbought or stoch_k > 75
-        ):
-            signals_put += 2
-            if stoch_k < stoch_d:
-                signals_put += 1
-            # Rejection wick pattern (shooting star / long upper shadow)
-            body = abs(close - open_)
-            upper_shadow = high - max(open_, close)
-            if upper_shadow > body * 1.0:
-                signals_put += 1
-
-        # Decision threshold
-        if signals_call >= 1 and signals_call > signals_put:
+        if call_valid and not put_valid:
             action = TradeAction.CALL
-            confidence = min(0.55 + 0.15 * signals_call, 0.95)
-        elif signals_put >= 1 and signals_put > signals_call:
+            confidence = min(
+                0.70
+                + (0.15 if adx >= self.adx_trend_threshold else 0.05)
+                + (0.10 if (stoch_k - stoch_d) > 2.0 else 0.0),
+                0.95,
+            )
+        elif put_valid and not call_valid:
             action = TradeAction.PUT
-            confidence = min(0.55 + 0.15 * signals_put, 0.95)
+            confidence = min(
+                0.70
+                + (0.15 if adx >= self.adx_trend_threshold else 0.05)
+                + (0.10 if (stoch_d - stoch_k) > 2.0 else 0.0),
+                0.95,
+            )
+        else:
+            action = None
+            confidence = 0.0
 
         # Expiration Calculation:
         exp_bars = self.base_expiration_bars
@@ -251,18 +241,6 @@ class HybridMultiFactorsStrategy(BaseStrategy):
             if vol_ratio < 0.8:
                 # Low volatility: extend duration by 1 bar
                 exp_bars += 1
-
-        metadata = {
-            "regime": regime,
-            "adx": round(adx, 2),
-            "rsi": round(rsi, 2),
-            "stoch_k": round(stoch_k, 2),
-            "stoch_d": round(stoch_d, 2),
-            "bb_pband": round(float(row.get("bb_pband", 0.5)), 4),
-            "vol_ratio": round(vol_ratio, 2),
-            "signals_call": signals_call,
-            "signals_put": signals_put,
-        }
 
         return SignalResult(
             action=action,
@@ -311,6 +289,16 @@ class HybridMultiFactorsStrategy(BaseStrategy):
                 35.0,
                 5.0,
                 description="ADX level for trend regime",
+            ),
+            ParameterDef(
+                "adx_min_threshold",
+                "ADX Min Threshold",
+                "float",
+                22.0,
+                15.0,
+                35.0,
+                1.0,
+                description="Minimum ADX required to generate signals (suppresses choppy markets)",
             ),
             ParameterDef(
                 "base_expiration_bars",

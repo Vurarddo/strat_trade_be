@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pocket Option AutoTrader Pro | Terminal & Portfolio Backtester</title>
+  <title>Strat Trade | Terminal & Quantum Backtester</title>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.ico">
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lightweight Charts (TradingView) v4.2.1 Stable Standalone -->
@@ -71,12 +74,28 @@
   <header class="border-b border-gray-800 bg-surface-900/80 backdrop-blur sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-          <i data-lucide="activity" class="w-6 h-6 text-white"></i>
+        <div class="w-10 h-10 rounded-xl bg-surface-900 border border-brand-500/40 p-1 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+          <svg class="w-full h-full" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="headerStGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#06b6d4"/>
+                <stop offset="100%" stop-color="#10b981"/>
+              </linearGradient>
+            </defs>
+            <rect width="64" height="64" rx="14" fill="#0b0f17"/>
+            <line x1="18" y1="20" x2="18" y2="44" stroke="#06b6d4" stroke-width="2.5" stroke-linecap="round"/>
+            <rect x="14" y="26" width="8" height="12" rx="2" fill="#06b6d4"/>
+            <line x1="32" y1="14" x2="32" y2="48" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+            <rect x="28" y="20" width="8" height="18" rx="2" fill="#10b981"/>
+            <line x1="46" y1="10" x2="46" y2="38" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+            <rect x="42" y="14" width="8" height="14" rx="2" fill="#38bdf8"/>
+            <path d="M10 46 Q 24 40 32 26 T 54 12" fill="none" stroke="url(#headerStGrad)" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="54" cy="12" r="3.5" fill="#10b981"/>
+          </svg>
         </div>
         <div>
           <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            Pocket Option AutoTrader Pro
+            Strat Trade
             <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-400 border border-brand-500/30">v0.2 Multi-Asset</span>
           </h1>
           <p class="text-xs text-gray-400">Autonomous Binary Options Algorithmic Trading, Backtester & Portfolio Suite</p>
@@ -100,27 +119,585 @@
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
     <!-- Top Tabs Navigation -->
-    <div class="flex border-b border-gray-800 space-x-2 sm:space-x-6 overflow-x-auto">
-      <button onclick="switchTab('portfolio')" id="tabBtnPortfolio" class="tab-btn px-4 py-2.5 border-b-2 border-brand-500 text-brand-400 font-bold text-sm flex items-center gap-2 whitespace-nowrap">
-        <i data-lucide="layers" class="w-4 h-4"></i> Портфельний бектест (Multi-Asset)
-        <span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">Multi</span>
+    <div class="flex border-b border-gray-800 space-x-2 sm:space-x-4 overflow-x-auto">
+      <button onclick="switchTab('liveBot')" id="tabBtnLiveBot" class="tab-btn px-4 py-2.5 border-b-2 border-emerald-500 text-emerald-400 font-bold text-sm flex items-center gap-2 whitespace-nowrap">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <i data-lucide="bot" class="w-4 h-4"></i> Live Демо-Бот
+        <span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">Auto</span>
+      </button>
+      <button onclick="switchTab('audit')" id="tabBtnAudit" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
+        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-cyan-400"></i> Аудит угод & XLS Мерджер
+        <span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-400 text-[10px] font-bold">Audit</span>
+      </button>
+      <button onclick="switchTab('portfolio')" id="tabBtnPortfolio" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
+        <i data-lucide="layers" class="w-4 h-4"></i> Портфельний бектест
       </button>
       <button onclick="switchTab('single')" id="tabBtnSingle" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
-        <i data-lucide="line-chart" class="w-4 h-4"></i> Одиночний бектест (Single)
+        <i data-lucide="line-chart" class="w-4 h-4"></i> Одиночний бектест
       </button>
       <button onclick="switchTab('optimizer')" id="tabBtnOptimizer" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
         <i data-lucide="sliders-horizontal" class="w-4 h-4 text-amber-400"></i> Оптимізатор (Grid Search)
-        <span class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 text-[10px] font-bold">New</span>
       </button>
       <button onclick="switchTab('apiTester')" id="tabBtnApi" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
-        <i data-lucide="terminal" class="w-4 h-4"></i> Тестер API Ендпоінтів
+        <i data-lucide="terminal" class="w-4 h-4"></i> Тестер API
       </button>
     </div>
 
     <!-- ========================================================================= -->
-    <!-- TAB 1: MULTI-ASSET PORTFOLIO BACKTESTER                                   -->
+    <!-- TAB 1: LIVE DEMO TRADING BOT                                              -->
     <!-- ========================================================================= -->
-    <div id="tabPortfolio" class="space-y-6">
+    <div id="tabLiveBot" class="space-y-6">
+      
+      <!-- Live Status & Kill Switch Bar (Shown when active) -->
+      <div id="botLiveStatusBar" class="glass-card rounded-2xl p-4 border border-emerald-500/30 bg-emerald-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+          <div id="botStatusPulse" class="w-3.5 h-3.5 rounded-full bg-gray-500"></div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 id="botStatusTitle" class="text-sm font-bold text-gray-200">Демо-Бот готовий до налаштування</h2>
+              <span id="botStatusBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">IDLE</span>
+            </div>
+            <p id="botStatusSubtitle" class="text-xs text-gray-400">Оберіть активи, налаштуйте ризик та запустіть квантовий підбір</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 self-end sm:self-auto">
+          <button type="button" onclick="fetchLiveBotStatus()" class="px-3 py-1.5 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 font-semibold text-xs border border-gray-700 transition flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Оновити
+          </button>
+          <button type="button" id="btnResumeBot" onclick="resumeLiveTradingBot()" class="hidden px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition flex items-center gap-1.5">
+            <i data-lucide="play" class="w-3.5 h-3.5"></i> Відновити
+          </button>
+          <button type="button" id="btnStopBot" onclick="stopLiveTradingBot()" class="hidden px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition flex items-center gap-1.5">
+            <i data-lucide="square" class="w-3.5 h-3.5"></i> Зупинити торгівлю
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Bot Setup Dock -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="bot" class="w-4 h-4 text-emerald-400"></i> Параметри Демо-Бота
+              </h2>
+              <p class="text-[11px] text-gray-400">Квантовий підбір стратегій та автоматична торгівля</p>
+            </div>
+            <span id="botAssetSelectedBadge" class="text-xs text-emerald-400 font-semibold px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+              0 обрано
+            </span>
+          </div>
+
+          <form id="liveBotForm" class="space-y-3" onsubmit="event.preventDefault(); prepareLiveBotLaunch();">
+            
+            <!-- Asset Selection Multi-Selector & Quick Filters -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-xs font-semibold text-gray-300">Оберіть активи для торгівлі:</label>
+              </div>
+              
+              <!-- Quick Filter Buttons -->
+              <div class="flex flex-wrap gap-1.5 mb-2">
+                <button type="button" onclick="selectBotTopNAssets(5)" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-cyan-400 border border-cyan-500/30 transition">⚡ Топ-5 за Payout</button>
+                <button type="button" onclick="selectBotOtcAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-emerald-400 border border-emerald-500/30 transition">🟢 Усі OTC (92%)</button>
+                <button type="button" onclick="selectBotOtcForexAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-purple-400 border border-purple-500/30 transition">💱 OTC Валюти</button>
+                <button type="button" onclick="selectBotForexAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-amber-400 border border-amber-500/30 transition">🌐 Усі Валюти</button>
+                <button type="button" onclick="clearBotSelectedAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-gray-400 border border-gray-700 transition">❌ Очистити</button>
+              </div>
+
+              <!-- Real-time Asset Search Bar -->
+              <div class="relative mb-2">
+                <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
+                  <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                </div>
+                <input type="text" id="botAssetSearchInput" oninput="filterBotAssetsList()" placeholder="🔍 Пошук активу за назвою (напр. EUR, Apple, OTC, Gold)..." class="w-full pl-8 pr-7 py-1.5 glass-input text-xs rounded-lg border-gray-700 bg-surface-900/90 text-gray-200 placeholder-gray-500 focus:border-emerald-500 transition" />
+                <button type="button" onclick="clearBotAssetSearch()" id="btnClearBotAssetSearch" class="hidden absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-500 hover:text-gray-300 transition" title="Очистити пошук">
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+
+              <!-- Checkbox Assets Container -->
+              <div id="botAssetsContainer" class="max-h-44 overflow-y-auto p-2 rounded-xl bg-surface-900/90 border border-gray-800 space-y-1">
+                <div class="text-center py-4 text-xs text-gray-500">Завантаження активів...</div>
+              </div>
+            </div>
+
+            <!-- Capital & Risk Guard -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Стартовий депозит ($)</label>
+                <input type="number" id="botCfgDeposit" value="1000" min="10" step="10" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Макс. паралельних угод</label>
+                <input type="number" id="botCfgMaxConcurrent" value="3" min="1" max="10" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Stake Model & Sizing -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Модель ставки</label>
+                <select id="botCfgStakeModel" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" onchange="toggleBotStakeInputs()">
+                  <option value="flat" selected>Flat (Фіксована $)</option>
+                  <option value="percent">Dynamic (% балансу)</option>
+                </select>
+              </div>
+              <div id="botFlatStakeBox">
+                <label class="text-xs text-gray-400 block mb-1">Сума угоди ($)</label>
+                <input type="number" id="botCfgStakeAmount" value="10" min="1" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+              <div id="botPercentStakeBox" class="hidden">
+                <label class="text-xs text-gray-400 block mb-1">% від балансу</label>
+                <input type="number" id="botCfgStakePercent" value="1.0" min="0.1" max="20" step="0.1" class="w-full glass-input text-xs rounded-lg px-2.5 py-2" />
+              </div>
+            </div>
+
+            <!-- Stop-Loss, Take-Profit & Payout Filter -->
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="text-xs text-rose-400 block mb-1">Stop-Loss (%)</label>
+                <input type="number" id="botCfgStopLoss" value="5" min="1" max="50" step="1" class="w-full glass-input text-xs rounded-lg px-2 py-2 border-rose-500/30" />
+              </div>
+              <div>
+                <label class="text-xs text-emerald-400 block mb-1">Take-Profit (%)</label>
+                <input type="number" id="botCfgTakeProfit" value="2.5" min="0.5" max="50" step="0.5" class="w-full glass-input text-xs rounded-lg px-2 py-2 border-emerald-500/30 text-emerald-300 font-semibold" />
+              </div>
+              <div>
+                <label class="text-xs text-gray-400 block mb-1">Мін. Payout (%)</label>
+                <input type="number" id="botCfgMinPayout" value="80" min="50" max="95" step="1" class="w-full glass-input text-xs rounded-lg px-2 py-2" />
+              </div>
+            </div>
+
+            <!-- Execution Gates & OTC Governance -->
+            <div class="space-y-2 pt-2 border-t border-gray-800/80">
+              <label class="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-400"></i> Гейти виконання та OTC
+              </label>
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="text-[11px] text-gray-400 block mb-1" title="Не входити в перші N секунд хвилини — на цих входах був 97% тижневого збитку">Bar-edge (сек)</label>
+                  <input type="number" id="botCfgBarEdgeGuard" value="3" min="0" max="30" step="1" class="w-full glass-input text-xs rounded-lg px-2 py-2" />
+                </div>
+                <div>
+                  <label class="text-[11px] text-amber-400 block mb-1" title="Частка звичайної ставки для OTC-активів на випробувальному терміні">OTC ставка (%)</label>
+                  <input type="number" id="botCfgOtcStakePct" value="25" min="0" max="100" step="5" class="w-full glass-input text-xs rounded-lg px-2 py-2 border-amber-500/30 text-amber-300 font-semibold" />
+                </div>
+                <div>
+                  <label class="text-[11px] text-amber-400 block mb-1" title="Беззбитковість OTC — 52.08% при payout 92%, тож нижчий payout робить угоду мінусовою за визначенням">OTC payout (%)</label>
+                  <input type="number" id="botCfgOtcMinPayout" value="90" min="50" max="95" step="1" class="w-full glass-input text-xs rounded-lg px-2 py-2 border-amber-500/30" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer" title="Індикатори рахуються лише на закритих свічках, ніколи на тій, що формується">
+                  <input type="checkbox" id="botCfgClosedBarOnly" checked class="accent-cyan-500" /> Тільки закриті свічки
+                </label>
+                <label class="flex items-center gap-2 text-[11px] text-gray-400 cursor-pointer" title="Дозволити режим-детектору підміняти призначену стратегію. Вимкнено: підмінена стратегія втрачає підібрані параметри">
+                  <input type="checkbox" id="botCfgDynamicSwitch" class="accent-cyan-500" /> Підміна стратегії
+                </label>
+              </div>
+            </div>
+
+            <!-- Allowed Strategies Multi-Select -->
+            <div class="space-y-1.5 pt-1 border-t border-gray-800/80">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+                  <i data-lucide="layers" class="w-3.5 h-3.5 text-cyan-400"></i> Пул стратегій для авто-підбору
+                </label>
+                <span class="text-[10px] text-gray-500">Оберіть активні</span>
+              </div>
+              <div class="grid grid-cols-1 gap-1.5 p-2 rounded-xl bg-surface-900/70 border border-gray-800">
+                <label class="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/60 cursor-pointer text-xs transition">
+                  <div class="flex items-center gap-2">
+                    <input type="checkbox" name="botAllowedStrat" value="rsi_stochastic_extreme" checked class="rounded bg-surface-950 border-gray-700 text-cyan-500 focus:ring-0 w-3.5 h-3.5" />
+                    <span class="text-gray-200 font-medium">RSI + Stoch Extreme Scalp</span>
+                  </div>
+                  <span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">62.5% WR</span>
+                </label>
+                <label class="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/60 cursor-pointer text-xs transition">
+                  <div class="flex items-center gap-2">
+                    <input type="checkbox" name="botAllowedStrat" value="support_resistance_bounce" checked class="rounded bg-surface-950 border-gray-700 text-cyan-500 focus:ring-0 w-3.5 h-3.5" />
+                    <span class="text-gray-200 font-medium">Support & Resistance Pin-Bar</span>
+                  </div>
+                  <span class="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20">S&R Bounce</span>
+                </label>
+                <label class="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/60 cursor-pointer text-xs transition">
+                  <div class="flex items-center gap-2">
+                    <input type="checkbox" name="botAllowedStrat" value="ema_pullback_trend" class="rounded bg-surface-950 border-gray-700 text-cyan-500 focus:ring-0 w-3.5 h-3.5" />
+                    <span class="text-gray-300">EMA Ribbon Trend Pullback</span>
+                  </div>
+                  <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20">Trend</span>
+                </label>
+                <label class="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/60 cursor-pointer text-xs transition">
+                  <div class="flex items-center gap-2">
+                    <input type="checkbox" name="botAllowedStrat" value="supertrend_adx_momentum" class="rounded bg-surface-950 border-gray-700 text-cyan-500 focus:ring-0 w-3.5 h-3.5" />
+                    <span class="text-gray-300">SuperTrend + ADX Momentum</span>
+                  </div>
+                  <span class="px-1.5 py-0.5 rounded text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20">Momentum</span>
+                </label>
+                <label class="flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/60 cursor-pointer text-xs transition">
+                  <div class="flex items-center gap-2">
+                    <input type="checkbox" name="botAllowedStrat" value="macd_divergence_break" class="rounded bg-surface-950 border-gray-700 text-cyan-500 focus:ring-0 w-3.5 h-3.5" />
+                    <span class="text-gray-300">MACD Divergence Break</span>
+                  </div>
+                  <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20">Oscillator</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Action Button -->
+            <div class="pt-2">
+              <button type="submit" id="btnPrepareBot" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2">
+                <i data-lucide="cpu" class="w-4 h-4"></i> Розрахувати квантову матрицю стратегій
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- Right: Live Monitor & In-Flight Trades -->
+        <div class="lg:col-span-7 space-y-4">
+          
+          <!-- Key Metrics Summary (Live Session) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-emerald-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Баланс сесії</div>
+              <div id="botMetricBalance" class="text-lg font-bold text-emerald-400">$1000.00</div>
+              <div id="botMetricPnL" class="text-[11px] font-semibold text-gray-400">+$0.00 (0.00% ROI)</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-cyan-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Win Rate сесії</div>
+              <div id="botMetricWinRate" class="text-lg font-bold text-cyan-400">0.00%</div>
+              <div id="botMetricTradesStats" class="text-[11px] text-gray-400">0W / 0L / 0D</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-amber-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Відкриті позиції</div>
+              <div id="botMetricActiveDeals" class="text-lg font-bold text-amber-400">0 / 3</div>
+              <div class="text-[11px] text-gray-400">Паралельний ліміт</div>
+            </div>
+
+            <div class="glass-card rounded-xl p-3.5 border-l-4 border-rose-500">
+              <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Stop-Loss захист</div>
+              <div id="botMetricStopLossLeft" class="text-lg font-bold text-gray-200">5.00% ($50.00)</div>
+              <div class="text-[11px] text-rose-400">Hard Circuit Breaker</div>
+            </div>
+
+          </div>
+
+          <!-- Active Assigned Strategies Matrix -->
+          <div class="glass-card rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
+              <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="layers" class="w-4 h-4 text-emerald-400"></i> Закріплені стратегії за активами
+              </h3>
+              <span id="botAssignedCount" class="text-xs text-gray-400">0 активів</span>
+            </div>
+            <div id="botAssignedMatrixList" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+              <div class="col-span-2 text-center py-4 text-xs text-gray-500">
+                Стратегії ще не призначені. Натисніть «Розрахувати квантову матрицю стратегій».
+              </div>
+            </div>
+          </div>
+
+          <!-- Live In-Flight & Recent Trades Log -->
+          <div class="glass-card rounded-2xl p-5">
+            <div class="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
+              <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i> Журнал угод у реальному часі
+              </h3>
+              <div class="flex items-center gap-2">
+                <span id="botTradesCount" class="text-xs text-gray-400">0 угод</span>
+                <button type="button" onclick="confirmClearBotTrades()" class="text-[10px] px-2 py-0.5 rounded bg-surface-800 hover:bg-rose-900/40 text-rose-400 border border-rose-800/40 transition flex items-center gap-1">
+                  <i data-lucide="trash-2" class="w-3 h-3"></i> Очистити
+                </button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-64">
+              <table class="w-full text-left text-xs text-gray-300">
+                <thead class="bg-surface-800/80 text-[10px] uppercase tracking-wider text-gray-400 sticky top-0">
+                  <tr>
+                    <th class="px-3 py-2">Час</th>
+                    <th class="px-3 py-2">Актив</th>
+                    <th class="px-3 py-2">Дія</th>
+                    <th class="px-3 py-2">Ціна входу</th>
+                    <th class="px-3 py-2">Ставка ($)</th>
+                    <th class="px-3 py-2">Стратегія</th>
+                    <th class="px-3 py-2">Результат</th>
+                    <th class="px-3 py-2">PnL ($)</th>
+                    <th class="px-3 py-2">Order UUID</th>
+                  </tr>
+                </thead>
+                <tbody id="botLiveTradesBody" class="divide-y divide-gray-800/60 font-mono">
+                  <tr>
+                    <td colspan="9" class="text-center py-6 text-gray-500">
+                      Немає активних угод. Запустіть демо-бота.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- PRE-TRADE CONFIRMATION MODAL (APPROVAL DIALOG)                            -->
+    <!-- ========================================================================= -->
+    <div id="botConfirmModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div class="glass-card rounded-2xl max-w-3xl w-full p-6 border border-emerald-500/40 shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+        
+        <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+              <i data-lucide="shield-check" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Підсумковий план квантової торгівлі</h3>
+              <p class="text-xs text-gray-400">Система закріпила індивідуальні оптимізовані стратегії за кожним активом</p>
+            </div>
+          </div>
+          <button onclick="closeBotConfirmModal()" class="text-gray-400 hover:text-white transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Strategy Distribution Matrix -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div id="modalAssignmentsHeader" class="text-xs font-semibold text-gray-300 uppercase tracking-wider">Закріплені стратегії та очікувані метрики:</div>
+            <div class="text-[11px] text-gray-400 flex items-center gap-1">
+              <span class="text-gray-400">Натисніть</span> <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-400 inline"></i> <span class="text-gray-400">щоб видалити актив</span>
+            </div>
+          </div>
+          <div id="modalAssignmentsList" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Risk Summary Box -->
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-3 rounded-xl bg-surface-900/90 border border-gray-800 text-xs">
+          <div>
+            <span class="text-gray-400 block text-[10px]">Депозит:</span>
+            <span id="modalRiskDeposit" class="font-bold text-gray-200">$1000.00</span>
+          </div>
+          <div>
+            <span class="text-gray-400 block text-[10px]">Сума / % ставки:</span>
+            <span id="modalRiskStake" class="font-bold text-cyan-400">$10.00</span>
+          </div>
+          <div>
+            <span class="text-gray-400 block text-[10px]">Stop-Loss ліміт:</span>
+            <span id="modalRiskStopLoss" class="font-bold text-rose-400">5.0% ($50.00)</span>
+          </div>
+          <div>
+            <span class="text-gray-400 block text-[10px]">Take-Profit ціль:</span>
+            <span id="modalRiskTakeProfit" class="font-bold text-emerald-400">2.5% ($25.00)</span>
+          </div>
+          <div>
+            <span class="text-gray-400 block text-[10px]">Макс. паралельних:</span>
+            <span id="modalRiskMaxConcurrent" class="font-bold text-amber-400">3 угоди</span>
+          </div>
+        </div>
+
+        <!-- Action Footer -->
+        <div class="flex items-center justify-end space-x-3 pt-2 border-t border-gray-800">
+          <button type="button" onclick="closeBotConfirmModal()" class="px-4 py-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 font-semibold text-xs border border-gray-700 transition">
+            Скасувати
+          </button>
+          <button type="button" id="btnConfirmStartBot" onclick="confirmAndStartLiveBot()" class="px-6 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center gap-2">
+            <i data-lucide="play" class="w-4 h-4"></i> Торгувати на демо
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: TRADE AUDIT & BROKER XLS MERGER                                    -->
+    <!-- ========================================================================= -->
+    <div id="tabAudit" class="hidden space-y-6">
+      
+      <!-- Header Banner & Upload Zone -->
+      <div class="glass-card rounded-2xl p-6 border border-cyan-500/30 bg-cyan-500/5 space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="file-spreadsheet" class="w-5 h-5 text-cyan-400"></i> Аудит угод Pocket Option & Звірка з квантовою телеметрією
+            </h2>
+            <p class="text-xs text-gray-400">Завантажте експортований XLS / XLSX / CSV звіт брокера для точного зіставлення за Order UUID</p>
+          </div>
+          
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="loadInternalTradesAudit()" class="px-3.5 py-1.5 rounded-xl bg-cyan-600/80 hover:bg-cyan-500 text-white font-semibold text-xs shadow-lg shadow-cyan-500/20 transition flex items-center gap-1.5">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Оновити
+            </button>
+            <button type="button" onclick="confirmClearAuditTrades()" class="px-3.5 py-1.5 rounded-xl bg-rose-600/80 hover:bg-rose-500 text-white font-semibold text-xs shadow-lg shadow-rose-500/20 transition flex items-center gap-1.5">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Очистити історію
+            </button>
+            <button type="button" onclick="exportAuditReport('xlsx')" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center gap-1.5">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Експорт Excel (.xlsx)
+            </button>
+            <button type="button" onclick="exportAuditReport('csv')" class="px-3.5 py-1.5 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 font-semibold text-xs border border-gray-700 transition flex items-center gap-1.5">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Drag & Drop / Upload Area -->
+        <div class="border-2 border-dashed border-gray-700 hover:border-cyan-500/50 rounded-2xl p-6 text-center cursor-pointer transition bg-surface-900/60" onclick="document.getElementById('brokerXlsInput').click()">
+          <input type="file" id="brokerXlsInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleBrokerXlsUpload(event)" />
+          <div class="flex flex-col items-center justify-center space-y-2">
+            <div class="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+              <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+            </div>
+            <div class="text-xs font-semibold text-gray-200">Перетягніть або оберіть файл звіту Pocket Option (.xls, .xlsx, .csv)</div>
+            <div class="text-[11px] text-gray-500">Автоматичне зіставлення за стовпчиками Direction, Order, Expiration, Asset, Open/Close time, Profit</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Summary Ribbon (Audit) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        
+        <div class="glass-card rounded-xl p-3.5 border-l-4 border-cyan-500">
+          <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Угод за брокером</div>
+          <div id="auditMetricTotalBroker" class="text-lg font-bold text-gray-200">0</div>
+          <div id="auditMetricMatched" class="text-[11px] font-semibold text-cyan-400">0 зіставлено (0.00%)</div>
+        </div>
+
+        <div class="glass-card rounded-xl p-3.5 border-l-4 border-emerald-500">
+          <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Фактичний Profit брокера</div>
+          <div id="auditMetricProfit" class="text-lg font-bold text-emerald-400">$0.00</div>
+          <div class="text-[11px] text-gray-400">Офіційний результат P&L</div>
+        </div>
+
+        <div class="glass-card rounded-xl p-3.5 border-l-4 border-amber-500">
+          <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Середнє прослизання (Slippage)</div>
+          <div id="auditMetricSlippage" class="text-lg font-bold text-amber-400">0.00000</div>
+          <div class="text-[11px] text-gray-400">|Price_bot - Price_broker|</div>
+        </div>
+
+        <div class="glass-card rounded-xl p-3.5 border-l-4 border-brand-500">
+          <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Активних стратегій у звіті</div>
+          <div id="auditMetricStrategiesCount" class="text-lg font-bold text-brand-400">0</div>
+          <div class="text-[11px] text-gray-400">Розподіл P&L</div>
+        </div>
+
+      </div>
+
+      <!-- Strategy Breakdown Leaderboard & Asset Performance -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Strategy Breakdown Table -->
+        <div class="lg:col-span-7 glass-card rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
+            <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-400"></i> Результативність за стратегіями
+            </h3>
+            <span id="auditStrategyTableCount" class="text-xs text-gray-400">0 стратегій</span>
+          </div>
+
+          <div class="overflow-x-auto max-h-56">
+            <table class="w-full text-left text-xs text-gray-300">
+              <thead class="bg-surface-800/80 text-[10px] uppercase tracking-wider text-gray-400 sticky top-0">
+                <tr>
+                  <th class="px-3 py-2">Стратегія</th>
+                  <th class="px-3 py-2">Угоди (W/L/D)</th>
+                  <th class="px-3 py-2">Win Rate</th>
+                  <th class="px-3 py-2">Profit Factor</th>
+                  <th class="px-3 py-2">Net Profit ($)</th>
+                </tr>
+              </thead>
+              <tbody id="auditStrategyBody" class="divide-y divide-gray-800/60 font-mono">
+                <tr>
+                  <td colspan="5" class="text-center py-6 text-gray-500">Завантажте звіт Pocket Option для аналізу.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Asset Breakdown Table -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
+            <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i> Результативність за активами
+            </h3>
+            <span id="auditAssetTableCount" class="text-xs text-gray-400">0 активів</span>
+          </div>
+
+          <div class="overflow-x-auto max-h-56">
+            <table class="w-full text-left text-xs text-gray-300">
+              <thead class="bg-surface-800/80 text-[10px] uppercase tracking-wider text-gray-400 sticky top-0">
+                <tr>
+                  <th class="px-3 py-2">Актив</th>
+                  <th class="px-3 py-2">Угоди</th>
+                  <th class="px-3 py-2">Win Rate</th>
+                  <th class="px-3 py-2">Net Profit ($)</th>
+                </tr>
+              </thead>
+              <tbody id="auditAssetBody" class="divide-y divide-gray-800/60 font-mono">
+                <tr>
+                  <td colspan="4" class="text-center py-6 text-gray-500">Немає даних.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Full Reconciled Trades Table with Indicator Telemetry -->
+      <div class="glass-card rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
+          <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="table" class="w-4 h-4 text-cyan-400"></i> Зведена таблиця зіставлених угод з квантовою телеметрією
+          </h3>
+          <span id="auditMergedTableCount" class="text-xs text-gray-400">0 записів</span>
+        </div>
+
+        <div class="overflow-x-auto max-h-80">
+          <table class="w-full text-left text-xs text-gray-300">
+            <thead class="bg-surface-800/80 text-[10px] uppercase tracking-wider text-gray-400 sticky top-0">
+              <tr>
+                <th class="px-3 py-2">Order UUID</th>
+                <th class="px-3 py-2">Актив</th>
+                <th class="px-3 py-2">Дія</th>
+                <th class="px-3 py-2">Час входу</th>
+                <th class="px-3 py-2">Ціна брокера</th>
+                <th class="px-3 py-2">Ставка ($)</th>
+                <th class="px-3 py-2">Profit брокера ($)</th>
+                <th class="px-3 py-2">Стратегія бота</th>
+                <th class="px-3 py-2">Індикатори входу (RSI, ADX, ATR)</th>
+                <th class="px-3 py-2">Slippage</th>
+              </tr>
+            </thead>
+            <tbody id="auditMergedBody" class="divide-y divide-gray-800/60 font-mono">
+              <tr>
+                <td colspan="10" class="text-center py-8 text-gray-500">
+                  Завантажте файл звіту Pocket Option для перегляду зіставлених угод.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: MULTI-ASSET PORTFOLIO BACKTESTER                                   -->
+    <!-- ========================================================================= -->
+    <div id="tabPortfolio" class="hidden space-y-6">
       
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -159,8 +736,20 @@
                 <button type="button" onclick="selectTopNAssets(5)" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-cyan-400 border border-cyan-500/30 transition">⚡ Топ-5 за Payout</button>
                 <button type="button" onclick="selectTopNAssets(10)" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-cyan-400 border border-cyan-500/30 transition">⚡ Топ-10</button>
                 <button type="button" onclick="selectOtcAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-emerald-400 border border-emerald-500/30 transition">🟢 Усі OTC (92%)</button>
-                <button type="button" onclick="selectForexAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-amber-400 border border-amber-500/30 transition">💱 Валюти</button>
+                <button type="button" onclick="selectOtcForexAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-purple-400 border border-purple-500/30 transition">💱 OTC Валюти</button>
+                <button type="button" onclick="selectForexAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-amber-400 border border-amber-500/30 transition">🌐 Усі Валюти</button>
                 <button type="button" onclick="clearSelectedAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-gray-400 border border-gray-700 transition">❌ Очистити</button>
+              </div>
+
+              <!-- Real-time Asset Search Bar -->
+              <div class="relative mb-2">
+                <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
+                  <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                </div>
+                <input type="text" id="pAssetSearchInput" oninput="filterPortfolioAssetsList()" placeholder="🔍 Пошук активу за назвою (напр. EUR, Apple, OTC, Gold)..." class="w-full pl-8 pr-7 py-1.5 glass-input text-xs rounded-lg border-gray-700 bg-surface-900/90 text-gray-200 placeholder-gray-500 focus:border-brand-500 transition" />
+                <button type="button" onclick="clearPortfolioAssetSearch()" id="btnClearPAssetSearch" class="hidden absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-500 hover:text-gray-300 transition" title="Очистити пошук">
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
               </div>
 
               <!-- Checkbox Assets Container with Scroll -->
@@ -840,6 +1429,8 @@
           <button onclick="presetApi('GET', '/health', '')" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700">GET /health</button>
           <button onclick="presetApi('GET', '/api/v1/balance', '')" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700">GET /balance</button>
           <button onclick="presetApi('GET', '/api/v1/market/assets', '')" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700">GET /market/assets</button>
+          <button onclick="presetApi('GET', '/api/v1/bot/status', '')" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-emerald-400 border border-emerald-500/30">GET /bot/status</button>
+          <button onclick="presetApi('GET', '/api/v1/bot/trades', '')" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-emerald-400 border border-emerald-500/30">GET /bot/trades</button>
           <button onclick="presetApi('POST', '/api/v1/backtest/portfolio/run', defaultPortfolioPayload)" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-cyan-400 border border-cyan-500/30">POST /backtest/portfolio/run</button>
           <button onclick="presetApi('POST', '/api/v1/backtest/run', defaultBacktestPayload)" class="text-xs px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-gray-300 border border-gray-700">POST /backtest/run</button>
         </div>
@@ -884,7 +1475,7 @@
   <!-- Footer -->
   <footer class="border-t border-gray-800/80 py-4 bg-surface-900/60 mt-auto">
     <div class="max-w-7xl mx-auto px-4 text-center text-xs text-gray-500">
-      Pocket Option AutoTrader Pro — Quantum Engine, Multi-Asset & Risk Guard &copy; 2026. Працюємо виключно заради стабільного прибутку.
+      Strat Trade — Quantum Engine, Multi-Asset & Risk Guard &copy; 2026. Працюємо виключно заради стабільного прибутку.
     </div>
   </footer>
 
@@ -1059,11 +1650,15 @@
     }
 
     function switchTab(tabId) {
+      document.getElementById('tabLiveBot').classList.toggle('hidden', tabId !== 'liveBot');
+      document.getElementById('tabAudit').classList.toggle('hidden', tabId !== 'audit');
       document.getElementById('tabPortfolio').classList.toggle('hidden', tabId !== 'portfolio');
       document.getElementById('tabSingle').classList.toggle('hidden', tabId !== 'single');
       document.getElementById('tabOptimizer').classList.toggle('hidden', tabId !== 'optimizer');
       document.getElementById('tabApiTester').classList.toggle('hidden', tabId !== 'apiTester');
 
+      const btnL = document.getElementById('tabBtnLiveBot');
+      const btnAud = document.getElementById('tabBtnAudit');
       const btnP = document.getElementById('tabBtnPortfolio');
       const btnS = document.getElementById('tabBtnSingle');
       const btnO = document.getElementById('tabBtnOptimizer');
@@ -1072,6 +1667,8 @@
       const activeClass = 'tab-btn px-4 py-2.5 border-b-2 border-brand-500 text-brand-400 font-bold text-sm flex items-center gap-2 whitespace-nowrap';
       const inactiveClass = 'tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap';
 
+      btnL.className = tabId === 'liveBot' ? activeClass.replace('border-brand-500 text-brand-400', 'border-emerald-500 text-emerald-400') : inactiveClass;
+      btnAud.className = tabId === 'audit' ? activeClass.replace('border-brand-500 text-brand-400', 'border-cyan-500 text-cyan-400') : inactiveClass;
       btnP.className = tabId === 'portfolio' ? activeClass : inactiveClass;
       btnS.className = tabId === 'single' ? activeClass : inactiveClass;
       btnO.className = tabId === 'optimizer' ? activeClass : inactiveClass;
@@ -1094,6 +1691,10 @@
           if (equityChart && document.getElementById('equityChartContainer')) {
             equityChart.applyOptions({ width: document.getElementById('equityChartContainer').clientWidth });
           }
+        } else if (tabId === 'liveBot') {
+          fetchLiveBotStatus();
+        } else if (tabId === 'audit') {
+          loadInternalTradesAudit();
         }
       }, 60);
     }
@@ -1190,13 +1791,16 @@
 
         // 2. Render Multi-Asset Checkboxes for Portfolio Dock
         portfolioBox.innerHTML = '';
+        const botAssetsBox = document.getElementById('botAssetsContainer');
+        if (botAssetsBox) botAssetsBox.innerHTML = '';
+
         assets.forEach((a, idx) => {
           const isSelected = idx < 5; // Default select top 5
           const row = document.createElement('label');
           row.className = 'flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/80 cursor-pointer text-xs transition';
           row.innerHTML = `
             <div class="flex items-center gap-2">
-              <input type="checkbox" name="portfolioAsset" value="${a.symbol}" data-payout="${a.payout}" class="portfolio-checkbox w-3.5 h-3.5 text-brand-600 rounded bg-gray-900 border-gray-700" ${isSelected ? 'checked' : ''} onchange="updatePortfolioSelectedCount()" />
+              <input type="checkbox" name="portfolioAsset" value="${a.symbol}" data-payout="${a.payout}" data-asset-type="${a.asset_type || 'currency'}" data-is-otc="${a.is_otc ? 'true' : 'false'}" class="portfolio-checkbox w-3.5 h-3.5 text-brand-600 rounded bg-gray-900 border-gray-700" ${isSelected ? 'checked' : ''} onchange="updatePortfolioSelectedCount()" />
               <span class="font-medium text-gray-200">${a.name}</span>
             </div>
             <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${a.payout >= 90 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (a.payout >= 80 ? 'bg-cyan-500/20 text-cyan-400' : 'bg-gray-800 text-gray-400')}">
@@ -1204,9 +1808,25 @@
             </span>
           `;
           portfolioBox.appendChild(row);
+
+          if (botAssetsBox) {
+            const botRow = document.createElement('label');
+            botRow.className = 'flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/80 cursor-pointer text-xs transition';
+            botRow.innerHTML = `
+              <div class="flex items-center gap-2">
+                <input type="checkbox" name="botAsset" value="${a.symbol}" data-payout="${a.payout}" data-asset-type="${a.asset_type || 'currency'}" data-is-otc="${a.is_otc ? 'true' : 'false'}" class="bot-checkbox w-3.5 h-3.5 text-emerald-500 rounded bg-gray-900 border-gray-700" ${isSelected ? 'checked' : ''} onchange="updateBotSelectedCount()" />
+                <span class="font-medium text-gray-200">${a.name}</span>
+              </div>
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${a.payout >= 90 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (a.payout >= 80 ? 'bg-cyan-500/20 text-cyan-400' : 'bg-gray-800 text-gray-400')}">
+                ${a.payout}%
+              </span>
+            `;
+            botAssetsBox.appendChild(botRow);
+          }
         });
 
         updatePortfolioSelectedCount();
+        updateBotSelectedCount();
 
       } catch (err) {
         badge.textContent = `Default Assets`;
@@ -1216,6 +1836,696 @@
     function updatePortfolioSelectedCount() {
       const checked = document.querySelectorAll('.portfolio-checkbox:checked');
       document.getElementById('pAssetSelectedBadge').textContent = `${checked.length} обрано`;
+    }
+
+    function updateBotSelectedCount() {
+      const checked = document.querySelectorAll('.bot-checkbox:checked');
+      const badge = document.getElementById('botAssetSelectedBadge');
+      if (badge) badge.textContent = `${checked.length} обрано`;
+    }
+
+    function selectBotTopNAssets(n) {
+      const cbs = document.querySelectorAll('.bot-checkbox');
+      cbs.forEach((cb, idx) => {
+        cb.checked = idx < n;
+      });
+      updateBotSelectedCount();
+    }
+
+    function selectBotOtcAssets() {
+      const cbs = document.querySelectorAll('.bot-checkbox');
+      cbs.forEach(cb => {
+        cb.checked = cb.dataset.isOtc === 'true' || cb.value.toLowerCase().includes('otc');
+      });
+      updateBotSelectedCount();
+    }
+
+    function selectBotOtcForexAssets() {
+      const cbs = document.querySelectorAll('.bot-checkbox');
+      cbs.forEach(cb => {
+        const isOtc = cb.dataset.isOtc === 'true' || cb.value.toLowerCase().includes('otc');
+        const isCurrency = cb.dataset.assetType === 'currency';
+        cb.checked = isOtc && isCurrency;
+      });
+      updateBotSelectedCount();
+    }
+
+    function selectBotForexAssets() {
+      const cbs = document.querySelectorAll('.bot-checkbox');
+      cbs.forEach(cb => {
+        cb.checked = cb.dataset.assetType === 'currency';
+      });
+      updateBotSelectedCount();
+    }
+
+    function filterBotAssetsList() {
+      const rawQuery = (document.getElementById('botAssetSearchInput').value || '').trim().toLowerCase();
+      const cleanQuery = rawQuery.replace(/[\/\_\#\-\s]/g, '');
+      const clearBtn = document.getElementById('btnClearBotAssetSearch');
+      if (clearBtn) clearBtn.classList.toggle('hidden', rawQuery.length === 0);
+
+      const rows = document.querySelectorAll('#botAssetsContainer label');
+      rows.forEach(row => {
+        const input = row.querySelector('input');
+        const symbol = (input ? input.value : '').toLowerCase();
+        const text = row.textContent.toLowerCase();
+        const searchable = `${symbol} ${text}`;
+        const cleanSearchable = searchable.replace(/[\/\_\#\-\s]/g, '');
+
+        const matches = rawQuery.length === 0 || searchable.includes(rawQuery) || (cleanQuery.length > 0 && cleanSearchable.includes(cleanQuery));
+        row.style.display = matches ? 'flex' : 'none';
+      });
+    }
+
+    function clearBotAssetSearch() {
+      const input = document.getElementById('botAssetSearchInput');
+      if (input) {
+        input.value = '';
+        filterBotAssetsList();
+        input.focus();
+      }
+    }
+
+    function clearBotSelectedAssets() {
+      const cbs = document.querySelectorAll('.bot-checkbox');
+      cbs.forEach(cb => cb.checked = false);
+      updateBotSelectedCount();
+    }
+
+    function toggleBotStakeInputs() {
+      const m = document.getElementById('botCfgStakeModel').value;
+      document.getElementById('botFlatStakeBox').classList.toggle('hidden', m === 'percent');
+      document.getElementById('botPercentStakeBox').classList.toggle('hidden', m !== 'percent');
+    }
+
+    // --- LIVE DEMO BOT LAUNCH & TELEMETRY ---
+    let lastGeneratedPlan = null;
+    let botPollingInterval = null;
+
+    async function prepareLiveBotLaunch() {
+      const selectedAssets = Array.from(document.querySelectorAll('.bot-checkbox:checked')).map(cb => cb.value);
+      if (selectedAssets.length === 0) {
+        alert('Будь ласка, оберіть хоча б один актив для торгівлі.');
+        return;
+      }
+
+      const selectedStrats = Array.from(document.querySelectorAll('input[name="botAllowedStrat"]:checked')).map(cb => cb.value);
+      if (selectedStrats.length === 0) {
+        alert('Будь ласка, оберіть хоча б одну стратегію для авто-підбору.');
+        return;
+      }
+
+      const btn = document.getElementById('btnPrepareBot');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin mr-2">&#9696;</span> Квантовий підбір стратегій...`;
+
+      const payload = {
+        assets: selectedAssets,
+        allowed_strategies: selectedStrats,
+        initial_deposit: parseFloat(document.getElementById('botCfgDeposit').value),
+        stake_model: document.getElementById('botCfgStakeModel').value,
+        stake_amount: parseFloat(document.getElementById('botCfgStakeAmount').value),
+        stake_percent: parseFloat(document.getElementById('botCfgStakePercent').value),
+        daily_stop_loss_pct: parseFloat(document.getElementById('botCfgStopLoss').value) / 100.0,
+        daily_take_profit_pct: parseFloat(document.getElementById('botCfgTakeProfit')?.value || 2.5) / 100.0,
+        trailing_profit_lock_enabled: true,
+        per_asset_degradation_guard_enabled: true,
+        max_concurrent_trades: parseInt(document.getElementById('botCfgMaxConcurrent').value),
+        min_payout_rate: parseFloat(document.getElementById('botCfgMinPayout').value) / 100.0,
+        session_filter_enabled: true,
+        bar_edge_guard_seconds: parseFloat(document.getElementById('botCfgBarEdgeGuard')?.value ?? 3),
+        use_closed_bar_only: document.getElementById('botCfgClosedBarOnly')?.checked ?? true,
+        dynamic_strategy_switching_enabled: document.getElementById('botCfgDynamicSwitch')?.checked ?? false,
+        otc_stake_multiplier: parseFloat(document.getElementById('botCfgOtcStakePct')?.value ?? 25) / 100.0,
+        otc_min_payout_rate: parseFloat(document.getElementById('botCfgOtcMinPayout')?.value ?? 90) / 100.0,
+      };
+
+      try {
+        const res = await fetch('/api/v1/bot/auto-assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const msg = data.error ? data.error.message : (data.detail || 'Помилка розрахунку стратегій');
+          throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+
+        lastGeneratedPlan = data;
+        renderBotConfirmationModal(data);
+      } catch (err) {
+        alert(`Помилка підбору стратегій: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="cpu" class="w-4 h-4"></i> Розрахувати квантову матрицю стратегій`;
+        lucide.createIcons();
+      }
+    }
+
+    function renderBotConfirmationModal(plan) {
+      document.getElementById('modalRiskDeposit').textContent = `$${plan.initial_deposit.toFixed(2)}`;
+      document.getElementById('modalRiskStake').textContent = plan.stake_model === 'flat' ? `$${plan.stake_amount.toFixed(2)}` : `${plan.stake_percent.toFixed(1)}%`;
+      document.getElementById('modalRiskStopLoss').textContent = `${plan.daily_stop_loss_pct.toFixed(1)}% ($${plan.stop_loss_amount.toFixed(2)})`;
+      if (document.getElementById('modalRiskTakeProfit')) {
+        document.getElementById('modalRiskTakeProfit').textContent = `${(plan.daily_take_profit_pct || 2.5).toFixed(1)}% ($${(plan.take_profit_amount || plan.initial_deposit * 0.025).toFixed(2)})`;
+      }
+      document.getElementById('modalRiskMaxConcurrent').textContent = `${plan.max_concurrent_trades} угод`;
+
+      const headerEl = document.getElementById('modalAssignmentsHeader');
+      if (headerEl) {
+        headerEl.textContent = `Закріплені стратегії (${plan.assignments.length} активів):`;
+      }
+
+      const listContainer = document.getElementById('modalAssignmentsList');
+      listContainer.innerHTML = '';
+
+      const confirmBtn = document.getElementById('btnConfirmStartBot');
+
+      if (!plan.assignments || plan.assignments.length === 0) {
+        listContainer.innerHTML = `
+          <div class="col-span-1 sm:col-span-2 p-6 text-center text-gray-400 bg-surface-800/40 rounded-xl border border-dashed border-gray-700 space-y-1.5">
+            <div class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto mb-1 border border-amber-500/30">
+              <i data-lucide="alert-circle" class="w-4 h-4"></i>
+            </div>
+            <p class="text-xs font-semibold text-gray-200">Усі активи видалено з поточного плану.</p>
+            <p class="text-[11px] text-gray-500">Закрийте вікно та оберіть активи на панелі бота для нового розрахунку.</p>
+          </div>
+        `;
+        if (confirmBtn) {
+          confirmBtn.disabled = true;
+          confirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+      } else {
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        plan.assignments.forEach(a => {
+          const card = document.createElement('div');
+          card.className = 'p-3 rounded-xl bg-surface-800/90 border border-gray-700/80 space-y-1.5 hover:border-gray-600 transition group';
+          const paramsStr = Object.entries(a.parameters).map(([k, v]) => `${k}:${v}`).join(', ');
+
+          card.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-200 text-xs">${a.asset}</span>
+              <div class="flex items-center gap-1.5">
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Score: ${a.quantum_score.toFixed(1)}
+                </span>
+                <button type="button" onclick="removeModalAssignment('${a.asset}')" class="p-1 rounded-md text-gray-400 hover:text-rose-400 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition" title="Видалити ${a.asset}">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-semibold text-cyan-300">${a.strategy_name}</span>
+              <span class="text-[9px] px-1 py-0.2 rounded bg-surface-700 text-gray-300">${a.category}</span>
+            </div>
+            <div class="text-[10px] text-gray-400 font-mono truncate">${paramsStr}</div>
+            <div class="flex items-center justify-between text-[11px] pt-0.5 border-t border-gray-700/50">
+              <span class="text-gray-400">Очікуваний WR:</span>
+              <span class="font-bold ${a.estimated_win_rate_pct >= 55 ? 'text-emerald-400' : 'text-amber-400'}">${a.estimated_win_rate_pct.toFixed(1)}% (PF: ${a.estimated_profit_factor.toFixed(2)})</span>
+            </div>
+          `;
+          listContainer.appendChild(card);
+        });
+      }
+
+      document.getElementById('botConfirmModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function removeModalAssignment(asset) {
+      if (!lastGeneratedPlan || !lastGeneratedPlan.assignments) return;
+      lastGeneratedPlan.assignments = lastGeneratedPlan.assignments.filter(a => a.asset !== asset);
+
+      // Also uncheck in the main bot list
+      const cb = document.querySelector(`.bot-checkbox[value="${asset}"]`);
+      if (cb) {
+        cb.checked = false;
+        updateBotSelectedCount();
+      }
+
+      renderBotConfirmationModal(lastGeneratedPlan);
+    }
+
+    function closeBotConfirmModal() {
+      document.getElementById('botConfirmModal').classList.add('hidden');
+    }
+
+    async function confirmAndStartLiveBot() {
+      if (!lastGeneratedPlan) return;
+      const btn = document.getElementById('btnConfirmStartBot');
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin mr-2">&#9696;</span> Запуск...`;
+
+      try {
+        const res = await fetch('/api/v1/bot/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: lastGeneratedPlan })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const msg = data.error ? data.error.message : (data.detail || 'Помилка старту бота');
+          throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+
+        closeBotConfirmModal();
+        renderLiveBotStatus(data);
+
+        // Start polling every 3 seconds
+        if (botPollingInterval) clearInterval(botPollingInterval);
+        botPollingInterval = setInterval(fetchLiveBotStatus, 3000);
+
+      } catch (err) {
+        alert(`Помилка старту: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Торгувати на демо`;
+        lucide.createIcons();
+      }
+    }
+
+    let currentBotData = null;
+    let pauseCountdownInterval = null;
+
+    function startPauseCountdownTicker() {
+      if (pauseCountdownInterval) clearInterval(pauseCountdownInterval);
+      pauseCountdownInterval = setInterval(() => {
+        if (!currentBotData) return;
+        const isPaused = currentBotData.status === 'PAUSED' || currentBotData.is_paused;
+        if (!isPaused || !currentBotData.paused_until) return;
+
+        const remainingMs = new Date(currentBotData.paused_until).getTime() - Date.now();
+        const title = document.getElementById('botStatusTitle');
+        const sub = document.getElementById('botStatusSubtitle');
+        const lossCount = currentBotData.consecutive_losses || 0;
+        const lossText = lossCount > 0 ? `${lossCount} збитки поспіль` : 'серія збитків';
+
+        if (remainingMs > 0) {
+          const totalSec = Math.ceil(remainingMs / 1000);
+          const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+          const ss = String(totalSec % 60).padStart(2, '0');
+          const countdownStr = `${mm}:${ss}`;
+          if (title) title.textContent = `⏸️ Захисна пауза (${lossText}): ${countdownStr}`;
+          if (sub) sub.textContent = `Торгівлю тимчасово призупинено для захисту капіталу (15 хв). Автоматичне відновлення через ${countdownStr}.`;
+        } else {
+          if (title) title.textContent = `⏸️ Захисна пауза (${lossText}): 00:00 (розблокування)`;
+          if (sub) sub.textContent = `Таймер паузи завершено. Очікування оновлення статусу...`;
+        }
+      }, 1000);
+    }
+
+    async function resumeLiveTradingBot() {
+      try {
+        const res = await fetch('/api/v1/bot/resume', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          renderLiveBotStatus(data);
+          if (!botPollingInterval) {
+            botPollingInterval = setInterval(fetchLiveBotStatus, 3000);
+          }
+        }
+      } catch (err) {
+        console.warn('Error resuming bot:', err);
+      }
+    }
+
+    async function stopLiveTradingBot() {
+      try {
+        const res = await fetch('/api/v1/bot/stop', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          renderLiveBotStatus(data);
+          if (botPollingInterval) {
+            clearInterval(botPollingInterval);
+            botPollingInterval = null;
+          }
+        }
+      } catch (err) {
+        console.warn('Error stopping bot:', err);
+      }
+    }
+
+    async function fetchLiveBotStatus() {
+      try {
+        const res = await fetch('/api/v1/bot/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderLiveBotStatus(data);
+      } catch (err) {
+        console.warn('Error fetching bot status:', err);
+      }
+    }
+
+    function renderLiveBotStatus(data) {
+      currentBotData = data;
+      const isRunning = data.status === 'RUNNING';
+      const isPaused = data.status === 'PAUSED' || data.is_paused;
+      const isHalted = data.status === 'HALTED_BY_STOP_LOSS';
+      const isTakeProfitHalted = data.status === 'HALTED_BY_TAKE_PROFIT';
+      const isTrailingLockHalted = data.status === 'HALTED_BY_TRAILING_PROFIT_LOCK';
+      const isCircuitHalted = data.status === 'HALTED_BY_CIRCUIT_BREAKER' || data.circuit_breaker_triggered;
+
+      const pulse = document.getElementById('botStatusPulse');
+      const badge = document.getElementById('botStatusBadge');
+      const title = document.getElementById('botStatusTitle');
+      const sub = document.getElementById('botStatusSubtitle');
+      const stopBtn = document.getElementById('btnStopBot');
+      const resumeBtn = document.getElementById('btnResumeBot');
+
+      if (isTakeProfitHalted) {
+        pulse.className = 'w-3.5 h-3.5 rounded-full bg-emerald-400 animate-bounce';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-lg shadow-emerald-500/20';
+        badge.textContent = '🏆 TAKE-PROFIT ACHIEVED';
+        title.textContent = '🏆 Торгівля успішно завершена: Досягнуто Take-Profit!';
+        sub.textContent = `Цільовий прибуток сесії зафіксовано (+${data.net_profit >= 0 ? '+' : ''}$${data.net_profit.toFixed(2)}). Денний план успішно виконано!`;
+        if (stopBtn) stopBtn.classList.add('hidden');
+        if (resumeBtn) resumeBtn.classList.remove('hidden');
+      } else if (isTrailingLockHalted) {
+        pulse.className = 'w-3.5 h-3.5 rounded-full bg-cyan-400 animate-pulse';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40';
+        badge.textContent = '🔒 TRAILING PROFIT LOCKED';
+        title.textContent = '🔒 Торгівля зупинена: Захист накопиченого прибутку (Trailing Lock)';
+        sub.textContent = `Прибуток успішно захищено від відкату ринку (Фінал: +$${data.net_profit.toFixed(2)}).`;
+        if (stopBtn) stopBtn.classList.add('hidden');
+        if (resumeBtn) resumeBtn.classList.remove('hidden');
+      } else if (isPaused) {
+        pulse.className = 'w-3.5 h-3.5 rounded-full bg-amber-400 animate-pulse';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse';
+        badge.textContent = 'PAUSED (COOLDOWN)';
+
+        let countdownStr = '';
+        if (data.paused_until) {
+          const remainingMs = new Date(data.paused_until).getTime() - Date.now();
+          if (remainingMs > 0) {
+            const totalSec = Math.ceil(remainingMs / 1000);
+            const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+            const ss = String(totalSec % 60).padStart(2, '0');
+            countdownStr = `${mm}:${ss}`;
+          } else {
+            countdownStr = '00:00';
+          }
+        }
+
+        const lossCount = data.consecutive_losses || 0;
+        const lossText = lossCount > 0 ? `${lossCount} збитки поспіль` : 'серія збитків';
+        const timerLabel = countdownStr ? `: ${countdownStr}` : '';
+        title.textContent = `⏸️ Захисна пауза (${lossText})${timerLabel}`;
+        sub.textContent = `Торгівлю тимчасово призупинено для захисту капіталу (15 хв). Автоматичне відновлення через ${countdownStr || 'таймер'} (або вручну).`;
+        if (stopBtn) stopBtn.classList.remove('hidden');
+        if (resumeBtn) resumeBtn.classList.remove('hidden');
+      } else if (isRunning) {
+        pulse.className = 'w-3.5 h-3.5 rounded-full bg-emerald-400 animate-ping';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        badge.textContent = 'RUNNING (LIVE)';
+        title.textContent = '🟢 Демо-Бот активно аналізує ринок та входить в угоди';
+        const lossNotice = (data.consecutive_losses > 0) ? ` | Збиткова серія: ${data.consecutive_losses}` : '';
+        sub.textContent = `Активно ${data.active_assignments ? data.active_assignments.length : 0} стратегій, ліміт паралельних угод: ${data.pending_trades}${lossNotice}`;
+        if (stopBtn) stopBtn.classList.remove('hidden');
+        if (resumeBtn) resumeBtn.classList.add('hidden');
+      } else if (isHalted) {
+        pulse.className = 'w-3.5 h-3.5 rounded-full bg-rose-500 animate-pulse';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30';
+        badge.textContent = 'STOP-LOSS HALTED';
+        title.textContent = '⚠️ Торгівля автоматично зупинена (Сесійний Stop-Loss)';
+        sub.textContent = 'Досягнуто встановленого ліміту збитку. Капітал захищено.';
+        if (stopBtn) stopBtn.classList.add('hidden');
+        if (resumeBtn) resumeBtn.classList.remove('hidden');
+      } else if (isCircuitHalted) {
+        pulse.className = 'w-3.5 h-3.5 rounded-full bg-rose-500 animate-pulse';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30';
+        badge.textContent = 'CIRCUIT BREAKER HALTED';
+        title.textContent = '🛑 Торгівля зупинена: Circuit Breaker (Max Drawdown)';
+        sub.textContent = `Максимальне просідання досягло ліміту (${(data.max_drawdown_pct || 0).toFixed(1)}%). Відновіть сесію вручну.`;
+        if (stopBtn) stopBtn.classList.add('hidden');
+        if (resumeBtn) resumeBtn.classList.remove('hidden');
+      } else {
+        pulse.className = 'w-3.5 h-3.5 rounded-full bg-gray-500';
+        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700';
+        badge.textContent = data.status || 'IDLE';
+        title.textContent = 'Демо-Бот зупинено';
+        sub.textContent = 'Оберіть активи та натисніть «Розрахувати квантову матрицю стратегій» для старту.';
+        if (stopBtn) stopBtn.classList.add('hidden');
+        if (resumeBtn) resumeBtn.classList.add('hidden');
+      }
+
+      // KPI Ribbon
+      document.getElementById('botMetricBalance').textContent = `$${data.current_balance.toFixed(2)}`;
+      const isProf = data.net_profit >= 0;
+      const pnlEl = document.getElementById('botMetricPnL');
+      pnlEl.textContent = `${isProf ? '+' : ''}$${data.net_profit.toFixed(2)} (${isProf ? '+' : ''}${data.roi_pct.toFixed(2)}% ROI)`;
+      pnlEl.className = isProf ? 'text-[11px] font-semibold text-emerald-400' : 'text-[11px] font-semibold text-rose-400';
+
+      document.getElementById('botMetricWinRate').textContent = `${data.win_rate_pct.toFixed(1)}%`;
+      const lossStreakNotice = (data.consecutive_losses > 0) ? ` (${data.consecutive_losses}L streak)` : '';
+      document.getElementById('botMetricTradesStats').textContent = `${data.winning_trades}W / ${data.losing_trades}L / ${data.draw_trades}D${lossStreakNotice}`;
+      document.getElementById('botMetricActiveDeals').textContent = `${data.pending_trades} активних`;
+      const stopLossEl = document.getElementById('botMetricStopLossLeft');
+      if (stopLossEl) {
+        stopLossEl.textContent = `DD: ${data.current_drawdown_pct.toFixed(2)}% (Streak: ${data.consecutive_losses || 0}/3)`;
+      }
+
+      // Matrix Cards
+      const matrixBox = document.getElementById('botAssignedMatrixList');
+      if (data.active_assignments && data.active_assignments.length > 0) {
+        document.getElementById('botAssignedCount').textContent = `${data.active_assignments.length} активів`;
+        matrixBox.innerHTML = '';
+        data.active_assignments.forEach(a => {
+          const card = document.createElement('div');
+          card.className = 'p-2.5 rounded-xl bg-surface-800/80 border border-gray-700/60 flex items-center justify-between text-xs';
+          card.innerHTML = `
+            <div>
+              <div class="font-bold text-gray-200">${a.asset}</div>
+              <div class="text-[11px] text-cyan-300 font-medium">${a.strategy_name}</div>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-surface-700 text-gray-300 border border-gray-600">
+              WR: ${a.estimated_win_rate_pct.toFixed(0)}%
+            </span>
+          `;
+          matrixBox.appendChild(card);
+        });
+      }
+
+      // Live Trades Table
+      const tradesBody = document.getElementById('botLiveTradesBody');
+      const trades = data.recent_trades || [];
+      document.getElementById('botTradesCount').textContent = `${trades.length} угод`;
+
+      if (trades.length > 0) {
+        tradesBody.innerHTML = '';
+        trades.forEach(t => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-surface-700/40 transition';
+          const isWin = t.outcome === 'WIN';
+          const isLoss = t.outcome === 'LOSS';
+          const isPend = t.outcome === 'PENDING';
+
+          const outBadge = isPend 
+            ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse">PENDING</span>'
+            : (isWin ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">WIN</span>'
+            : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">LOSS</span>');
+
+          const pnlStr = isPend ? '--' : `${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)}`;
+          const pnlColor = isPend ? 'text-gray-400' : (t.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400');
+          const timeStr = new Date(t.open_time).toLocaleTimeString();
+          const uuidShort = t.broker_order_id ? (t.broker_order_id.length > 16 ? `${t.broker_order_id.substring(0, 8)}...` : t.broker_order_id) : 'Local';
+
+          row.innerHTML = `
+            <td class="px-3 py-2 text-gray-400">${timeStr}</td>
+            <td class="px-3 py-2 font-bold text-gray-200">${t.asset}</td>
+            <td class="px-3 py-2 font-bold ${t.action === 'CALL' ? 'text-emerald-400' : 'text-rose-400'}">${t.action}</td>
+            <td class="px-3 py-2">${t.open_price.toFixed(5)}</td>
+            <td class="px-3 py-2">$${t.stake.toFixed(2)}</td>
+            <td class="px-3 py-2 text-cyan-300">${t.strategy_name}</td>
+            <td class="px-3 py-2">${outBadge}</td>
+            <td class="px-3 py-2 font-bold ${pnlColor}">${pnlStr}</td>
+            <td class="px-3 py-2 text-gray-500 text-[10px] font-mono" title="${t.broker_order_id || ''}">${uuidShort}</td>
+          `;
+          tradesBody.appendChild(row);
+        });
+      }
+      lucide.createIcons();
+    }
+
+    // --- AUDIT & BROKER XLS MERGER ---
+    async function handleBrokerXlsUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/v1/audit/upload-xls', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Помилка обробки файлу брокера');
+        renderAuditResults(data);
+      } catch (err) {
+        alert(`Помилка аудиту: ${err.message}`);
+      } finally {
+        event.target.value = '';
+      }
+    }
+
+    async function loadInternalTradesAudit() {
+      try {
+        const res = await fetch('/api/v1/audit/records');
+        if (!res.ok) throw new Error('Не вдалося завантажити аудит угод');
+        const data = await res.json();
+        renderAuditResults(data);
+      } catch (err) {
+        console.error('loadInternalTradesAudit error:', err);
+      }
+    }
+
+    async function confirmClearAuditTrades() {
+      if (!confirm('Ви впевнені, що хочете повністю очистити історію угод з локальної бази даних?')) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/v1/audit/clear', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Помилка очищення');
+        await loadInternalTradesAudit();
+        await fetchLiveBotStatus();
+        alert(`Історію угод успішно очищено (${data.cleared_trades} записів).`);
+      } catch (err) {
+        alert(`Помилка очищення: ${err.message}`);
+      }
+    }
+
+    async function confirmClearBotTrades() {
+      if (!confirm('Очистити всю історію угод бота?')) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/v1/bot/clear-trades', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Помилка очищення');
+        await fetchLiveBotStatus();
+        await loadInternalTradesAudit();
+        alert(`Історію угод успішно очищено (${data.cleared_trades} записів).`);
+      } catch (err) {
+        alert(`Помилка: ${err.message}`);
+      }
+    }
+
+    function renderAuditResults(data) {
+      document.getElementById('auditMetricTotalBroker').textContent = data.total_broker_trades || 0;
+      document.getElementById('auditMetricMatched').textContent = `${data.matched_trades_count || 0} зіставлено (${(data.match_rate_pct || 0).toFixed(1)}%)`;
+
+      const isProf = (data.total_broker_profit || 0) >= 0;
+      const profEl = document.getElementById('auditMetricProfit');
+      profEl.textContent = `${isProf ? '+' : ''}$${(data.total_broker_profit || 0).toFixed(2)}`;
+      profEl.className = isProf ? 'text-lg font-bold text-emerald-400' : 'text-lg font-bold text-rose-400';
+
+      document.getElementById('auditMetricSlippage').textContent = (data.average_slippage || 0).toFixed(5);
+      document.getElementById('auditMetricStrategiesCount').textContent = `${(data.strategy_breakdown || []).length} стратегій`;
+
+      // Strategy Breakdown Table
+      const stratBody = document.getElementById('auditStrategyBody');
+      stratBody.innerHTML = '';
+      document.getElementById('auditStrategyTableCount').textContent = `${(data.strategy_breakdown || []).length} стратегій`;
+
+      if (!data.strategy_breakdown || data.strategy_breakdown.length === 0) {
+        stratBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center py-6 text-gray-500">Немає збережених угод у базі. Запустіть демо-бота або завантажте звіт Pocket Option.</td>
+          </tr>
+        `;
+      } else {
+        data.strategy_breakdown.forEach(s => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-surface-700/40 transition';
+          const isP = s.net_profit >= 0;
+          row.innerHTML = `
+            <td class="px-3 py-2 font-bold text-cyan-300">${s.strategy_name}</td>
+            <td class="px-3 py-2 text-gray-300">${s.total_trades} (${s.wins}W / ${s.losses}L)</td>
+            <td class="px-3 py-2 font-bold ${s.win_rate_pct >= 55 ? 'text-emerald-400' : 'text-amber-400'}">${s.win_rate_pct.toFixed(1)}%</td>
+            <td class="px-3 py-2 font-semibold text-gray-200">${s.profit_factor.toFixed(2)}</td>
+            <td class="px-3 py-2 font-bold ${isP ? 'text-emerald-400' : 'text-rose-400'}">${isP ? '+' : ''}$${s.net_profit.toFixed(2)}</td>
+          `;
+          stratBody.appendChild(row);
+        });
+      }
+
+      // Asset Breakdown Table
+      const assetBody = document.getElementById('auditAssetBody');
+      assetBody.innerHTML = '';
+      document.getElementById('auditAssetTableCount').textContent = `${(data.asset_breakdown || []).length} активів`;
+
+      if (!data.asset_breakdown || data.asset_breakdown.length === 0) {
+        assetBody.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-center py-6 text-gray-500">Немає даних.</td>
+          </tr>
+        `;
+      } else {
+        data.asset_breakdown.forEach(a => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-surface-700/40 transition';
+          const isP = a.net_profit >= 0;
+          row.innerHTML = `
+            <td class="px-3 py-2 font-bold text-gray-200">${a.asset}</td>
+            <td class="px-3 py-2 text-gray-300">${a.total_trades} (${a.wins}W / ${a.losses}L)</td>
+            <td class="px-3 py-2 font-bold ${a.win_rate_pct >= 55 ? 'text-emerald-400' : 'text-amber-400'}">${a.win_rate_pct.toFixed(1)}%</td>
+            <td class="px-3 py-2 font-bold ${isP ? 'text-emerald-400' : 'text-rose-400'}">${isP ? '+' : ''}$${a.net_profit.toFixed(2)}</td>
+          `;
+          assetBody.appendChild(row);
+        });
+      }
+
+      // Merged Records Table
+      const mergedBody = document.getElementById('auditMergedBody');
+      mergedBody.innerHTML = '';
+      document.getElementById('auditMergedTableCount').textContent = `${(data.merged_records || []).length} угод`;
+
+      if (!data.merged_records || data.merged_records.length === 0) {
+        mergedBody.innerHTML = `
+          <tr>
+            <td colspan="10" class="text-center py-8 text-gray-500">
+              Немає збережених угод. Запустіть Live Демо-бота або завантажте файл звіту Pocket Option.
+            </td>
+          </tr>
+        `;
+      } else {
+        data.merged_records.forEach(r => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-surface-700/40 transition';
+          const isWin = r.outcome === 'WIN';
+          const isLoss = r.outcome === 'LOSS';
+          const profColor = r.broker_profit >= 0 ? 'text-emerald-400' : 'text-rose-400';
+
+          const snap = r.indicator_snapshot || {};
+          const snapTooltip = `RSI: ${snap.rsi || '--'}, ADX: ${snap.adx || '--'}, ATR: ${snap.atr || '--'}, Stoch: ${snap.stoch_k || '--'}`;
+
+          row.innerHTML = `
+            <td class="px-3 py-2 font-mono text-[10px] text-gray-400" title="${r.order_id}">${(r.order_id && r.order_id.length > 14) ? r.order_id.substring(0, 10) + '...' : (r.order_id || '--')}</td>
+            <td class="px-3 py-2 font-bold text-gray-200">${r.asset}</td>
+            <td class="px-3 py-2 font-bold ${r.direction === 'CALL' ? 'text-emerald-400' : 'text-rose-400'}">${r.direction}</td>
+            <td class="px-3 py-2 text-gray-400">${r.open_time ? new Date(r.open_time).toLocaleTimeString() : '--'}</td>
+            <td class="px-3 py-2">${(r.broker_open_price !== null && r.broker_open_price !== undefined) ? Number(r.broker_open_price).toFixed(5) : '--'}</td>
+            <td class="px-3 py-2">$${(r.trade_amount !== null && r.trade_amount !== undefined) ? Number(r.trade_amount).toFixed(2) : '--'}</td>
+            <td class="px-3 py-2 font-bold ${profColor}">${(r.broker_profit !== null && r.broker_profit !== undefined && r.broker_profit >= 0) ? '+' : ''}$${(r.broker_profit !== null && r.broker_profit !== undefined) ? Number(r.broker_profit).toFixed(2) : '0.00'}</td>
+            <td class="px-3 py-2 text-cyan-300">${r.strategy_name || 'Unlinked'}</td>
+            <td class="px-3 py-2 text-[10px] text-gray-400 font-mono" title="${snapTooltip}">${snap.rsi ? `RSI:${snap.rsi} | ADX:${snap.adx}` : '--'}</td>
+            <td class="px-3 py-2 text-[10px] text-gray-400">${(r.slippage !== null && r.slippage !== undefined) ? Number(r.slippage).toFixed(5) : '--'}</td>
+          `;
+          mergedBody.appendChild(row);
+        });
+      }
+      lucide.createIcons();
+    }
+
+    function exportAuditReport(format) {
+      window.open(`/api/v1/audit/export?format=${format}`, '_blank');
     }
 
     function selectTopNAssets(n) {
@@ -1229,7 +2539,17 @@
     function selectOtcAssets() {
       const cbs = document.querySelectorAll('.portfolio-checkbox');
       cbs.forEach(cb => {
-        cb.checked = cb.value.toLowerCase().includes('otc');
+        cb.checked = cb.dataset.isOtc === 'true' || cb.value.toLowerCase().includes('otc');
+      });
+      updatePortfolioSelectedCount();
+    }
+
+    function selectOtcForexAssets() {
+      const cbs = document.querySelectorAll('.portfolio-checkbox');
+      cbs.forEach(cb => {
+        const isOtc = cb.dataset.isOtc === 'true' || cb.value.toLowerCase().includes('otc');
+        const isCurrency = cb.dataset.assetType === 'currency';
+        cb.checked = isOtc && isCurrency;
       });
       updatePortfolioSelectedCount();
     }
@@ -1237,10 +2557,37 @@
     function selectForexAssets() {
       const cbs = document.querySelectorAll('.portfolio-checkbox');
       cbs.forEach(cb => {
-        const val = cb.value.toLowerCase();
-        cb.checked = val.includes('usd') || val.includes('eur') || val.includes('gbp') || val.includes('jpy') || val.includes('aud') || val.includes('cad');
+        cb.checked = cb.dataset.assetType === 'currency';
       });
       updatePortfolioSelectedCount();
+    }
+
+    function filterPortfolioAssetsList() {
+      const rawQuery = (document.getElementById('pAssetSearchInput').value || '').trim().toLowerCase();
+      const cleanQuery = rawQuery.replace(/[\/\_\#\-\s]/g, '');
+      const clearBtn = document.getElementById('btnClearPAssetSearch');
+      if (clearBtn) clearBtn.classList.toggle('hidden', rawQuery.length === 0);
+
+      const rows = document.querySelectorAll('#portfolioAssetsContainer label');
+      rows.forEach(row => {
+        const input = row.querySelector('input');
+        const symbol = (input ? input.value : '').toLowerCase();
+        const text = row.textContent.toLowerCase();
+        const searchable = `${symbol} ${text}`;
+        const cleanSearchable = searchable.replace(/[\/\_\#\-\s]/g, '');
+
+        const matches = rawQuery.length === 0 || searchable.includes(rawQuery) || (cleanQuery.length > 0 && cleanSearchable.includes(cleanQuery));
+        row.style.display = matches ? 'flex' : 'none';
+      });
+    }
+
+    function clearPortfolioAssetSearch() {
+      const input = document.getElementById('pAssetSearchInput');
+      if (input) {
+        input.value = '';
+        filterPortfolioAssetsList();
+        input.focus();
+      }
     }
 
     function clearSelectedAssets() {
@@ -2033,11 +3380,15 @@
 
     // Init on DOM ready
     window.addEventListener('DOMContentLoaded', () => {
-      initPortfolioCharts();
-      initSingleCharts();
       fetchAccountBalance();
       loadAssetsList();
       loadStrategiesList();
+      fetchLiveBotStatus();
+      loadInternalTradesAudit();
+      startPauseCountdownTicker();
+
+      // Auto-refresh account balance every 5 minutes (300,000 ms)
+      setInterval(fetchAccountBalance, 5 * 60 * 1000);
     });
   </script>
 </body>

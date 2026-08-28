@@ -16,14 +16,19 @@ from strat_trade.api.schemas import (
     OptimizationResultItemResponse,
     PortfolioBacktestRequest,
     PortfolioBacktestResponse,
+    RollingVerificationRequest,
+    RollingVerificationResponse,
     StrategyMetadataResponse,
     StrategyParameterDefResponse,
+    TradeBatchResultResponse,
 )
 from strat_trade.domain.backtest.models import BacktestSummary, PortfolioBacktestSummary
+from strat_trade.domain.backtest.verification_runner import RollingVerificationReport
 from strat_trade.domain.strategies.registry import list_available_strategies
 from strat_trade.use_cases.optimize_strategy import execute_strategy_optimization
 from strat_trade.use_cases.run_backtest import execute_backtest
 from strat_trade.use_cases.run_portfolio_backtest import execute_portfolio_backtest
+from strat_trade.use_cases.verify_strategy import execute_rolling_15_verification
 
 router = APIRouter(prefix="/backtest", tags=["Backtest"])
 
@@ -361,3 +366,129 @@ async def optimize_strategy_endpoint(
             for r in report.results
         ],
     )
+
+
+def _verification_report_to_response(
+    report: RollingVerificationReport,
+) -> RollingVerificationResponse:
+    return RollingVerificationResponse(
+        strategy_name=report.strategy_name,
+        asset=report.asset,
+        timeframe_seconds=report.timeframe_seconds,
+        payout_rate=float(report.payout_rate),
+        batch_size=report.batch_size,
+        total_trades=report.total_trades,
+        total_batches=report.total_batches,
+        passed_batches=report.passed_batches,
+        failed_batches=report.failed_batches,
+        all_batches_passed=report.all_batches_passed,
+        status=report.status.value if hasattr(report.status, "value") else str(report.status),
+        overall_win_rate_pct=float(report.overall_win_rate_pct),
+        overall_net_pnl=float(report.overall_net_pnl),
+        min_batch_win_rate_pct=float(report.min_batch_win_rate_pct),
+        max_batch_win_rate_pct=float(report.max_batch_win_rate_pct),
+        avg_batch_win_rate_pct=float(report.avg_batch_win_rate_pct),
+        min_batch_net_pnl=float(report.min_batch_net_pnl),
+        max_batch_net_pnl=float(report.max_batch_net_pnl),
+        max_consecutive_losses_overall=report.max_consecutive_losses_overall,
+        batches=[
+            TradeBatchResultResponse(
+                batch_index=b.batch_index,
+                start_trade_index=b.start_trade_index,
+                end_trade_index=b.end_trade_index,
+                total_trades=b.total_trades,
+                winning_trades=b.winning_trades,
+                losing_trades=b.losing_trades,
+                draw_trades=b.draw_trades,
+                win_rate_pct=float(b.win_rate_pct),
+                net_pnl=float(b.net_pnl),
+                max_consecutive_losses=b.max_consecutive_losses,
+                roi_pct=float(b.roi_pct),
+                passed=b.passed,
+                is_partial=b.is_partial,
+                start_time=b.start_time,
+                end_time=b.end_time,
+                total_staked=float(b.total_staked),
+                gross_profit=float(b.gross_profit),
+                gross_loss=float(b.gross_loss),
+                profit_factor=float(b.profit_factor),
+                max_consecutive_wins=b.max_consecutive_wins,
+                max_drawdown_amount=float(b.max_drawdown_amount),
+                max_drawdown_pct=float(b.max_drawdown_pct),
+                failure_reasons=b.failure_reasons,
+                failure_reason=b.failure_reason,
+            )
+            for b in report.batches
+        ],
+        rolling_windows=[
+            TradeBatchResultResponse(
+                batch_index=r.batch_index,
+                start_trade_index=r.start_trade_index,
+                end_trade_index=r.end_trade_index,
+                total_trades=r.total_trades,
+                winning_trades=r.winning_trades,
+                losing_trades=r.losing_trades,
+                draw_trades=r.draw_trades,
+                win_rate_pct=float(r.win_rate_pct),
+                net_pnl=float(r.net_pnl),
+                max_consecutive_losses=r.max_consecutive_losses,
+                roi_pct=float(r.roi_pct),
+                passed=r.passed,
+                is_partial=r.is_partial,
+                start_time=r.start_time,
+                end_time=r.end_time,
+                total_staked=float(r.total_staked),
+                gross_profit=float(r.gross_profit),
+                gross_loss=float(r.gross_loss),
+                profit_factor=float(r.profit_factor),
+                max_consecutive_wins=r.max_consecutive_wins,
+                max_drawdown_amount=float(r.max_drawdown_amount),
+                max_drawdown_pct=float(r.max_drawdown_pct),
+                failure_reasons=r.failure_reasons,
+                failure_reason=r.failure_reason,
+            )
+            for r in report.rolling_windows
+        ],
+        auto_tuned=report.auto_tuned,
+        initial_params=report.initial_params,
+        optimized_params=report.optimized_params,
+        tuning_iterations=report.tuning_iterations,
+        tuning_report=report.tuning_report,
+    )
+
+
+@router.post(
+    "/verify-15-trades",
+    response_model=RollingVerificationResponse,
+    summary="Verify strategy profitability across rolling 15-trade cycles",
+    description=(
+        "Evaluates candidate strategy performance across sequential non-overlapping 15-trade "
+        "batches and rolling sliding windows under 92% broker payout. If any batch fails "
+        "(Win Rate < 53.4% or Net PnL <= 0), optionally triggers minimax auto-optimization loop."
+    ),
+    operation_id="verify15Trades",
+)
+async def verify_15_trades_endpoint(
+    req: RollingVerificationRequest,
+    feed: CandleFeedDep,
+) -> RollingVerificationResponse:
+    report = await execute_rolling_15_verification(
+        feed=feed,
+        asset=req.asset,
+        timeframe_seconds=req.timeframe_seconds,
+        strategy_name=req.strategy_name,
+        strategy_params=req.strategy_params,
+        payout_rate=req.payout_rate,
+        min_payout_rate=req.min_payout_rate,
+        initial_deposit=req.initial_deposit,
+        stake_amount=req.stake_amount,
+        stake_model=req.stake_model,
+        batch_size=req.batch_size,
+        min_win_rate_pct=req.min_win_rate_pct,
+        candle_count=req.candle_count,
+        auto_tune=req.auto_tune,
+        parameter_grid=req.parameter_grid,
+        max_combinations=req.max_combinations,
+        end_at=req.end_at,
+    )
+    return _verification_report_to_response(report)

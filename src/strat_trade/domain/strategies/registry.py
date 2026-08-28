@@ -160,10 +160,51 @@ def list_available_strategies() -> list[dict[str, Any]]:
     return out
 
 
-def get_strategy_instance(strategy_name: str, **kwargs: Any) -> BaseStrategy:
-    meta = _STRATEGIES.get(strategy_name.strip().lower())
-    if not meta:
-        # Fallback to default
-        meta = _STRATEGIES["hybrid_multifactors"]
-    # Filter kwargs that match parameter names or allow passing
-    return meta.cls(**kwargs)
+def _resolve_metadata(strategy_name: str) -> StrategyMetadata:
+    meta = (
+        _STRATEGIES.get(strategy_name.strip().lower()) if isinstance(strategy_name, str) else None
+    )
+    if meta:
+        return meta
+    # Fallback to default top sniper performers
+    return _STRATEGIES.get(
+        "support_resistance_bounce",
+        _STRATEGIES.get("rsi_stochastic_extreme", next(iter(_STRATEGIES.values()))),
+    )
+
+
+def split_strategy_params(
+    strategy_name: str, params: dict[str, Any] | None
+) -> tuple[dict[str, Any], list[str]]:
+    """Splits params into those the strategy accepts and those it does not.
+
+    Callers need the rejected keys: passing one strategy's tuned parameters to a
+    different strategy used to drop them silently, leaving the second strategy
+    running on library defaults while the trade log still recorded the tuned
+    values. That made live results untraceable to any backtest.
+    """
+    import inspect
+
+    meta = _resolve_metadata(strategy_name)
+    combined = dict(params or {})
+
+    sig = inspect.signature(meta.cls.__init__)
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+        return combined, []
+
+    valid_names = set(sig.parameters.keys()) - {"self"}
+    accepted = {k: v for k, v in combined.items() if k in valid_names}
+    rejected = sorted(k for k in combined if k not in valid_names)
+    return accepted, rejected
+
+
+def get_strategy_instance(
+    strategy_name: str, params: dict[str, Any] | None = None, **kwargs: Any
+) -> BaseStrategy:
+    meta = _resolve_metadata(strategy_name)
+
+    combined_params = dict(params or {})
+    combined_params.update(kwargs)
+    filtered, _rejected = split_strategy_params(strategy_name, combined_params)
+
+    return meta.cls(**filtered)

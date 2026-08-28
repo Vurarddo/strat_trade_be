@@ -72,28 +72,29 @@ class VolatilitySqueezeBreakoutStrategy(BaseStrategy):
         row = df.iloc[idx]
         prev = df.iloc[idx - 1]
 
-        mom = float(row.get("momentum", 0.0))
-        prev_mom = float(prev.get("momentum", 0.0))
-        sq_now = bool(row.get("squeeze_on", False))
-        sq_prev = bool(prev.get("squeeze_on", False))
+        mom_val = row.get("momentum", 0.0)
+        prev_mom_val = prev.get("momentum", 0.0)
+        mom = 0.0 if pd.isna(mom_val) else float(mom_val)
+        prev_mom = 0.0 if pd.isna(prev_mom_val) else float(prev_mom_val)
+
+        sq_now_val = row.get("squeeze_on", False)
+        sq_prev_val = prev.get("squeeze_on", False)
+        sq_now = False if pd.isna(sq_now_val) else bool(sq_now_val)
+        sq_prev = False if pd.isna(sq_prev_val) else bool(sq_prev_val)
 
         action = None
         confidence = 0.0
 
-        # Breakout Trigger: Squeeze was ON and fired OFF with directional momentum
-        squeeze_fired = (sq_prev and not sq_now) or (not sq_now and abs(mom) > 0)
+        # Breakout Trigger: Squeeze was ON on previous bar and released (OFF) on current bar
+        squeeze_fired = sq_prev and not sq_now
 
         if squeeze_fired:
             if mom > 0 and mom > prev_mom:
                 action = TradeAction.CALL
-                confidence = 0.75
-                if sq_prev and not sq_now:  # Fresh squeeze fire
-                    confidence += 0.15
+                confidence = 0.90
             elif mom < 0 and mom < prev_mom:
                 action = TradeAction.PUT
-                confidence = 0.75
-                if sq_prev and not sq_now:  # Fresh squeeze fire
-                    confidence += 0.15
+                confidence = 0.90
 
         confidence = min(confidence, 0.95)
         return SignalResult(

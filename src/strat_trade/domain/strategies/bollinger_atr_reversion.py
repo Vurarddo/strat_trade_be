@@ -24,6 +24,9 @@ class BollingerAtrReversionStrategy(BaseStrategy):
         rsi_overbought: float = 70.0,
         atr_period: int = 14,
         max_atr_ratio: float = 2.2,
+        adx_period: int = 14,
+        adx_trend_threshold: float = 25.0,
+        min_wick_ratio: float = 0.25,
         base_expiration_bars: int = 3,
         adaptive_expiration_enabled: bool = False,
     ) -> None:
@@ -34,12 +37,15 @@ class BollingerAtrReversionStrategy(BaseStrategy):
         self.rsi_overbought = float(rsi_overbought)
         self.atr_period = int(atr_period)
         self.max_atr_ratio = float(max_atr_ratio)
+        self.adx_period = int(adx_period)
+        self.adx_trend_threshold = float(adx_trend_threshold)
+        self.min_wick_ratio = float(min_wick_ratio)
         self.base_expiration_bars = int(base_expiration_bars)
         self.adaptive_expiration_enabled = bool(adaptive_expiration_enabled)
 
     def prepare_dataframe(self, df_raw: pd.DataFrame) -> pd.DataFrame:
         df = df_raw.copy()
-        if len(df) < max(self.bb_length, self.rsi_period, self.atr_period) + 10:
+        if len(df) < max(self.bb_length, self.rsi_period, self.atr_period, self.adx_period) + 10:
             return df
 
         # Bollinger Bands
@@ -61,14 +67,20 @@ class BollingerAtrReversionStrategy(BaseStrategy):
         df["atr"] = atr_ind.average_true_range()
         df["atr_sma"] = df["atr"].rolling(window=30, min_periods=10).mean()
 
+        # ADX (Average Directional Index)
+        adx_ind = ta.trend.ADXIndicator(
+            high=df["high"], low=df["low"], close=df["close"], window=self.adx_period
+        )
+        df["adx"] = adx_ind.adx()
+
         return df
 
     def evaluate_bar(self, df: pd.DataFrame, idx: int) -> SignalResult:
-        if idx < 30 or idx >= len(df):
+        min_warmup = max(30, self.bb_length, self.rsi_period, self.atr_period, self.adx_period)
+        if idx < min_warmup or idx >= len(df):
             return SignalResult(None, 0.0, self.base_expiration_bars, "warming_up")
 
         row = df.iloc[idx]
-        prev = df.iloc[idx - 1]
 
         close = float(row["close"])
         open_ = float(row["open"])
@@ -81,7 +93,10 @@ class BollingerAtrReversionStrategy(BaseStrategy):
         rsi = float(row.get("rsi", 50.0))
         atr = float(row.get("atr", 0.0))
         atr_sma = float(row.get("atr_sma", atr or 1.0))
+        adx_val = row.get("adx", 0.0)
+        adx = float(adx_val) if pd.notna(adx_val) else 0.0
 
+        # Volatility spike suppression
         vol_ratio = atr / atr_sma if atr_sma > 0 else 1.0
         if vol_ratio > self.max_atr_ratio:
             return SignalResult(
@@ -92,32 +107,72 @@ class BollingerAtrReversionStrategy(BaseStrategy):
                 {"vol_ratio": round(vol_ratio, 2)},
             )
 
-        body = abs(close - open_)
+        # ADX trend suppression (suppress mean-reversion during strong directional trend)
+        if adx >= self.adx_trend_threshold:
+            return SignalResult(
+                action=None,
+                confidence=0.0,
+                expiration_bars=self.base_expiration_bars,
+                regime="trend_suppressed_adx",
+                metadata={
+                    "adx": round(adx, 2),
+                    "rsi": round(rsi, 2),
+                    "vol_ratio": round(vol_ratio, 2),
+                },
+            )
+
+        candle_range = high - low
         action = None
         confidence = 0.0
+        wick_ratio = 0.0
 
-        # Bullish Reversal: Price pierced lower band + RSI oversold + lower wick rejection
-        lower_wick = min(open_, close) - low
-        if (low <= bb_l or close <= bb_l * 1.0002 or bb_pband <= 0.05) and (
-            rsi <= self.rsi_oversold or prev["rsi"] <= self.rsi_oversold
+        # Wick calculations with zero-range protection
+        lower_wick = (min(open_, close) - low) if candle_range > 0 else 0.0
+        lower_wick_ratio = (lower_wick / candle_range) if candle_range > 0 else 0.0
+
+        upper_wick = (high - max(open_, close)) if candle_range > 0 else 0.0
+        upper_wick_ratio = (upper_wick / candle_range) if candle_range > 0 else 0.0
+
+        # Bullish Reversal (CALL):
+        # 1. Pierced or touched lower band: low <= bb_l
+        # 2. Closed inside/above lower band: close >= bb_l
+        # 3. Bullish candle: close > open_
+        # 4. Lower wick rejection: lower_wick / (high - low) >= min_wick_ratio
+        # 5. RSI oversold: rsi <= rsi_oversold
+        if (
+            low <= bb_l
+            and close >= bb_l
+            and close > open_
+            and lower_wick_ratio >= self.min_wick_ratio
+            and rsi <= self.rsi_oversold
         ):
             action = TradeAction.CALL
-            confidence = 0.65
-            if lower_wick > body * 0.8:
+            wick_ratio = lower_wick_ratio
+            confidence = 0.70
+            if lower_wick_ratio >= 0.40:
                 confidence += 0.15
-            if close > open_:  # bullish candle
+            if rsi <= (self.rsi_oversold - 5.0):
                 confidence += 0.10
 
-        # Bearish Reversal: Price pierced upper band + RSI overbought + upper wick rejection
-        upper_wick = high - max(open_, close)
-        if (high >= bb_h or close >= bb_h * 0.9998 or bb_pband >= 0.95) and (
-            rsi >= self.rsi_overbought or prev["rsi"] >= self.rsi_overbought
+        # Bearish Reversal (PUT):
+        # 1. Pierced or touched upper band: high >= bb_h
+        # 2. Closed inside/below upper band: close <= bb_h
+        # 3. Bearish candle: close < open_
+        # 4. Upper wick rejection: upper_wick / (high - low) >= min_wick_ratio
+        # 5. RSI overbought: rsi >= rsi_overbought
+        elif (
+            high >= bb_h
+            and close <= bb_h
+            and close < open_
+            and upper_wick_ratio >= self.min_wick_ratio
+            and rsi >= self.rsi_overbought
         ):
             action = TradeAction.PUT
-            confidence = 0.65
-            if upper_wick > body * 0.8:
+            wick_ratio = upper_wick_ratio
+            confidence = 0.70
+            if upper_wick_ratio >= 0.40:
                 confidence += 0.15
-            if close < open_:  # bearish candle
+            if rsi >= (self.rsi_overbought + 5.0):
                 confidence += 0.10
 
         confidence = min(confidence, 0.95)
@@ -135,8 +190,10 @@ class BollingerAtrReversionStrategy(BaseStrategy):
             regime="mean_reversion",
             metadata={
                 "rsi": round(rsi, 2),
+                "adx": round(adx, 2),
                 "bb_pband": round(bb_pband, 4),
                 "vol_ratio": round(vol_ratio, 2),
+                "wick_ratio": round(wick_ratio, 3),
             },
         )
 
@@ -185,6 +242,36 @@ class BollingerAtrReversionStrategy(BaseStrategy):
                 80.0,
                 5.0,
                 description="RSI overbought boundary",
+            ),
+            ParameterDef(
+                "adx_period",
+                "ADX Period",
+                "int",
+                14,
+                7,
+                21,
+                1,
+                description="ADX lookback period",
+            ),
+            ParameterDef(
+                "adx_trend_threshold",
+                "ADX Trend Threshold",
+                "float",
+                25.0,
+                20.0,
+                35.0,
+                5.0,
+                description="Maximum ADX threshold for range regime",
+            ),
+            ParameterDef(
+                "min_wick_ratio",
+                "Min Wick Ratio",
+                "float",
+                0.25,
+                0.10,
+                0.50,
+                0.05,
+                description="Minimum rejection wick ratio",
             ),
             ParameterDef(
                 "base_expiration_bars",

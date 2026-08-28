@@ -61,10 +61,14 @@ def test_get_dashboard_html(app_backtest: tuple[FastAPI, FakeCandleFeed]) -> Non
     client = TestClient(app)
     res = client.get("/")
     assert res.status_code == 200
-    assert "Pocket Option AutoTrader Pro" in res.text
+    assert "Strat Trade" in res.text
 
     res2 = client.get("/dashboard")
     assert res2.status_code == 200
+
+    res_fav = client.get("/favicon.svg")
+    assert res_fav.status_code == 200
+    assert "image/svg+xml" in res_fav.headers["content-type"]
 
 
 def test_post_backtest_run(app_backtest: tuple[FastAPI, FakeCandleFeed]) -> None:

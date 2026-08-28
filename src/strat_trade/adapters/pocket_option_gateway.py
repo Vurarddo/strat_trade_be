@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -260,6 +261,8 @@ class PocketOptionTradingGateway:
         self._client: PocketOptionAsync | None = None
         self._lock = asyncio.Lock()
         self._candles_lock = asyncio.Lock()
+        self._payouts_cache: dict[str, float] = {}
+        self._payouts_updated_at: float = 0.0
 
     def _optional_ws_url(self) -> str | None:
         if not self._region:
@@ -295,22 +298,55 @@ class PocketOptionTradingGateway:
                     ) from exc
             return self._client
 
-    async def get_balance(self) -> AccountBalance:
-        try:
-            client = await self._client_connected()
-            amount = await client.balance()
-            is_demo = bool(client.is_demo())
-        except BrokerUnavailableError:
-            raise
-        except Exception as exc:
-            logger.warning("Pocket Option balance error: %s", exc)
-            raise BrokerUnavailableError(str(exc)) from exc
+    async def _reset_client(self) -> None:
+        async with self._lock:
+            if self._client is not None:
+                try:
+                    await self._client.shutdown()
+                except Exception:
+                    pass
+                self._client = None
 
-        return AccountBalance(
-            amount=Decimal(str(amount)),
-            currency=self._balance_currency,
-            is_demo=is_demo,
+    def _is_connection_error(self, exc: Exception) -> bool:
+        err_msg = str(exc).lower()
+        return any(
+            x in err_msg
+            for x in (
+                "half closed channel",
+                "channel sender error",
+                "connection has dropped",
+                "shut down",
+                "closed channel",
+                "connection reset",
+                "broken pipe",
+                "websocket",
+            )
         )
+
+    async def get_balance(self) -> AccountBalance:
+        for attempt in range(2):
+            try:
+                client = await self._client_connected()
+                amount = await client.balance()
+                is_demo = bool(client.is_demo())
+                return AccountBalance(
+                    amount=Decimal(str(amount)),
+                    currency=self._balance_currency,
+                    is_demo=is_demo,
+                )
+            except Exception as exc:
+                if attempt == 0 and self._is_connection_error(exc):
+                    logger.info(
+                        "Pocket Option connection dropped during balance check; reconnecting..."
+                    )
+                    await self._reset_client()
+                    continue
+                if isinstance(exc, BrokerUnavailableError):
+                    raise
+                logger.warning("Pocket Option balance error: %s", exc)
+                raise BrokerUnavailableError(str(exc)) from exc
+
+        raise BrokerUnavailableError("Failed to fetch balance after reconnect retry.")
 
     async def get_candles(
         self,
@@ -329,63 +365,207 @@ class PocketOptionTradingGateway:
         if count < 1:
             raise InvalidMarketParametersError("count must be >= 1.")
 
-        async with self._candles_lock:
-            try:
-                client = await self._client_connected()
-                offset = _history_offset_seconds(period=period, count=count)
-                if end_time is None:
-                    end_dt = datetime.now(UTC)
-                else:
-                    end_dt = end_time if end_time.tzinfo else end_time.replace(tzinfo=UTC)
-                end_u = int(end_dt.astimezone(UTC).timestamp())
-                raw_list = await asyncio.wait_for(
-                    client.get_candles_advanced(asset.strip(), period, offset, end_u),
-                    timeout=8.0,
-                )
-            except TimeoutError as exc:
-                logger.warning("Pocket Option candles timeout for asset %s", asset)
-                raise BrokerUnavailableError(f"Candles request timed out for {asset}") from exc
-            except InvalidMarketParametersError:
-                raise
-            except ValueError as exc:
-                logger.info("Pocket Option rejected candle parameters: %s", exc)
-                raise InvalidMarketParametersError(str(exc)) from exc
-            except BrokerUnavailableError:
-                raise
-            except Exception as exc:
-                logger.warning("Pocket Option candles error: %s", exc)
-                raise BrokerUnavailableError(str(exc)) from exc
+        for attempt in range(2):
+            async with self._candles_lock:
+                try:
+                    client = await self._client_connected()
+                    offset = _history_offset_seconds(period=period, count=count)
+                    if end_time is None:
+                        end_dt = datetime.now(UTC)
+                    else:
+                        end_dt = end_time if end_time.tzinfo else end_time.replace(tzinfo=UTC)
+                    end_u = int(end_dt.astimezone(UTC).timestamp())
+                    raw_list = await asyncio.wait_for(
+                        client.get_candles_advanced(asset.strip(), period, offset, end_u),
+                        timeout=8.0,
+                    )
+                    normalized = _normalize_candles_payload(raw_list)
+                    rows = _sort_and_tail(normalized, count=count)
+                    return [_candle_from_dict(r) for r in rows]
+                except TimeoutError as exc:
+                    if attempt == 0:
+                        logger.debug(
+                            "Candles request timed out for %s, resetting connection...", asset
+                        )
+                        await self._reset_client()
+                        continue
+                    logger.warning("Pocket Option candles timeout for asset %s", asset)
+                    raise BrokerUnavailableError(f"Candles request timed out for {asset}") from exc
+                except InvalidMarketParametersError:
+                    raise
+                except ValueError as exc:
+                    logger.info("Pocket Option rejected candle parameters: %s", exc)
+                    raise InvalidMarketParametersError(str(exc)) from exc
+                except Exception as exc:
+                    if attempt == 0 and self._is_connection_error(exc):
+                        logger.info(
+                            "Pocket Option channel error on candles (%s); auto-reconnecting...",
+                            asset,
+                        )
+                        await self._reset_client()
+                        continue
+                    if isinstance(exc, BrokerUnavailableError):
+                        raise
+                    logger.warning("Pocket Option candles error: %s", exc)
+                    raise BrokerUnavailableError(str(exc)) from exc
 
-        normalized = _normalize_candles_payload(raw_list)
-        rows = _sort_and_tail(normalized, count=count)
-        return [_candle_from_dict(r) for r in rows]
+        raise BrokerUnavailableError(f"Failed to fetch candles for {asset} after retry.")
 
     async def get_assets(self) -> list[dict[str, Any]]:
-        try:
-            client = await self._client_connected()
-            active = await client.active_assets()
-            out: list[dict[str, Any]] = []
-            if isinstance(active, list):
-                for a in active:
-                    if not isinstance(a, dict):
-                        continue
-                    sym = str(a.get("symbol", "")).strip()
-                    if not sym:
-                        continue
-                    out.append(
-                        {
-                            "symbol": sym,
-                            "name": str(a.get("name", sym)).strip(),
-                            "payout": int(a.get("payout", 80)),
-                            "is_otc": bool(a.get("is_otc", "otc" in sym.lower())),
-                            "asset_type": str(a.get("asset_type", "currency")),
-                        }
-                    )
-                if out:
-                    return out
-        except Exception as exc:
-            logger.warning("Pocket Option get_assets error (using fallback): %s", exc)
+        for attempt in range(2):
+            try:
+                client = await self._client_connected()
+                active = await client.active_assets()
+                out: list[dict[str, Any]] = []
+                if isinstance(active, list):
+                    for a in active:
+                        if not isinstance(a, dict):
+                            continue
+                        sym = str(a.get("symbol", "")).strip()
+                        if not sym:
+                            continue
+                        raw_type = str(a.get("asset_type", "")).strip().lower()
+                        if not raw_type or raw_type == "none":
+                            if sym.startswith("#"):
+                                raw_type = "stock"
+                            elif any(
+                                c in sym.upper()
+                                for c in (
+                                    "BTC",
+                                    "ETH",
+                                    "BNB",
+                                    "SOL",
+                                    "MATIC",
+                                    "DOGE",
+                                    "XRP",
+                                    "AVAX",
+                                    "ADA",
+                                    "DOT",
+                                    "LTC",
+                                    "TON",
+                                    "TRX",
+                                    "SHIB",
+                                )
+                            ):
+                                raw_type = "cryptocurrency"
+                            elif any(
+                                c in sym.upper()
+                                for c in ("GOLD", "SILVER", "OIL", "BRENT", "WTI", "CRUDE", "GAS")
+                            ):
+                                raw_type = "commodity"
+                            elif any(
+                                c in sym.upper()
+                                for c in (
+                                    "AUS200",
+                                    "DJI30",
+                                    "SP500",
+                                    "NAS100",
+                                    "US30",
+                                    "GER40",
+                                    "UK100",
+                                    "INDEX",
+                                    "100GBP",
+                                    "E35EUR",
+                                    "F40EUR",
+                                )
+                            ):
+                                raw_type = "index"
+                            else:
+                                raw_type = "currency"
+
+                        out.append(
+                            {
+                                "symbol": sym,
+                                "name": str(a.get("name", sym)).strip(),
+                                "payout": int(a.get("payout", 80)),
+                                "is_otc": bool(a.get("is_otc", "otc" in sym.lower())),
+                                "asset_type": raw_type,
+                            }
+                        )
+                    if out:
+                        return out
+            except Exception as exc:
+                if attempt == 0 and self._is_connection_error(exc):
+                    logger.info("Pocket Option connection dropped on assets query; reconnecting...")
+                    await self._reset_client()
+                    continue
+                logger.warning("Pocket Option get_assets error (using fallback): %s", exc)
+                break
         return []
+
+    async def get_asset_payout(self, asset: str) -> float:
+        """Returns the real-time live broker payout rate for an asset (e.g. 0.92 for 92%)."""
+        now_ts = time.time()
+        # Refresh cached payouts if older than 20 seconds
+        if now_ts - self._payouts_updated_at > 20.0 or not self._payouts_cache:
+            try:
+                active_list = await self.get_assets()
+                if active_list:
+                    new_map = {
+                        a["symbol"].strip().upper(): a["payout"] / 100.0 for a in active_list
+                    }
+                    self._payouts_cache = new_map
+                    self._payouts_updated_at = now_ts
+            except Exception as e:
+                logger.debug("Failed to refresh live asset payouts: %s", e)
+
+        sym = asset.strip().upper()
+        if sym in self._payouts_cache:
+            return self._payouts_cache[sym]
+
+        # Normalized lookup
+        clean_sym = sym.replace("_", "").replace("-", "")
+        for k, v in self._payouts_cache.items():
+            if k.replace("_", "").replace("-", "") == clean_sym:
+                return v
+
+        return 0.92 if "OTC" in sym else 0.80
+
+    async def open_trade(
+        self,
+        asset: str,
+        action: str,
+        amount: float,
+        expiration_seconds: int,
+    ) -> tuple[str, dict[str, Any]]:
+        """Executes a binary options trade (CALL or PUT) via Pocket Option WebSocket."""
+        act = action.strip().upper()
+        amt = float(amount)
+        exp_sec = int(expiration_seconds)
+
+        if act not in ("CALL", "PUT"):
+            msg = f"Invalid trade action: {action!r}. Must be 'CALL' or 'PUT'."
+            raise ValueError(msg)
+
+        for attempt in range(2):
+            try:
+                client = await self._client_connected()
+                if act == "CALL":
+                    res = await client.buy(asset=asset, amount=amt, time=exp_sec)
+                else:
+                    res = await client.sell(asset=asset, amount=amt, time=exp_sec)
+
+                if isinstance(res, tuple) and len(res) >= 2:
+                    order_id = str(res[0])
+                    deal_info = res[1] if isinstance(res[1], dict) else {"raw": res[1]}
+                    return order_id, deal_info
+                if isinstance(res, str):
+                    return res, {"order_id": res}
+                if isinstance(res, dict):
+                    order_id = str(res.get("id", res.get("order_id", "demo_order")))
+                    return order_id, res
+                return str(res), {"result": res}
+            except Exception as exc:
+                if attempt == 0 and self._is_connection_error(exc):
+                    logger.info("Pocket Option disconnected during trade; reconnecting...")
+                    await self._reset_client()
+                    continue
+                logger.error(
+                    "Failed to open trade %s on %s ($%.2f, %ds): %s", act, asset, amt, exp_sec, exc
+                )
+                raise BrokerUnavailableError(f"Trade execution failed: {exc}") from exc
+
+        raise BrokerUnavailableError("Trade execution failed after reconnection retry.")
 
     async def aclose(self) -> None:
         async with self._lock:

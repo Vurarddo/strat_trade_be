@@ -47,6 +47,29 @@ class BaseStrategy(ABC):
         """Evaluates signal conditions at bar `idx`."""
         pass
 
+    def evaluate_candles(self, candles: list[Any]) -> SignalResult:
+        """Helper to convert domain Candles into DataFrame and evaluate the latest bar."""
+        if not candles or len(candles) < 20:
+            return SignalResult(
+                action=None, confidence=0.0, expiration_bars=3, regime="insufficient_data"
+            )
+
+        df_raw = pd.DataFrame(
+            [
+                {
+                    "open_time": getattr(c, "open_time", None),
+                    "open": float(c.open),
+                    "high": float(c.high),
+                    "low": float(c.low),
+                    "close": float(c.close),
+                    "volume": float(c.volume),
+                }
+                for c in candles
+            ]
+        )
+        df = self.prepare_dataframe(df_raw)
+        return self.evaluate_bar(df, len(df) - 1)
+
     @classmethod
     @abstractmethod
     def get_parameter_definitions(cls) -> list[ParameterDef]:

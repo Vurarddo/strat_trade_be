@@ -91,6 +91,39 @@ class Settings(BaseSettings):
         ),
         description="Unused; range returns the full [from,to] slice in one response.",
     )
+    toxic_asset_blacklist: list[str] = Field(
+        default_factory=lambda: [
+            "USD/IDR OTC",
+            "USD/VND OTC",
+            "BNB OTC",
+            "EUR/CHF OTC",
+            "USD/DZD OTC",
+            "UAH/USD OTC",
+            "USD/MYR OTC",
+            "USD/INR OTC",
+            "EUR/HUF OTC",
+            "GBP/JPY OTC",
+        ],
+        validation_alias=AliasChoices(
+            "STRAT_TRADE_TOXIC_ASSET_BLACKLIST",
+            "TOXIC_ASSET_BLACKLIST",
+        ),
+        description="List of toxic/high-slippage OTC assets blacklisted from trading.",
+    )
+    high_winrate_asset_whitelist: list[str] = Field(
+        default_factory=lambda: [
+            "EUR/USD OTC",
+            "USD/CLP OTC",
+            "USD/BDT OTC",
+            "USD/EGP OTC",
+            "Gold OTC",
+        ],
+        validation_alias=AliasChoices(
+            "STRAT_TRADE_HIGH_WINRATE_ASSET_WHITELIST",
+            "HIGH_WINRATE_ASSET_WHITELIST",
+        ),
+        description="List of curated high-winrate OTC assets prioritized for trading.",
+    )
 
     @model_validator(mode="after")
     def resolve_pocket_option_ssid(self) -> Self:

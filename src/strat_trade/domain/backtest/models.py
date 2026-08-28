@@ -127,6 +127,11 @@ class PortfolioBacktestConfig:
     expiration_bars: int = 3
     adaptive_expiration: bool = False
     daily_stop_loss_pct: Decimal = Decimal("0.05")
+    cooldown_bars: int = 0
+    global_cooldown_seconds: int = 0
+    correlation_filter_enabled: bool = False
+    max_consecutive_losses: int = 0
+    max_drawdown_pct_limit: Decimal = Decimal("0.08")
     strategy_name: str = "hybrid_multifactors"
     strategy_params: dict[str, Any] = field(default_factory=dict)
 
