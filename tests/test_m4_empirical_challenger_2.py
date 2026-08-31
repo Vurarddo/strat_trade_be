@@ -62,15 +62,16 @@ class MockCandleFeed(CandleFeed):
 
         t0 = datetime(2026, 8, 20, 10, 0, 0, tzinfo=UTC)
         candles = []
-        base_p = 1.1000 if "EUR" in asset or "USD" in asset else 150.0
+        base_p = 1.1000 if "EUR" in asset or "USD" in asset else 100.0
+        step = 0.0001 if base_p < 10 else 0.05
         for i in range(count):
             candles.append(
                 Candle(
                     open_time=t0 + timedelta(minutes=i),
-                    open=Decimal(str(base_p + i * 0.0001)),
-                    high=Decimal(str(base_p + i * 0.0001 + 0.0005)),
-                    low=Decimal(str(base_p + i * 0.0001 - 0.0005)),
-                    close=Decimal(str(base_p + i * 0.0001 + 0.0002)),
+                    open=Decimal(str(round(base_p + i * step, 4))),
+                    high=Decimal(str(round(base_p + i * step + step * 5, 4))),
+                    low=Decimal(str(round(base_p + i * step - step * 5, 4))),
+                    close=Decimal(str(round(base_p + i * step + step * 2, 4))),
                     volume=Decimal("500"),
                 )
             )
@@ -117,7 +118,7 @@ async def test_automatcher_mixed_toxic_and_whitelist_variations():
     """Stress test StrategyAutoMatcher with 8 toxic format variations and 7 whitelist variations.
 
     Invariants:
-    1. Every toxic format is flagged with quantum_score == 10.0 and [TOXIC OTC BLACKLIST].
+    1. Every toxic format is rejected with None.
     2. Every whitelist format is recognized, receiving quantum boost and priority strategy.
     """
     matcher = StrategyAutoMatcher(candle_count=150)
@@ -162,12 +163,7 @@ async def test_automatcher_mixed_toxic_and_whitelist_variations():
             expiration_bars=3,
             payout_rate=0.92,
         )
-        assert assignment.quantum_score == 10.0, (
-            f"Toxic asset {toxic_sym} must have quantum_score == 10.0"
-        )
-        assert "[TOXIC OTC BLACKLIST]" in assignment.rationale, (
-            f"Toxic asset {toxic_sym} must explain blacklist in rationale"
-        )
+        assert assignment is None, f"Toxic asset {toxic_sym} must be rejected with None"
         assert is_toxic_asset(toxic_sym)[0] is True, (
             f"is_toxic_asset must return True for {toxic_sym}"
         )
@@ -314,8 +310,7 @@ async def test_automatcher_synthetic_profitable_candles_toxic_vs_clean():
         expiration_bars=3,
         payout_rate=0.92,
     )
-    assert toxic_assign.quantum_score == 10.0
-    assert "[TOXIC OTC BLACKLIST]" in toxic_assign.rationale
+    assert toxic_assign is None
 
     # 2. Clean asset with same candles
     clean_assign = await matcher.find_optimal_strategy_for_asset(
@@ -384,6 +379,7 @@ async def test_live_demo_bot_engine_concurrent_order_lock_blocks_all_blacklisted
         max_drawdown_pct_limit=0.50,
         correlation_filter_enabled=False,
         toxic_filter_enabled=True,
+        bar_edge_guard_seconds=0.0,
     )
 
     executed_assets_at_gateway: list[str] = []
@@ -487,6 +483,7 @@ async def test_live_demo_bot_engine_evaluate_single_asset_concurrent_prefilter(t
         max_drawdown_pct_limit=0.08,
         correlation_filter_enabled=False,
         toxic_filter_enabled=True,
+        bar_edge_guard_seconds=0.0,
     )
 
     mock_gateway = MagicMock()

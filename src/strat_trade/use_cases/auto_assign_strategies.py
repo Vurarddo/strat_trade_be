@@ -73,7 +73,7 @@ async def generate_pre_trading_plan(
             "Gold_otc",
         ]
 
-    async def _process_asset(asset: str) -> StrategyAssignment:
+    async def _process_asset(asset: str) -> StrategyAssignment | None:
         async with sem:
             try:
                 candles = await feed.get_candles(asset=asset, timeframe=60, count=150)
@@ -91,7 +91,8 @@ async def generate_pre_trading_plan(
             )
 
     tasks = [_process_asset(asset) for asset in target_assets]
-    assignments = await asyncio.gather(*tasks)
+    raw_assignments = await asyncio.gather(*tasks)
+    assignments = [a for a in raw_assignments if a is not None]
 
     dep_dec = Decimal(str(initial_deposit))
     stop_loss_amount = (dep_dec * Decimal(str(daily_stop_loss_pct))).quantize(Decimal("0.01"))

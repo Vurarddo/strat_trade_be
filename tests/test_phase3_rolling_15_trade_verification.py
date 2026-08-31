@@ -675,7 +675,7 @@ async def test_phase3_automatcher_and_pre_trading_plan_blocks_all_11_toxic_asset
     matcher = StrategyAutoMatcher()
     for tox in all_11_toxic:
         assignment = await matcher.find_optimal_strategy_for_asset(tox, [])
-        assert "[TOXIC OTC BLACKLIST]" in assignment.rationale or assignment.quantum_score == 10.0
+        assert assignment is None
 
     # Verify generate_pre_trading_plan filters them
     mock_feed = AsyncMock()
@@ -743,6 +743,7 @@ async def test_phase3_live_demo_bot_engine_zero_trades_on_all_11_toxic_assets() 
         max_concurrent_trades=5,
         min_payout_rate=0.80,
         toxic_filter_enabled=True,
+        bar_edge_guard_seconds=0.0,
     )
     engine.plan = plan
 

@@ -105,6 +105,7 @@ def _make_pre_trading_plan(
         max_drawdown_pct_limit=max_drawdown_pct_limit,
         correlation_filter_enabled=correlation_filter_enabled,
         pause_duration_minutes=pause_duration_minutes,
+        bar_edge_guard_seconds=0.0,
     )
 
 

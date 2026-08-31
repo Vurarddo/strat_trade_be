@@ -326,6 +326,9 @@ class BacktestRequest(BaseModel):
     expiration_bars: int = Field(
         3, ge=1, le=100, description="Duration in bars (e.g. 3 bars on M1 = 180s)"
     )
+    expiration_seconds: int | None = Field(
+        None, ge=1, le=86400, description="Optional explicit expiration duration in seconds"
+    )
     adaptive_expiration: bool = Field(False, description="Enable ATR-adaptive expiration duration")
     daily_stop_loss_pct: float = Field(
         0.05, ge=0.01, le=1.0, description="Daily stop-loss limit (e.g. 0.05 = 5%)"
@@ -442,6 +445,9 @@ class PortfolioBacktestRequest(BaseModel):
     )
     expiration_bars: int = Field(
         3, ge=1, le=100, description="Duration in bars (e.g. 3 bars on M1 = 180s)"
+    )
+    expiration_seconds: int | None = Field(
+        None, ge=1, le=86400, description="Optional explicit expiration duration in seconds"
     )
     adaptive_expiration: bool = Field(False, description="Enable ATR-adaptive expiration duration")
     daily_stop_loss_pct: float = Field(

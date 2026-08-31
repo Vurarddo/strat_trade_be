@@ -59,6 +59,7 @@ async def execute_portfolio_backtest(
     strategy_params: dict[str, Any] | None = None,
     candle_count: int = 300,
     end_at: datetime | None = None,
+    expiration_seconds: int | None = None,
 ) -> PortfolioBacktestSummary:
     if not assets:
         raise InvalidMarketParametersError(
@@ -137,6 +138,7 @@ async def execute_portfolio_backtest(
         daily_stop_loss_pct=Decimal(str(daily_stop_loss_pct)),
         strategy_name=strategy_name,
         strategy_params=strategy_params or {},
+        expiration_seconds=expiration_seconds,
     )
 
     engine = PortfolioBacktestEngine(config)

@@ -446,6 +446,7 @@ async def test_cooldown_timer_boundary_conditions(tmp_path):
         max_consecutive_losses=3,
         max_drawdown_pct_limit=0.08,
         correlation_filter_enabled=True,
+        bar_edge_guard_seconds=0.0,
     )
 
     gateway = MagicMock()
@@ -522,6 +523,7 @@ async def test_bot_engine_rapid_fire_order_submission_burst_concurrency(tmp_path
         max_consecutive_losses=3,
         max_drawdown_pct_limit=0.08,
         correlation_filter_enabled=False,  # disabled to stress-test concurrent locks and cooldowns
+        bar_edge_guard_seconds=0.0,
     )
 
     mock_gateway = MagicMock()

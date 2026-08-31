@@ -36,7 +36,10 @@ class BinaryBacktestEngine:
         from strat_trade.domain.strategies.registry import get_strategy_instance
 
         params = dict(self.config.strategy_params or {})
-        params["base_expiration_bars"] = self.config.expiration_bars
+        exp_bars = self.config.expiration_bars
+        if self.config.expiration_seconds is not None and self.config.timeframe_seconds > 0:
+            exp_bars = max(1, self.config.expiration_seconds // self.config.timeframe_seconds)
+        params["base_expiration_bars"] = params.get("base_expiration_bars", exp_bars)
         params["adaptive_expiration_enabled"] = self.config.adaptive_expiration
         return get_strategy_instance(self.config.strategy_name, **params)
 
@@ -69,6 +72,24 @@ class BinaryBacktestEngine:
                 end=pd.Timestamp.now(tz="UTC"), periods=len(df_norm), freq="1min"
             )
 
+        if pd.api.types.is_numeric_dtype(df_norm["timestamp"]):
+            first_val = float(df_norm["timestamp"].dropna().iloc[0]) if len(df_norm) > 0 else 0
+            if first_val > 1e16:  # nanoseconds
+                df_norm["timestamp"] = pd.to_datetime(df_norm["timestamp"], unit="ns", utc=True)
+            elif first_val > 1e13:  # microseconds
+                df_norm["timestamp"] = pd.to_datetime(df_norm["timestamp"], unit="us", utc=True)
+            elif first_val > 1e11:  # milliseconds
+                df_norm["timestamp"] = pd.to_datetime(df_norm["timestamp"], unit="ms", utc=True)
+            elif first_val > 1e8:  # seconds
+                df_norm["timestamp"] = pd.to_datetime(df_norm["timestamp"], unit="s", utc=True)
+            else:
+                df_norm["timestamp"] = pd.to_datetime(
+                    df_norm["timestamp"], utc=True, format="mixed"
+                )
+        else:
+            df_norm["timestamp"] = pd.to_datetime(df_norm["timestamp"], utc=True, format="mixed")
+
+        df_norm = df_norm.sort_values("timestamp", kind="mergesort").reset_index(drop=True)
         df_raw = df_norm
 
         eff_payout = Decimal(str(self.config.payout_rate))
@@ -84,6 +105,7 @@ class BinaryBacktestEngine:
             )
 
         df = self.strategy.prepare_dataframe(df_raw)
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, format="mixed")
         n = len(df)
         if n < 40:
             return self._empty_summary(
@@ -100,7 +122,7 @@ class BinaryBacktestEngine:
             EquityPoint(
                 timestamp=df.iloc[0]["timestamp"].to_pydatetime()
                 if hasattr(df.iloc[0]["timestamp"], "to_pydatetime")
-                else pd.to_datetime(df.iloc[0]["timestamp"]).to_pydatetime(),
+                else pd.to_datetime(df.iloc[0]["timestamp"], utc=True).to_pydatetime(),
                 balance=current_balance,
                 drawdown_pct=Decimal("0.0"),
             )
@@ -134,9 +156,42 @@ class BinaryBacktestEngine:
             if sig.action is None:
                 continue
 
-            exp_bars = sig.expiration_bars
-            exit_idx = i + exp_bars
-            if exit_idx >= n:
+            # Determine trade expiration in seconds
+            if self.config.expiration_seconds is not None:
+                if (
+                    self.config.adaptive_expiration
+                    and self.config.expiration_bars > 0
+                    and sig.expiration_bars != self.config.expiration_bars
+                ):
+                    exp_seconds = max(
+                        1,
+                        int(
+                            self.config.expiration_seconds
+                            * (sig.expiration_bars / self.config.expiration_bars)
+                        ),
+                    )
+                else:
+                    exp_seconds = max(1, int(self.config.expiration_seconds))
+            else:
+                exp_seconds = max(1, int(sig.expiration_bars * self.config.timeframe_seconds))
+
+            entry_row = df.iloc[i]
+            entry_t = entry_row["timestamp"]
+            entry_time = (
+                entry_t if isinstance(entry_t, pd.Timestamp) else pd.to_datetime(entry_t, utc=True)
+            )
+            target_exit_time = entry_time + pd.Timedelta(seconds=exp_seconds)
+
+            # Search forward in the dataframe for the first row where timestamp >= target_exit_time
+            exit_idx = int(df["timestamp"].searchsorted(target_exit_time, side="left"))
+            if exit_idx <= i or exit_idx >= n or df.iloc[exit_idx]["timestamp"] < target_exit_time:
+                exit_idx = None
+                for j in range(i + 1, n):
+                    if df.iloc[j]["timestamp"] >= target_exit_time:
+                        exit_idx = j
+                        break
+
+            if exit_idx is None or exit_idx >= n:
                 # Candle timeline ended before trade expired
                 break
 
@@ -167,7 +222,6 @@ class BinaryBacktestEngine:
                 break
 
             # Execution prices
-            entry_row = df.iloc[i]
             exit_row = df.iloc[exit_idx]
 
             entry_price = Decimal(str(entry_row["close"]))
@@ -227,7 +281,6 @@ class BinaryBacktestEngine:
             if current_dd_pct > max_drawdown_pct:
                 max_drawdown_pct = current_dd_pct
 
-            entry_t = entry_row["timestamp"]
             exit_t = exit_row["timestamp"]
             entry_dt = (
                 entry_t.to_pydatetime()
@@ -254,7 +307,7 @@ class BinaryBacktestEngine:
                 outcome=outcome,
                 balance_after=round(current_balance, 2),
                 confidence=sig.confidence,
-                expiration_seconds=exp_bars * self.config.timeframe_seconds,
+                expiration_seconds=exp_seconds,
                 metadata=sig.metadata,
             )
             trades.append(trade)

@@ -85,10 +85,18 @@ def parse_candles_csv_or_json(content: str | bytes, filename: str = "") -> pd.Da
     first_ts = df["timestamp"].iloc[0]
     if isinstance(first_ts, (int, float)) or (isinstance(first_ts, str) and first_ts.isdigit()):
         # Epoch
-        unit = "ms" if float(first_ts) > 1e11 else "s"
+        f_ts = float(first_ts)
+        if f_ts > 1e16:
+            unit = "ns"
+        elif f_ts > 1e13:
+            unit = "us"
+        elif f_ts > 1e11:
+            unit = "ms"
+        else:
+            unit = "s"
         df["timestamp"] = pd.to_datetime(df["timestamp"].astype(float), unit=unit, utc=True)
     else:
-        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, format="mixed", errors="coerce")
 
     for col in ("open", "high", "low", "close", "volume"):
         df[col] = pd.to_numeric(df[col], errors="coerce")

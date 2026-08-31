@@ -709,6 +709,7 @@ async def test_sniper_anti_whipsaw_cooldown_guard(tmp_path) -> None:
         min_payout_rate=0.80,
         cooldown_bars=3,
         global_cooldown_seconds=0,
+        bar_edge_guard_seconds=0.0,
     )
 
     gateway = MagicMock()
@@ -1070,6 +1071,7 @@ async def test_sniper_e2e_live_demo_bot_engine_sniper_execution(tmp_path) -> Non
         max_concurrent_trades=3,
         min_payout_rate=0.80,
         cooldown_bars=3,
+        bar_edge_guard_seconds=0.0,
     )
 
     mock_gateway = MagicMock()

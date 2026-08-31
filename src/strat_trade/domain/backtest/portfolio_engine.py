@@ -50,7 +50,10 @@ class PortfolioBacktestEngine:
 
         self.config = config
         params = dict(config.strategy_params or {})
-        params["base_expiration_bars"] = config.expiration_bars
+        exp_bars = config.expiration_bars
+        if config.expiration_seconds is not None and config.timeframe_seconds > 0:
+            exp_bars = max(1, config.expiration_seconds // config.timeframe_seconds)
+        params["base_expiration_bars"] = params.get("base_expiration_bars", exp_bars)
         params["adaptive_expiration_enabled"] = config.adaptive_expiration
         self.strategy: BaseStrategy = get_strategy_instance(config.strategy_name, **params)
 
@@ -72,6 +75,7 @@ class PortfolioBacktestEngine:
                 continue
 
             prep = self.strategy.prepare_dataframe(df_raw)
+            prep["timestamp"] = pd.to_datetime(prep["timestamp"], utc=True, format="mixed")
             prepared_dfs[asset] = prep
             n = len(prep)
 
@@ -80,25 +84,59 @@ class PortfolioBacktestEngine:
                 if sig.action is None:
                     continue
 
-                exp_bars = sig.expiration_bars
-                exit_idx = i + exp_bars
-                if exit_idx >= n:
-                    exit_idx = n - 1
+                if self.config.expiration_seconds is not None:
+                    if (
+                        self.config.adaptive_expiration
+                        and self.config.expiration_bars > 0
+                        and sig.expiration_bars != self.config.expiration_bars
+                    ):
+                        exp_sec = max(
+                            1,
+                            int(
+                                self.config.expiration_seconds
+                                * (sig.expiration_bars / self.config.expiration_bars)
+                            ),
+                        )
+                    else:
+                        exp_sec = max(1, int(self.config.expiration_seconds))
+                else:
+                    exp_sec = max(1, int(sig.expiration_bars * self.config.timeframe_seconds))
 
                 entry_row = prep.iloc[i]
-                exit_row = prep.iloc[exit_idx]
-
                 entry_t = entry_row["timestamp"]
+                entry_time = (
+                    entry_t
+                    if isinstance(entry_t, pd.Timestamp)
+                    else pd.to_datetime(entry_t, utc=True)
+                )
+                target_exit_time = entry_time + pd.Timedelta(seconds=exp_sec)
+
+                exit_idx = int(prep["timestamp"].searchsorted(target_exit_time, side="left"))
+                if (
+                    exit_idx <= i
+                    or exit_idx >= n
+                    or prep.iloc[exit_idx]["timestamp"] < target_exit_time
+                ):
+                    exit_idx = None
+                    for j in range(i + 1, n):
+                        if prep.iloc[j]["timestamp"] >= target_exit_time:
+                            exit_idx = j
+                            break
+
+                if exit_idx is None or exit_idx >= n:
+                    continue
+
+                exit_row = prep.iloc[exit_idx]
                 exit_t = exit_row["timestamp"]
                 entry_dt = (
                     entry_t.to_pydatetime()
                     if hasattr(entry_t, "to_pydatetime")
-                    else pd.to_datetime(entry_t).to_pydatetime()
+                    else pd.to_datetime(entry_t, utc=True).to_pydatetime()
                 )
                 exit_dt = (
                     exit_t.to_pydatetime()
                     if hasattr(exit_t, "to_pydatetime")
-                    else pd.to_datetime(exit_t).to_pydatetime()
+                    else pd.to_datetime(exit_t, utc=True).to_pydatetime()
                 )
 
                 all_signals.append(
@@ -110,7 +148,7 @@ class PortfolioBacktestEngine:
                         exit_time=exit_dt,
                         action=sig.action,
                         confidence=sig.confidence,
-                        expiration_seconds=exp_bars * self.config.timeframe_seconds,
+                        expiration_seconds=exp_sec,
                         entry_price=Decimal(str(round(entry_row["close"], 5))),
                         payout_rate=payout,
                         metadata=sig.metadata,

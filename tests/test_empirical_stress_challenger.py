@@ -607,6 +607,7 @@ class TestAssetFilterAndBotEngineEmpiricalStress:
             max_concurrent_trades=3,
             min_payout_rate=0.80,
             toxic_filter_enabled=True,
+            bar_edge_guard_seconds=0.0,
         )
 
         gateway_mock = AsyncMock()

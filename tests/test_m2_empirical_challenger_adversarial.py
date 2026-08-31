@@ -261,7 +261,7 @@ class TestAutoMatcherAdversarialStress:
     async def test_automatcher_toxic_rejection_invariant_across_candle_types(
         self, toxic_symbol: str
     ):
-        """Invariant: AutoMatcher MUST assign quantum_score == 10.0 and [TOXIC OTC BLACKLIST]
+        """Invariant: AutoMatcher MUST reject toxic symbols with None
 
         regardless of whether candles are empty, small, or hyper-profitable.
         """
@@ -274,9 +274,7 @@ class TestAutoMatcherAdversarialStress:
             timeframe_seconds=60,
             expiration_bars=3,
         )
-        assert res_empty.quantum_score == 10.0
-        assert "[TOXIC OTC BLACKLIST]" in res_empty.rationale
-        assert res_empty.asset == toxic_symbol
+        assert res_empty is None
 
         # 2. Perfect synthetic candles
         perfect_candles = _create_mock_candles(150, base_price=1.2000)
@@ -286,9 +284,7 @@ class TestAutoMatcherAdversarialStress:
             timeframe_seconds=60,
             expiration_bars=3,
         )
-        assert res_candles.quantum_score == 10.0
-        assert "[TOXIC OTC BLACKLIST]" in res_candles.rationale
-        assert res_candles.asset == toxic_symbol
+        assert res_candles is None
 
         # 3. As pandas DataFrame
         df_candles = pd.DataFrame(
@@ -310,8 +306,7 @@ class TestAutoMatcherAdversarialStress:
             timeframe_seconds=60,
             expiration_bars=3,
         )
-        assert res_df.quantum_score == 10.0
-        assert "[TOXIC OTC BLACKLIST]" in res_df.rationale
+        assert res_df is None
 
 
 # ============================================================================
@@ -357,6 +352,7 @@ class TestLiveDemoBotEngineAdversarialHarness:
             max_concurrent_trades=3,
             min_payout_rate=0.80,
             toxic_filter_enabled=True,
+            bar_edge_guard_seconds=0.0,
         )
 
         await engine.start(plan, gateway)
@@ -446,6 +442,7 @@ class TestLiveDemoBotEngineAdversarialHarness:
             cooldown_bars=0,
             global_cooldown_seconds=0,
             toxic_filter_enabled=True,
+            bar_edge_guard_seconds=0.0,
         )
 
         placed_assets_at_gateway: list[str] = []

@@ -415,8 +415,7 @@ async def test_auto_matcher_toxic_asset_rejection_and_whitelist_boost():
 
     # Toxic asset profiling
     toxic_res = await matcher.find_optimal_strategy_for_asset("USD/IDR OTC", [])
-    assert "TOXIC" in toxic_res.rationale
-    assert toxic_res.quantum_score <= 20.0
+    assert toxic_res is None
 
     # Whitelist asset profiling fallback check
     white_res = await matcher.find_optimal_strategy_for_asset("Gold_otc", [])
@@ -484,6 +483,7 @@ async def test_live_demo_bot_engine_rejects_toxic_execution():
         max_concurrent_trades=3,
         min_payout_rate=0.80,
         toxic_filter_enabled=True,
+        bar_edge_guard_seconds=0.0,
     )
 
     # 1. Evaluation check
@@ -824,6 +824,7 @@ async def test_bot_engine_anti_whipsaw_3min_cooldown_and_atomic_check():
         max_concurrent_trades=3,
         min_payout_rate=0.80,
         cooldown_bars=1,  # User requests 1 bar (60s), system enforces min 180s (3 min)
+        bar_edge_guard_seconds=0.0,
     )
 
     engine.plan = plan

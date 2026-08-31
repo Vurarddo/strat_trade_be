@@ -18,10 +18,10 @@ def _make_dummy_candles(n: int = 150) -> list[Candle]:
     return [
         Candle(
             open_time=base + timedelta(minutes=i),
-            open=Decimal("1.0850"),
-            high=Decimal("1.0860"),
-            low=Decimal("1.0840"),
-            close=Decimal("1.0855"),
+            open=Decimal(str(round(1.0850 + i * 0.0001, 5))),
+            high=Decimal(str(round(1.0860 + i * 0.0001, 5))),
+            low=Decimal(str(round(1.0840 + i * 0.0001, 5))),
+            close=Decimal(str(round(1.0855 + i * 0.0001, 5))),
             volume=Decimal("100"),
         )
         for i in range(n)

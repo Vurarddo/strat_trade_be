@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from decimal import Decimal
 from typing import Any
 
 import pandas as pd
@@ -397,7 +398,7 @@ class StrategyAutoMatcher:
         expiration_bars: int = 3,
         payout_rate: float = 0.92,
         allowed_strategies: Sequence[str] | None = None,
-    ) -> StrategyAssignment:
+    ) -> StrategyAssignment | None:
         """Runs multi-strategy backtesting on asset candles to find optimal strategy."""
         strategies = list_available_strategies()
         if allowed_strategies:
@@ -408,12 +409,8 @@ class StrategyAutoMatcher:
         # Check toxic OTC asset blacklist
         is_toxic, toxic_reason = is_toxic_asset(asset)
         if is_toxic:
-            profile = self._heuristic_profile_for_asset(
-                asset, strategies, expiration_bars, allowed_strategies=allowed_strategies
-            )
-            profile.quantum_score = 10.0
-            profile.rationale = f"[TOXIC OTC BLACKLIST] {toxic_reason}"
-            return profile
+            logger.warning("Asset %s rejected by toxic asset blacklist: %s", asset, toxic_reason)
+            return None
 
         if isinstance(candles, list):
             if not candles or len(candles) < 35:
@@ -446,12 +443,7 @@ class StrategyAutoMatcher:
                 logger.warning(
                     "Asset %s failed microstructure qualification: %s", asset, qual_reason
                 )
-                profile = self._heuristic_profile_for_asset(
-                    asset, strategies, expiration_bars, allowed_strategies=allowed_strategies
-                )
-                profile.quantum_score = 15.0
-                profile.rationale = f"[MICROSTRUCTURE REJECTED] {qual_reason}"
-                return profile
+                return None
 
         best_assignment: StrategyAssignment | None = None
         best_score = -999999.0
@@ -473,15 +465,17 @@ class StrategyAutoMatcher:
             )
 
             for params in variations:
+                exp_b = int(params.get("base_expiration_bars", expiration_bars))
                 cfg = BacktestConfig(
                     asset=asset,
                     timeframe_seconds=timeframe_seconds,
-                    initial_deposit=1000.0,
+                    initial_deposit=Decimal("1000.0"),
                     stake_model=StakeModel.FLAT,
-                    stake_amount=10.0,
-                    payout_rate=payout_rate,
-                    min_payout_rate=0.80,
-                    expiration_bars=int(params.get("base_expiration_bars", expiration_bars)),
+                    stake_amount=Decimal("10.0"),
+                    payout_rate=Decimal(str(payout_rate)),
+                    min_payout_rate=Decimal("0.80"),
+                    expiration_bars=exp_b,
+                    expiration_seconds=exp_b * timeframe_seconds,
                     strategy_name=strat_id,
                     strategy_params=params,
                 )

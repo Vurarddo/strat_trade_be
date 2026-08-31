@@ -77,6 +77,7 @@ def _make_plan(
     max_drawdown_pct_limit: float = 0.08,
     correlation_filter_enabled: bool = True,
     pause_duration_minutes: int = 15,
+    bar_edge_guard_seconds: float = 0.0,
 ) -> PreTradingPlan:
     asset_list = assets or ["EURUSD_otc", "GBPUSD_otc", "USDCHF_otc", "AUDUSD_otc", "NZDUSD_otc"]
     assignments = [_make_strategy_assignment(a) for a in asset_list]
@@ -98,6 +99,7 @@ def _make_plan(
         max_drawdown_pct_limit=max_drawdown_pct_limit,
         correlation_filter_enabled=correlation_filter_enabled,
         pause_duration_minutes=pause_duration_minutes,
+        bar_edge_guard_seconds=bar_edge_guard_seconds,
     )
 
 

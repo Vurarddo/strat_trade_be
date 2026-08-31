@@ -41,6 +41,7 @@ class BacktestConfig:
     daily_stop_loss_pct: Decimal = Decimal("0.05")  # 5% max daily drawdown
     strategy_name: str = "hybrid_multifactors"
     strategy_params: dict[str, Any] = field(default_factory=dict)
+    expiration_seconds: int | None = None
 
 
 @dataclass
@@ -134,6 +135,7 @@ class PortfolioBacktestConfig:
     max_drawdown_pct_limit: Decimal = Decimal("0.08")
     strategy_name: str = "hybrid_multifactors"
     strategy_params: dict[str, Any] = field(default_factory=dict)
+    expiration_seconds: int | None = None
 
 
 @dataclass

@@ -132,6 +132,7 @@ async def test_drawdown_calculation_precision_and_recovery():
         max_concurrent_trades=3,
         min_payout_rate=0.80,
         max_drawdown_pct_limit=0.10,  # 10% limit
+        bar_edge_guard_seconds=0.0,
     )
     gateway = AsyncMock()
     await engine.start(plan, gateway)
@@ -177,6 +178,7 @@ async def test_consecutive_losses_draw_does_not_reset_streak():
         max_concurrent_trades=3,
         min_payout_rate=0.80,
         max_consecutive_losses=3,
+        bar_edge_guard_seconds=0.0,
     )
     gateway = AsyncMock()
     await engine.start(plan, gateway)
@@ -258,6 +260,7 @@ async def test_concurrent_global_cooldown_execution_lock():
         max_concurrent_trades=5,
         min_payout_rate=0.80,
         global_cooldown_seconds=30,
+        bar_edge_guard_seconds=0.0,
     )
     gateway = AsyncMock()
     gateway.open_trade.return_value = ("broker-123", {"percentProfit": 92})

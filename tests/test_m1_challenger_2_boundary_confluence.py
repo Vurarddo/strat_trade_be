@@ -318,10 +318,10 @@ class TestAdversarialMarketDataAutoMatching:
         candles = [
             Candle(
                 open_time=base_t + timedelta(minutes=i),
-                open=Decimal("1.1000"),
-                high=Decimal("1.1010"),
-                low=Decimal("1.0990"),
-                close=Decimal("1.1005"),
+                open=Decimal(str(round(1.1000 + i * 0.0001, 5))),
+                high=Decimal(str(round(1.1010 + i * 0.0001, 5))),
+                low=Decimal(str(round(1.0990 + i * 0.0001, 5))),
+                close=Decimal(str(round(1.1005 + i * 0.0001, 5))),
                 volume=Decimal("100"),
             )
             for i in range(candle_length)
@@ -337,7 +337,9 @@ class TestAdversarialMarketDataAutoMatching:
 
     @pytest.mark.asyncio
     async def test_corrupt_data_graceful_fallback(self, matcher: StrategyAutoMatcher) -> None:
-        """Corrupted data with NaNs, Infs, and negative prices must fall back cleanly."""
+        """Corrupted data with NaNs, Infs, and negative prices must be rejected
+        cleanly with None.
+        """
         df_corrupt = pd.DataFrame(
             {
                 "timestamp": pd.date_range("2026-01-01", periods=60, freq="min"),
@@ -350,9 +352,7 @@ class TestAdversarialMarketDataAutoMatching:
         )
 
         res = await matcher.find_optimal_strategy_for_asset("Gold_otc", df_corrupt)
-        assert isinstance(res, StrategyAssignment)
-        assert res.strategy_id in SNIPER_DUO
-        assert res.strategy_id == "support_resistance_bounce"
+        assert res is None
 
 
 # =====================================================================

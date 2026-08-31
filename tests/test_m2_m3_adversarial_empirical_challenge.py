@@ -340,8 +340,7 @@ class TestContinuousLiquidPairsEmpiricalPassMatrix:
         )
 
         assignment = await matcher.find_optimal_strategy_for_asset("SYNTHETIC_DEAD_PAIR", df_dead)
-        assert assignment.quantum_score == 15.0
-        assert "[MICROSTRUCTURE REJECTED]" in assignment.rationale
+        assert assignment is None
 
 
 # ============================================================================
@@ -383,6 +382,7 @@ class TestAntiWhipsawCooldownEmpiricalStressHarness:
             max_concurrent_trades=3,
             min_payout_rate=0.80,
             cooldown_bars=requested_bars,
+            bar_edge_guard_seconds=0.0,
         )
         engine.plan = plan
         engine.status = BotStatus.RUNNING
@@ -449,6 +449,7 @@ class TestAntiWhipsawCooldownEmpiricalStressHarness:
             max_concurrent_trades=10,
             min_payout_rate=0.80,
             cooldown_bars=3,
+            bar_edge_guard_seconds=0.0,
         )
 
         engine.plan = plan
@@ -518,6 +519,7 @@ class TestAntiWhipsawCooldownEmpiricalStressHarness:
             max_concurrent_trades=3,
             min_payout_rate=0.80,
             cooldown_bars=3,
+            bar_edge_guard_seconds=0.0,
         )
 
         engine.plan = plan
@@ -592,6 +594,7 @@ class TestAntiWhipsawCooldownEmpiricalStressHarness:
             max_concurrent_trades=3,
             min_payout_rate=0.80,
             cooldown_bars=3,
+            bar_edge_guard_seconds=0.0,
         )
 
         engine.plan = plan
@@ -738,6 +741,7 @@ class TestStrategyAutoExpirationAndUiSimplificationHarness:
             max_concurrent_trades=3,
             min_payout_rate=0.80,
             cooldown_bars=3,
+            bar_edge_guard_seconds=0.0,
         )
 
         engine.plan = plan

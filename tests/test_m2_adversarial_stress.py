@@ -54,6 +54,7 @@ def _make_test_plan(
     correlation_filter_enabled: bool = True,
     pause_duration_minutes: int = 15,
     max_concurrent_trades: int = 5,
+    bar_edge_guard_seconds: float = 0.0,
 ) -> PreTradingPlan:
     asset_list = assets or ["EURUSD_otc", "GBPUSD_otc", "AUDUSD_otc", "USDCHF_otc", "NZDUSD_otc"]
     assignments = [
@@ -89,6 +90,7 @@ def _make_test_plan(
         max_drawdown_pct_limit=max_drawdown_pct_limit,
         pause_duration_minutes=pause_duration_minutes,
         session_filter_enabled=False,
+        bar_edge_guard_seconds=bar_edge_guard_seconds,
     )
 
 

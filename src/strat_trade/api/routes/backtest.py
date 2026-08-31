@@ -189,6 +189,7 @@ async def run_backtest_endpoint(
         strategy_name=req.strategy_name,
         candle_count=req.candle_count,
         end_at=req.end_at,
+        expiration_seconds=req.expiration_seconds,
     )
     return _summary_to_response(summary)
 
@@ -226,6 +227,7 @@ async def run_portfolio_backtest_endpoint(
         strategy_name=req.strategy_name,
         candle_count=req.candle_count,
         end_at=req.end_at,
+        expiration_seconds=req.expiration_seconds,
     )
     return _portfolio_summary_to_response(summary)
 
@@ -255,6 +257,7 @@ async def upload_and_backtest_endpoint(
     adaptive_expiration: Annotated[bool, Form()] = False,
     daily_stop_loss_pct: Annotated[float, Form()] = 0.05,
     strategy_name: Annotated[str, Form()] = "hybrid_multifactors",
+    expiration_seconds: Annotated[int | None, Form()] = None,
 ) -> BacktestResponse:
     content = await file.read()
     summary = await execute_backtest(
@@ -275,6 +278,7 @@ async def upload_and_backtest_endpoint(
         strategy_name=strategy_name,
         custom_dataset_content=content,
         filename=file.filename or "",
+        expiration_seconds=expiration_seconds,
     )
     return _summary_to_response(summary)
 

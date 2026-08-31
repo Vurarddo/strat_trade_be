@@ -14,14 +14,15 @@ def _generate_candles(n: int = 150) -> list[Candle]:
     candles = []
     price = 1.0850
     for i in range(n):
-        price += 0.0002 if (i % 6 < 3) else -0.0002
+        price += 0.0002 if (i % 6 < 3) else -0.0001
+        p_val = round(price + (i % 20) * 0.0001, 5)
         candles.append(
             Candle(
                 open_time=base + timedelta(minutes=i),
-                open=Decimal(str(price)),
-                high=Decimal(str(price + 0.0004)),
-                low=Decimal(str(price - 0.0004)),
-                close=Decimal(str(price + 0.0001)),
+                open=Decimal(str(p_val)),
+                high=Decimal(str(p_val + 0.0004)),
+                low=Decimal(str(p_val - 0.0004)),
+                close=Decimal(str(p_val + 0.0001)),
                 volume=Decimal("150"),
             )
         )

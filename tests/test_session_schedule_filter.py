@@ -37,6 +37,7 @@ def _make_plan(
     assets: list[str],
     min_payout: float = 0.80,
     session_filter_enabled: bool = True,
+    bar_edge_guard_seconds: float = 0.0,
 ) -> PreTradingPlan:
     assignments = [_make_strategy_assignment(a) for a in assets]
     return PreTradingPlan(
@@ -58,6 +59,7 @@ def _make_plan(
         correlation_filter_enabled=False,
         pause_duration_minutes=15,
         session_filter_enabled=session_filter_enabled,
+        bar_edge_guard_seconds=bar_edge_guard_seconds,
     )
 
 

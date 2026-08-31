@@ -35,6 +35,7 @@ async def execute_backtest(
     end_at: datetime | None = None,
     custom_dataset_content: str | bytes | None = None,
     filename: str = "",
+    expiration_seconds: int | None = None,
 ) -> BacktestSummary:
     """
     Execute a full binary options backtest either from live/history broker feed
@@ -61,6 +62,7 @@ async def execute_backtest(
         daily_stop_loss_pct=Decimal(str(daily_stop_loss_pct)),
         strategy_name=strategy_name,
         strategy_params=strategy_params or {},
+        expiration_seconds=expiration_seconds,
     )
 
     if custom_dataset_content:

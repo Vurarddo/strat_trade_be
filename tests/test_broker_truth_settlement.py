@@ -58,6 +58,7 @@ def _plan(**overrides: object) -> PreTradingPlan:
         "stop_loss_amount": Decimal("500.00"),
         "max_concurrent_trades": 3,
         "min_payout_rate": 0.80,
+        "bar_edge_guard_seconds": 0.0,
     }
     defaults.update(overrides)
     return PreTradingPlan(**defaults)  # type: ignore[arg-type]

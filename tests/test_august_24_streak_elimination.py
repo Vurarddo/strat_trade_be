@@ -138,6 +138,7 @@ def _make_sniper_plan(
     assets: list[str] | None = None,
     max_consecutive_losses: int = 3,
     pause_duration_minutes: int = 15,
+    bar_edge_guard_seconds: float = 0.0,
 ) -> PreTradingPlan:
     asset_list = assets or ["EURUSD_otc", "USDCLP_otc", "USDBDT_otc"]
     assignments = [
@@ -171,6 +172,7 @@ def _make_sniper_plan(
         global_cooldown_seconds=0,
         max_consecutive_losses=max_consecutive_losses,
         pause_duration_minutes=pause_duration_minutes,
+        bar_edge_guard_seconds=bar_edge_guard_seconds,
     )
 
 

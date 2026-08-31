@@ -90,6 +90,7 @@ def _make_pre_trading_plan(
         correlation_filter_enabled=correlation_filter_enabled,
         pause_duration_minutes=pause_duration_minutes,
         session_filter_enabled=False,
+        bar_edge_guard_seconds=0.0,
     )
 
 

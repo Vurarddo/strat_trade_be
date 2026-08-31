@@ -98,6 +98,7 @@ def _make_plan(
     stake_amount: Decimal = Decimal("10.00"),
     min_payout_rate: float = 0.80,
     max_concurrent_trades: int = 5,
+    bar_edge_guard_seconds: float = 0.0,
 ) -> PreTradingPlan:
     asset_list = assets or ["EURUSD_otc", "GBPUSD_otc", "USDJPY_otc"]
     assignments = [_make_strategy_assignment(a) for a in asset_list]
@@ -119,6 +120,7 @@ def _make_plan(
         max_drawdown_pct_limit=max_drawdown_pct_limit,
         correlation_filter_enabled=False,
         pause_duration_minutes=pause_duration_minutes,
+        bar_edge_guard_seconds=bar_edge_guard_seconds,
     )
 
 

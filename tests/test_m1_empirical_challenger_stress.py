@@ -307,15 +307,15 @@ class TestAutoMatcherFuzzAndBoundaryResilience:
         res = await matcher.find_optimal_strategy_for_asset("USDJPY_otc", candles)
         assert isinstance(res, StrategyAssignment)
         assert res.strategy_id in PRIORITY_STRATEGIES
-        # With <35 candles, falls back to heuristic profile for USDJPY -> support_resistance_bounce
         assert res.strategy_id == "support_resistance_bounce"
 
     @pytest.mark.asyncio
     async def test_missing_or_corrupted_columns_in_dataframe(
         self, matcher: StrategyAutoMatcher
     ) -> None:
-        """DataFrames with missing columns (e.g. missing close) should gracefully fall back."""
-        # 50 rows missing 'close'
+        """DataFrames missing essential OHLC columns fail microstructure qualification
+        and return None.
+        """
         df_missing_close = pd.DataFrame(
             {
                 "open": [1.10 + i * 0.001 for i in range(50)],
@@ -324,12 +324,13 @@ class TestAutoMatcherFuzzAndBoundaryResilience:
             }
         )
         res = await matcher.find_optimal_strategy_for_asset("EURUSD_otc", df_missing_close)
-        assert isinstance(res, StrategyAssignment)
-        assert res.strategy_id in PRIORITY_STRATEGIES
+        assert res is None
 
     @pytest.mark.asyncio
     async def test_nan_and_inf_resilience(self, matcher: StrategyAutoMatcher) -> None:
-        """DataFrames with NaN or Infinite values should not crash the matcher."""
+        """DataFrames with NaN or Infinite values fail microstructure qualification
+        and return None.
+        """
         df_corrupt = pd.DataFrame(
             {
                 "open": [1.10] * 50,
@@ -340,8 +341,7 @@ class TestAutoMatcherFuzzAndBoundaryResilience:
             }
         )
         res = await matcher.find_optimal_strategy_for_asset("GOLD_otc", df_corrupt)
-        assert isinstance(res, StrategyAssignment)
-        assert res.strategy_id in PRIORITY_STRATEGIES
+        assert res is None
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -350,7 +350,7 @@ class TestAutoMatcherFuzzAndBoundaryResilience:
     async def test_toxic_asset_blacklist_guard(
         self, matcher: StrategyAutoMatcher, toxic_asset: str
     ) -> None:
-        """Toxic OTC assets should immediately receive penalized quantum score."""
+        """Toxic OTC assets should immediately be rejected with None."""
         candles = [
             Candle(
                 open_time=1700000000 + i * 60,
@@ -363,8 +363,7 @@ class TestAutoMatcherFuzzAndBoundaryResilience:
             for i in range(100)
         ]
         res = await matcher.find_optimal_strategy_for_asset(toxic_asset, candles)
-        assert res.quantum_score == 10.0
-        assert "[TOXIC OTC BLACKLIST]" in res.rationale
+        assert res is None
 
     @pytest.mark.asyncio
     async def test_backtest_matching_strictly_selects_sniper_trio(
@@ -398,7 +397,7 @@ class TestAutoMatcherFuzzAndBoundaryResilience:
 
     @pytest.mark.asyncio
     async def test_flatline_zero_volatility_candles(self, matcher: StrategyAutoMatcher) -> None:
-        """Flat / zero volatility candles should fall back without zero division."""
+        """Flat / zero volatility candles fail microstructure qualification and return None."""
         df_flat = pd.DataFrame(
             {
                 "timestamp": pd.date_range("2026-01-01", periods=100, freq="min"),
@@ -410,8 +409,7 @@ class TestAutoMatcherFuzzAndBoundaryResilience:
             }
         )
         res = await matcher.find_optimal_strategy_for_asset("EURUSD_otc", df_flat)
-        assert isinstance(res, StrategyAssignment)
-        assert res.strategy_id in PRIORITY_STRATEGIES
+        assert res is None
 
 
 class TestStrategyVariationsGeneration:
@@ -451,14 +449,14 @@ class TestConcurrencyAndAsyncSafety:
             "NVDA",
         ]
 
-        async def run_one(asset: str) -> StrategyAssignment:
+        async def run_one(asset: str) -> StrategyAssignment | None:
             candles = [
                 Candle(
                     open_time=1700000000 + i * 60,
-                    open=1.10 + (i % 5) * 0.001,
-                    high=1.11 + (i % 5) * 0.001,
-                    low=1.09 + (i % 5) * 0.001,
-                    close=1.105 + (i % 5) * 0.001,
+                    open=1.10 + (i % 30) * 0.001,
+                    high=1.11 + (i % 30) * 0.001,
+                    low=1.09 + (i % 30) * 0.001,
+                    close=1.105 + (i % 30) * 0.001,
                     volume=100.0,
                 )
                 for i in range(50)

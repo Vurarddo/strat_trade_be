@@ -126,6 +126,7 @@ def _make_adversarial_plan(
     assets: list[str] | None = None,
     max_consecutive_losses: int = 3,
     pause_duration_minutes: int = 15,
+    bar_edge_guard_seconds: float = 0.0,
 ) -> PreTradingPlan:
     asset_list = assets or ["EURUSD_otc", "USDJPY_otc", "GBPUSD_otc"]
     assignments = [
@@ -160,6 +161,7 @@ def _make_adversarial_plan(
         max_consecutive_losses=max_consecutive_losses,
         pause_duration_minutes=pause_duration_minutes,
         max_drawdown_pct_limit=0.25,
+        bar_edge_guard_seconds=bar_edge_guard_seconds,
     )
 
 

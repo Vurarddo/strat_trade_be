@@ -9,6 +9,7 @@
 If ``black`` / ``isort`` are on PATH they run (isort then black);
 otherwise Ruff handles imports + format.
 """
+
 from __future__ import annotations
 
 import os
