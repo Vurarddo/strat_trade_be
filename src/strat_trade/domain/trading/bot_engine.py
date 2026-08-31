@@ -48,6 +48,38 @@ from strat_trade.domain.trading.trade_store import TradeStore
 
 logger = logging.getLogger(__name__)
 
+# How long to wait past expiry for the broker to publish a result before settling
+# from candles. Pocket Option normally answers within a few seconds.
+BROKER_SETTLEMENT_GRACE_SECONDS = 25
+
+_OUTCOME_BY_BROKER_RESULT = {
+    "win": TradeOutcome.WIN,
+    "loss": TradeOutcome.LOSS,
+    "draw": TradeOutcome.DRAW,
+}
+
+
+def _as_positive_decimal(value: Any) -> Decimal | None:
+    """Coerces a broker-supplied price, rejecting anything that is not a real number."""
+    if value is None or isinstance(value, bool):
+        return None
+    if not isinstance(value, (int, float, str, Decimal)):
+        return None
+    try:
+        price = Decimal(str(value))
+    except (ArithmeticError, TypeError, ValueError):
+        return None
+    return price if price > 0 else None
+
+
+def _pnl_for(outcome: TradeOutcome, trade: LiveTradeRecord) -> Decimal:
+    """Models the payout for a settled trade when the broker reported no amount."""
+    if outcome == TradeOutcome.WIN:
+        return trade.stake * trade.payout_rate
+    if outcome == TradeOutcome.LOSS:
+        return -trade.stake
+    return Decimal("0.00")
+
 
 class LiveDemoBotEngine:
     """Orchestrates autonomous live/demo trading across multiple assets with assigned strategies."""
@@ -377,43 +409,48 @@ class LiveDemoBotEngine:
         for tid, trade in list(self.active_trades.items()):
             expiry_time = trade.open_time + timedelta(seconds=trade.expiration_seconds)
             if now >= expiry_time:
-                # Resolve trade result with latest market price
-                try:
-                    candles = await self._gateway.get_candles(
-                        trade.asset,
-                        timeframe=60,
-                        count=5,
-                    )
-                    close_price = Decimal(str(candles[-1].close)) if candles else trade.open_price
-                except Exception:
-                    close_price = trade.open_price
+                # The broker owns the truth: it settles against its own fill and
+                # expiry tick. Deriving the verdict from closed candles instead made
+                # the bot disagree with the account, which silently corrupted the
+                # circuit breakers, the degradation guard and the asset governor.
+                broker_can_settle = self._broker_can_settle(trade)
+                settlement = await self._broker_settlement(trade) if broker_can_settle else None
 
-                # Determine WIN / LOSS / DRAW
-                if trade.action == "CALL":
-                    if close_price > trade.open_price:
-                        outcome = TradeOutcome.WIN
-                        pnl = trade.stake * trade.payout_rate
-                    elif close_price < trade.open_price:
-                        outcome = TradeOutcome.LOSS
-                        pnl = -trade.stake
-                    else:
-                        outcome = TradeOutcome.DRAW
-                        pnl = Decimal("0.00")
-                else:  # PUT
-                    if close_price < trade.open_price:
-                        outcome = TradeOutcome.WIN
-                        pnl = trade.stake * trade.payout_rate
-                    elif close_price > trade.open_price:
-                        outcome = TradeOutcome.LOSS
-                        pnl = -trade.stake
-                    else:
-                        outcome = TradeOutcome.DRAW
-                        pnl = Decimal("0.00")
+                if settlement is None:
+                    # Give the broker a short window to publish the result before
+                    # falling back, rather than racing it with a stale candle. With
+                    # no broker order to ask about there is nothing to wait for.
+                    if broker_can_settle and now < expiry_time + timedelta(
+                        seconds=BROKER_SETTLEMENT_GRACE_SECONDS
+                    ):
+                        continue
+                    outcome, pnl, close_price = await self._settle_from_candles(trade)
+                    settlement_source = "candle"
+                    logger.warning(
+                        "Broker did not settle %s on %s within %ds; falling back to candles.",
+                        trade.broker_order_id,
+                        trade.asset,
+                        BROKER_SETTLEMENT_GRACE_SECONDS,
+                    )
+                else:
+                    outcome = _OUTCOME_BY_BROKER_RESULT[settlement["result"]]
+                    profit = settlement.get("profit")
+                    pnl = (
+                        Decimal(str(profit))
+                        if isinstance(profit, (int, float, str, Decimal))
+                        and not isinstance(profit, bool)
+                        else _pnl_for(outcome, trade)
+                    )
+                    close_price = (
+                        _as_positive_decimal(settlement.get("close_price")) or trade.open_price
+                    )
+                    settlement_source = "broker"
 
                 trade.close_time = now
                 trade.close_price = close_price
                 trade.outcome = outcome
                 trade.pnl = pnl
+                trade.settlement_source = settlement_source
 
                 self.current_balance += pnl
                 if self.current_balance > self.peak_balance:
@@ -439,6 +476,7 @@ class LiveDemoBotEngine:
                     outcome=outcome,
                     pnl=pnl,
                     balance_after=self.current_balance,
+                    settlement_source=settlement_source,
                 )
 
                 self.recent_trades.insert(0, trade)
@@ -546,14 +584,11 @@ class LiveDemoBotEngine:
                         self._asset_consecutive_losses[trade.asset] = 0
                         self._asset_wins[trade.asset] = self._asset_wins.get(trade.asset, 0) + 1
 
-                    if self.status == BotStatus.PAUSED and self.paused_until:
-                        self.status = BotStatus.RUNNING
-                        self.paused_until = None
-                        logger.info(
-                            "WINNING SETTLEMENT: Trade on %s closed as WIN. "
-                            "Auto-unpausing bot and resetting Circuit Breaker to RUNNING.",
-                            trade.asset,
-                        )
+                    # The pause is deliberately NOT lifted here. Up to
+                    # max_concurrent_trades - 1 trades are still in flight when the
+                    # breaker fires, so letting one of them cancel the cooling-off
+                    # made the breaker a no-op: an 11-loss run survived a cap of 3.
+                    # _run_loop resumes on its own once paused_until elapses.
 
         for fid in finished_ids:
             self.active_trades.pop(fid, None)
@@ -938,8 +973,13 @@ class LiveDemoBotEngine:
             if multiplier != Decimal("1"):
                 stake = max(Decimal("1.00"), (stake * multiplier).quantize(Decimal("1.00")))
 
-            # Extract indicator snapshot
-            snapshot = self._extract_snapshot(candles)
+            executed_strat_id = executed_strategy_id or assignment.strategy_id
+            executed_params = self._params_actually_used(
+                assignment.asset, executed_strat_id, assignment.parameters
+            )
+            snapshot = self._extract_snapshot(
+                candles, rsi_period=int(executed_params.get("rsi_period", 14))
+            )
 
             trade_id = str(uuid.uuid4())
             open_time = now
@@ -948,6 +988,7 @@ class LiveDemoBotEngine:
 
             # Open order via Pocket Option Gateway
             broker_order_id: str | None = None
+            open_price_source = "candle"
             try:
                 order_id, deal_info = await self._gateway.open_trade(
                     asset=assignment.asset,
@@ -963,13 +1004,21 @@ class LiveDemoBotEngine:
                         ).quantize(Decimal("0.01"))
                     except Exception:
                         pass
+
+                # The candle feed serves closed bars only, so `open_price` above can
+                # be a whole bar behind the fill. Every downstream verdict compares
+                # against it, so anchor it to the broker's price when available.
+                fill = await self._broker_fill_price(order_id, deal_info)
+                if fill is not None:
+                    open_price = fill
+                    open_price_source = "broker"
             except Exception as exc:
                 logger.warning(
                     "Gateway order execution failed (continuing paper demo tracking): %s", exc
                 )
                 broker_order_id = f"demo-{uuid.uuid4().hex[:12]}"
 
-            final_strat_id = executed_strategy_id or assignment.strategy_id
+            final_strat_id = executed_strat_id
             final_strat_name = (
                 assignment.strategy_name
                 if final_strat_id == assignment.strategy_id
@@ -994,13 +1043,12 @@ class LiveDemoBotEngine:
                 payout_rate=payout_rate,
                 outcome=TradeOutcome.PENDING,
                 pnl=Decimal("0.00"),
-                executed_params=self._params_actually_used(
-                    assignment.asset, final_strat_id, assignment.parameters
-                ),
+                executed_params=executed_params,
                 asset_tier=str(verdict.tier),
                 stake_multiplier=verdict.stake_multiplier,
                 entry_second=int(seconds_into_bar(now)),
                 is_otc=is_otc_asset(assignment.asset),
+                open_price_source=open_price_source,
             )
 
             self.trade_store.save_trade(record)
@@ -1021,8 +1069,73 @@ class LiveDemoBotEngine:
                 broker_order_id,
             )
 
-    def _extract_snapshot(self, candles: list[Candle]) -> IndicatorSnapshot:
-        """Extracts technical indicator values at the current candle bar."""
+    async def _broker_fill_price(self, order_id: str, deal_info: Any) -> Decimal | None:
+        """Reads the price the broker actually opened the order at, if it says so."""
+        if isinstance(deal_info, dict):
+            for key in ("entry_price", "openPrice", "open_price"):
+                price = _as_positive_decimal(deal_info.get(key))
+                if price is not None:
+                    return price
+
+        getter = getattr(self._gateway, "get_deal_entry_price", None)
+        if not callable(getter):
+            return None
+        try:
+            return _as_positive_decimal(await getter(order_id))
+        except Exception as exc:
+            logger.debug("Broker entry price lookup failed for %s: %s", order_id, exc)
+            return None
+
+    async def _settle_from_candles(
+        self, trade: LiveTradeRecord
+    ) -> tuple[TradeOutcome, Decimal, Decimal]:
+        """Last-resort settlement when the broker never published a result."""
+        try:
+            candles = await self._gateway.get_candles(trade.asset, timeframe=60, count=5)
+            close_price = Decimal(str(candles[-1].close)) if candles else trade.open_price
+        except Exception:
+            close_price = trade.open_price
+
+        if close_price == trade.open_price:
+            outcome = TradeOutcome.DRAW
+        elif (close_price > trade.open_price) == (trade.action == "CALL"):
+            outcome = TradeOutcome.WIN
+        else:
+            outcome = TradeOutcome.LOSS
+
+        return outcome, _pnl_for(outcome, trade), close_price
+
+    def _broker_can_settle(self, trade: LiveTradeRecord) -> bool:
+        """True when there is a real broker order this engine is able to ask about."""
+        order_id = trade.broker_order_id
+        if not order_id or order_id.startswith("demo-"):
+            return False
+        return callable(getattr(self._gateway, "get_trade_result", None))
+
+    async def _broker_settlement(self, trade: LiveTradeRecord) -> dict[str, Any] | None:
+        """Asks the broker how a trade resolved. None means 'not settled yet'."""
+        order_id = trade.broker_order_id
+        try:
+            result = await self._gateway.get_trade_result(order_id)
+        except Exception as exc:
+            logger.debug("Broker settlement lookup failed for %s: %s", order_id, exc)
+            return None
+
+        # A gateway may answer with anything; only a recognised verdict is allowed
+        # to override the local fallback.
+        if not isinstance(result, dict):
+            return None
+        if result.get("result") not in _OUTCOME_BY_BROKER_RESULT:
+            return None
+        return result
+
+    def _extract_snapshot(self, candles: list[Candle], rsi_period: int = 14) -> IndicatorSnapshot:
+        """Extracts technical indicator values at the current candle bar.
+
+        `rsi_period` must match the period the strategy gated on, otherwise the
+        logged RSI describes a different indicator than the one that fired and the
+        entry cannot be audited afterwards.
+        """
         if not candles:
             return IndicatorSnapshot()
 
@@ -1046,16 +1159,22 @@ class LiveDemoBotEngine:
             except Exception as e:
                 logger.debug("ADX snapshot failed: %s", e)
 
-        # Simple indicator extractions for snapshot
+        # Strategies read RSI through `ta` (Wilder smoothing) at their own period.
+        # A hand-rolled simple average at a fixed 14 produced a different number,
+        # which made 12 of 32 logged entries look like they contradicted their own
+        # threshold when in fact only the log was wrong.
         rsi = None
-        if len(closes) >= 15:
-            diffs = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
-            gains = [d if d > 0 else 0 for d in diffs[-14:]]
-            losses = [-d if d < 0 else 0 for d in diffs[-14:]]
-            avg_g = sum(gains) / 14.0
-            avg_l = sum(losses) / 14.0
-            rs = (avg_g / avg_l) if avg_l > 0 else 100.0
-            rsi = 100.0 - (100.0 / (1.0 + rs))
+        period = max(2, int(rsi_period))
+        if len(closes) >= period + 1:
+            try:
+                import ta
+
+                rsi_value = float(
+                    ta.momentum.RSIIndicator(close=pd.Series(closes), window=period).rsi().iloc[-1]
+                )
+                rsi = None if pd.isna(rsi_value) else rsi_value
+            except Exception as e:
+                logger.debug("RSI snapshot failed: %s", e)
 
         # ATR snapshot
         atr = None

@@ -267,6 +267,13 @@ def get_bot_trades_endpoint(limit: int = 100, offset: int = 0) -> list[LiveTrade
             is_merged_with_broker=t.is_merged_with_broker,
             broker_profit=float(t.broker_profit) if t.broker_profit is not None else None,
             slippage=float(t.slippage) if t.slippage is not None else None,
+            executed_params=t.executed_params,
+            asset_tier=t.asset_tier,
+            stake_multiplier=t.stake_multiplier,
+            entry_second=t.entry_second,
+            is_otc=t.is_otc,
+            open_price_source=t.open_price_source,
+            settlement_source=t.settlement_source,
         )
         for t in records
     ]
@@ -348,6 +355,13 @@ def _build_status_response(s: Any) -> BotStatusResponse:
                 is_merged_with_broker=t.is_merged_with_broker,
                 broker_profit=float(t.broker_profit) if t.broker_profit is not None else None,
                 slippage=float(t.slippage) if t.slippage is not None else None,
+                executed_params=getattr(t, "executed_params", {}) or {},
+                asset_tier=getattr(t, "asset_tier", "NORMAL"),
+                stake_multiplier=float(getattr(t, "stake_multiplier", 1.0)),
+                entry_second=int(getattr(t, "entry_second", 0)),
+                is_otc=bool(getattr(t, "is_otc", False)),
+                open_price_source=getattr(t, "open_price_source", "candle"),
+                settlement_source=getattr(t, "settlement_source", "candle"),
             )
             for t in s.recent_trades
         ],

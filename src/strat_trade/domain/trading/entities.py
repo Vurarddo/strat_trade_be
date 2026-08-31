@@ -218,6 +218,11 @@ class LiveTradeRecord:
     stake_multiplier: float = 1.0
     entry_second: int = 0
     is_otc: bool = False
+    # The candle feed only serves closed bars, so a candle-derived price can be a
+    # full bar stale. These record whether the broker answered, so a session can be
+    # audited without guessing which prices were authoritative.
+    open_price_source: str = "candle"
+    settlement_source: str = "candle"
 
 
 @dataclass
@@ -289,3 +294,6 @@ class MergedAuditRecord:
     reason: str | None = None
     internal_open_price: Decimal | None = None
     slippage: Decimal | None = None
+    entry_second: int | None = None
+    open_price_source: str | None = None
+    settlement_source: str | None = None

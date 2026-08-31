@@ -292,6 +292,9 @@ class BrokerReportMerger:
                     reason=reason,
                     internal_open_price=internal_open,
                     slippage=slippage,
+                    entry_second=bot_trade.entry_second if bot_trade else None,
+                    open_price_source=bot_trade.open_price_source if bot_trade else None,
+                    settlement_source=bot_trade.settlement_source if bot_trade else None,
                 )
             )
 
@@ -454,6 +457,9 @@ class BrokerReportMerger:
                     reason=t.reason,
                     internal_open_price=t.open_price,
                     slippage=t.slippage,
+                    entry_second=t.entry_second,
+                    open_price_source=t.open_price_source,
+                    settlement_source=t.settlement_source,
                 )
             )
 
@@ -536,6 +542,10 @@ class BrokerReportMerger:
                     if r.get("confidence")
                     else "",
                     "Slippage": r.get("slippage"),
+                    "Internal Open Price": r.get("internal_open_price"),
+                    "Open Price Source": r.get("open_price_source"),
+                    "Settlement Source": r.get("settlement_source"),
+                    "Entry Second": r.get("entry_second"),
                     "RSI": snap.get("rsi"),
                     "ADX": snap.get("adx"),
                     "ATR": snap.get("atr"),
@@ -601,4 +611,7 @@ class BrokerReportMerger:
             "reason": r.reason,
             "internal_open_price": float(r.internal_open_price) if r.internal_open_price else None,
             "slippage": float(r.slippage) if r.slippage is not None else None,
+            "entry_second": r.entry_second,
+            "open_price_source": r.open_price_source,
+            "settlement_source": r.settlement_source,
         }

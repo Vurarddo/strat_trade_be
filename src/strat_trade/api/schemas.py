@@ -845,28 +845,35 @@ class LiveTradeResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     trade_id: str
-    broker_order_id: str | None
+    broker_order_id: str | None = None
     asset: str
     action: str
     stake: float
     open_time: str
     expiration_seconds: int
     open_price: float
-    close_time: str | None
-    close_price: float | None
+    close_time: str | None = None
+    close_price: float | None = None
     strategy_id: str
     strategy_name: str
-    strategy_params: dict[str, Any]
-    indicator_snapshot: dict[str, Any]
-    confidence: float
-    reason: str
-    payout_rate: float
+    strategy_params: dict[str, Any] = Field(default_factory=dict)
+    indicator_snapshot: dict[str, Any] = Field(default_factory=dict)
+    confidence: float = 0.0
+    reason: str = ""
+    payout_rate: float = 0.0
     outcome: str
-    pnl: float
-    balance_after: float | None
-    is_merged_with_broker: bool
-    broker_profit: float | None
-    slippage: float | None
+    pnl: float = 0.0
+    balance_after: float | None = None
+    is_merged_with_broker: bool = False
+    broker_profit: float | None = None
+    slippage: float | None = None
+    executed_params: dict[str, Any] = Field(default_factory=dict)
+    asset_tier: str = "NORMAL"
+    stake_multiplier: float = 1.0
+    entry_second: int = 0
+    is_otc: bool = False
+    open_price_source: str = "candle"
+    settlement_source: str = "candle"
 
 
 class BotStatusResponse(BaseModel):
@@ -943,6 +950,9 @@ class MergedRecordItem(BaseModel):
     reason: str | None
     internal_open_price: float | None
     slippage: float | None
+    entry_second: int | None = None
+    open_price_source: str | None = None
+    settlement_source: str | None = None
 
 
 class BrokerReportAuditResponse(BaseModel):

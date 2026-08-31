@@ -784,10 +784,13 @@ def test_asset_toxic_blacklist_and_whitelist() -> None:
 
 
 @pytest.mark.asyncio
-async def test_residual_trade_win_auto_unpauses_bot() -> None:
-    """Verifies that if a bot was paused due to 3 consecutive losses,
-    a subsequent winning trade amongst residual open positions automatically
-    clears the pause and resets status to RUNNING."""
+async def test_residual_trade_win_does_not_cancel_the_cooling_off_pause() -> None:
+    """A win settling after the breaker fired must not shorten the pause.
+
+    Up to max_concurrent_trades - 1 trades are still in flight when the breaker
+    trips, so letting any of them resume trading made the cap unenforceable: a
+    run of 11 losses survived a cap of 3 on the 28-29.08 session.
+    """
     store = MagicMock(spec=TradeStore)
     engine = LiveDemoBotEngine(trade_store=store)
     plan = _make_pre_trading_plan(max_consecutive_losses=3, pause_duration_minutes=15)
@@ -832,13 +835,16 @@ async def test_residual_trade_win_auto_unpauses_bot() -> None:
     ]
     engine._gateway = mock_gw
 
-    # 3. Check active trades
+    paused_until = engine.paused_until
+
     await engine._check_active_trades()
 
-    # 4. Verify consecutive_losses is 0 and status is restored to RUNNING with paused_until None
+    # The streak resets, because the streak counts *consecutive* losses...
     assert engine.consecutive_losses == 0
-    assert engine.status == BotStatus.RUNNING
-    assert engine.paused_until is None
+    # ...but the cooling-off window itself is untouched. _run_loop resumes only
+    # once paused_until has actually elapsed.
+    assert engine.status == BotStatus.PAUSED
+    assert engine.paused_until == paused_until
 
 
 @pytest.mark.asyncio

@@ -234,6 +234,23 @@ def _history_offset_seconds(*, period: int, count: int) -> int:
     return min(max(span, period * 2), 86400 * 400)
 
 
+def _extract_price(payload: object, keys: Sequence[str]) -> Decimal | None:
+    """Reads the first usable positive price from a broker deal payload."""
+    if not isinstance(payload, dict):
+        return None
+    for key in keys:
+        raw = payload.get(key)
+        if raw is None:
+            continue
+        try:
+            value = Decimal(str(raw))
+        except (ArithmeticError, TypeError, ValueError):
+            continue
+        if value > 0:
+            return value
+    return None
+
+
 class PocketOptionTradingGateway:
     """TradingGateway + CandleFeed via BinaryOptionsToolsV2 (PocketOptionAsync)."""
 
@@ -566,6 +583,63 @@ class PocketOptionTradingGateway:
                 raise BrokerUnavailableError(f"Trade execution failed: {exc}") from exc
 
         raise BrokerUnavailableError("Trade execution failed after reconnection retry.")
+
+    async def get_deal_entry_price(self, order_id: str) -> Decimal | None:
+        """Returns the price the broker actually filled an order at.
+
+        The candle feed only serves closed bars, so the last close can be a full
+        bar behind the market. Reading the fill back from the broker is the only
+        way to anchor a trade to the price it was really opened at.
+        """
+        if not order_id:
+            return None
+        try:
+            client = await self._client_connected()
+            for fetch in (client.get_opened_deal, client.get_closed_deal):
+                deal = await fetch(order_id)
+                price = _extract_price(deal, ("entry_price", "openPrice", "open_price", "price"))
+                if price is not None:
+                    return price
+        except Exception as exc:
+            logger.debug("Could not read broker entry price for %s: %s", order_id, exc)
+        return None
+
+    async def get_trade_result(self, order_id: str) -> dict[str, Any] | None:
+        """Returns the broker's own verdict on a settled trade, or None if pending.
+
+        Never blocks waiting for expiry: `get_closed_deal` answers only once the
+        broker has settled the deal, so a None means "ask again later".
+        """
+        if not order_id:
+            return None
+        try:
+            client = await self._client_connected()
+            deal = await client.get_closed_deal(order_id)
+        except Exception as exc:
+            logger.debug("Could not read broker result for %s: %s", order_id, exc)
+            return None
+
+        if not isinstance(deal, dict):
+            return None
+
+        outcome = str(deal.get("result", "")).strip().lower()
+        profit = deal.get("profit")
+        if outcome not in ("win", "loss", "draw") and profit is None:
+            return None
+
+        if outcome not in ("win", "loss", "draw"):
+            try:
+                value = float(profit)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return None
+            outcome = "win" if value > 0 else ("loss" if value < 0 else "draw")
+
+        return {
+            "result": outcome,
+            "profit": None if profit is None else Decimal(str(profit)),
+            "close_price": _extract_price(deal, ("close_price", "closePrice")),
+            "entry_price": _extract_price(deal, ("entry_price", "openPrice", "open_price")),
+        }
 
     async def aclose(self) -> None:
         async with self._lock:

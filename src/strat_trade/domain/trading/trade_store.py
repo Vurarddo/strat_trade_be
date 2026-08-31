@@ -79,6 +79,8 @@ class TradeStore:
             "stake_multiplier": "REAL NOT NULL DEFAULT 1.0",
             "entry_second": "INTEGER NOT NULL DEFAULT 0",
             "is_otc": "INTEGER NOT NULL DEFAULT 0",
+            "open_price_source": "TEXT NOT NULL DEFAULT 'candle'",
+            "settlement_source": "TEXT NOT NULL DEFAULT 'candle'",
         }
         for column, ddl in additions.items():
             if column not in existing:
@@ -94,14 +96,16 @@ class TradeStore:
                     strategy_id, strategy_name, strategy_params, indicator_snapshot,
                     confidence, reason, payout_rate, outcome, pnl, balance_after,
                     is_merged_with_broker, broker_profit, slippage, created_at,
-                    executed_params, asset_tier, stake_multiplier, entry_second, is_otc
+                    executed_params, asset_tier, stake_multiplier, entry_second, is_otc,
+                    open_price_source, settlement_source
                 ) VALUES (
                     ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?,
+                    ?, ?
                 )
                 """,
                 (
@@ -134,6 +138,8 @@ class TradeStore:
                     float(trade.stake_multiplier),
                     int(trade.entry_second),
                     1 if trade.is_otc else 0,
+                    trade.open_price_source,
+                    trade.settlement_source,
                 ),
             )
             conn.commit()
@@ -146,12 +152,14 @@ class TradeStore:
         outcome: TradeOutcome,
         pnl: Decimal,
         balance_after: Decimal | None = None,
+        settlement_source: str = "candle",
     ) -> None:
         with self._get_connection() as conn:
             conn.execute(
                 """
                 UPDATE trades
-                SET close_time = ?, close_price = ?, outcome = ?, pnl = ?, balance_after = ?
+                SET close_time = ?, close_price = ?, outcome = ?, pnl = ?, balance_after = ?,
+                    settlement_source = ?
                 WHERE trade_id = ?
                 """,
                 (
@@ -160,6 +168,7 @@ class TradeStore:
                     outcome.value,
                     str(pnl),
                     str(balance_after) if balance_after is not None else None,
+                    settlement_source,
                     trade_id,
                 ),
             )
@@ -296,4 +305,6 @@ class TradeStore:
             stake_multiplier=float(self._optional(row, "stake_multiplier", 1.0)),
             entry_second=int(self._optional(row, "entry_second", 0)),
             is_otc=bool(self._optional(row, "is_otc", 0)),
+            open_price_source=str(self._optional(row, "open_price_source", "candle")),
+            settlement_source=str(self._optional(row, "settlement_source", "candle")),
         )

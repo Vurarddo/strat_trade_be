@@ -1,0 +1,720 @@
+{
+    "plan": {
+        "bar_edge_guard_seconds": 3,
+        "use_closed_bar_only": true,
+        "dynamic_strategy_switching_enabled": false,
+        "asset_governor_enabled": true,
+        "otc_stake_multiplier": 0.25,
+        "otc_min_payout_rate": 0.9,
+        "governor_min_trades_for_mute": 20,
+        "governor_mute_duration_minutes": 240,
+        "governor_promotion_min_trades": 400,
+        "assignments": [
+            {
+                "asset": "AUDCAD_otc",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 9,
+                    "ema_mid": 21,
+                    "adx_threshold": 25,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 75,
+                "estimated_profit_factor": 2.76,
+                "estimated_trades_count": 4,
+                "quantum_score": 128.79500000000002,
+                "rationale": "WinRate 75.0% (4 угод, PF 2.76) для фази AUDCAD_otc"
+            },
+            {
+                "asset": "CADJPY_otc",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 13,
+                    "ema_mid": 26,
+                    "adx_threshold": 28,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 4,
+                    "rsi_period": 14,
+                    "stoch_overbought": 75,
+                    "stoch_oversold": 25
+                },
+                "estimated_win_rate_pct": 100,
+                "estimated_profit_factor": 99.99,
+                "estimated_trades_count": 3,
+                "quantum_score": 220.38,
+                "rationale": "WinRate 100.0% (3 угод, PF 99.99) для фази CADJPY_otc"
+            },
+            {
+                "asset": "EURTRY_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000003 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "EURUSD_otc",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 7,
+                    "ema_mid": 18,
+                    "adx_threshold": 20,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 3,
+                    "rsi_period": 14,
+                    "stoch_overbought": 75,
+                    "stoch_oversold": 25
+                },
+                "estimated_win_rate_pct": 80,
+                "estimated_profit_factor": 3.68,
+                "estimated_trades_count": 5,
+                "quantum_score": 176.06,
+                "rationale": "WinRate 80.0% (5 угод, PF 3.68) для фази EURUSD_otc"
+            },
+            {
+                "asset": "SARCNY_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000020 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "TNDUSD_otc",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 20,
+                    "min_wick_ratio": 0.35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 80,
+                "estimated_profit_factor": 3.68,
+                "estimated_trades_count": 5,
+                "quantum_score": 176.04,
+                "rationale": "WinRate 80.0% (5 угод, PF 3.68) для фази TNDUSD_otc"
+            },
+            {
+                "asset": "USDBDT_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000013 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "USDCAD_otc",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 9,
+                    "ema_mid": 21,
+                    "adx_threshold": 25,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 100,
+                "estimated_profit_factor": 99.99,
+                "estimated_trades_count": 3,
+                "quantum_score": 220.38,
+                "rationale": "WinRate 100.0% (3 угод, PF 99.99) для фази USDCAD_otc"
+            },
+            {
+                "asset": "USDCLP_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000007 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "MADUSD_otc",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 25,
+                    "min_wick_ratio": 0.4,
+                    "base_expiration_bars": 4
+                },
+                "estimated_win_rate_pct": 75,
+                "estimated_profit_factor": 2.76,
+                "estimated_trades_count": 4,
+                "quantum_score": 143.79500000000002,
+                "rationale": "WinRate 75.0% (4 угод, PF 2.76) для фази MADUSD_otc"
+            },
+            {
+                "asset": "AUDNZD_otc",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 9,
+                    "ema_mid": 21,
+                    "adx_threshold": 25,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 60,
+                "estimated_profit_factor": 1.38,
+                "estimated_trades_count": 5,
+                "quantum_score": 65.58,
+                "rationale": "WinRate 60.0% (5 угод, PF 1.38) для фази AUDNZD_otc"
+            },
+            {
+                "asset": "AUDUSD_otc",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 13,
+                    "ema_mid": 26,
+                    "adx_threshold": 28,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 4,
+                    "rsi_period": 14,
+                    "stoch_overbought": 75,
+                    "stoch_oversold": 25
+                },
+                "estimated_win_rate_pct": 100,
+                "estimated_profit_factor": 99.99,
+                "estimated_trades_count": 1,
+                "quantum_score": 90,
+                "rationale": "Висока точність сигналу (WR 100%) для AUDUSD_otc"
+            },
+            {
+                "asset": "EURCAD",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 9,
+                    "ema_mid": 21,
+                    "adx_threshold": 25,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 100,
+                "estimated_profit_factor": 99.99,
+                "estimated_trades_count": 2,
+                "quantum_score": 216.8,
+                "rationale": "WinRate 100.0% (2 угод, PF 99.99) для фази EURCAD"
+            },
+            {
+                "asset": "AUDCAD",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 20,
+                    "min_wick_ratio": 0.35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 60,
+                "estimated_profit_factor": 1.2,
+                "estimated_trades_count": 5,
+                "quantum_score": 77.21000000000001,
+                "rationale": "WinRate 60.0% (5 угод, PF 1.20) для фази AUDCAD"
+            },
+            {
+                "asset": "AUDUSD",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 85,
+                "rationale": "Подвійне виснаження осциляторів для валютної пари AUDUSD"
+            },
+            {
+                "asset": "EURNZD_otc",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 7,
+                    "ema_mid": 18,
+                    "adx_threshold": 20,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 3,
+                    "rsi_period": 14,
+                    "stoch_overbought": 75,
+                    "stoch_oversold": 25
+                },
+                "estimated_win_rate_pct": 83.33,
+                "estimated_profit_factor": 4.6,
+                "estimated_trades_count": 6,
+                "quantum_score": 179.31000000000003,
+                "rationale": "WinRate 83.3% (6 угод, PF 4.60) для фази EURNZD_otc"
+            },
+            {
+                "asset": "GBPCHF",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 25,
+                    "min_wick_ratio": 0.4,
+                    "base_expiration_bars": 4
+                },
+                "estimated_win_rate_pct": 62.5,
+                "estimated_profit_factor": 1.33,
+                "estimated_trades_count": 9,
+                "quantum_score": 98.96000000000001,
+                "rationale": "WinRate 62.5% (9 угод, PF 1.33) для фази GBPCHF"
+            },
+            {
+                "asset": "USDCNH_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000027 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "JODCNY_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000013 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "USDARS_otc",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 9,
+                    "ema_mid": 21,
+                    "adx_threshold": 25,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 80,
+                "estimated_profit_factor": 3.68,
+                "estimated_trades_count": 5,
+                "quantum_score": 161.04999999999998,
+                "rationale": "WinRate 80.0% (5 угод, PF 3.68) для фази USDARS_otc"
+            },
+            {
+                "asset": "EURUSD",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 9,
+                    "rsi_oversold": 28,
+                    "rsi_overbought": 72,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3,
+                    "max_adx_trend": 30
+                },
+                "estimated_win_rate_pct": 75,
+                "estimated_profit_factor": 2.4,
+                "estimated_trades_count": 5,
+                "quantum_score": 156.21,
+                "rationale": "WinRate 75.0% (5 угод, PF 2.40) для фази EURUSD"
+            },
+            {
+                "asset": "USDJPY",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 9,
+                    "rsi_oversold": 28,
+                    "rsi_overbought": 72,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3,
+                    "max_adx_trend": 30
+                },
+                "estimated_win_rate_pct": 100,
+                "estimated_profit_factor": 99.99,
+                "estimated_trades_count": 2,
+                "quantum_score": 231.8,
+                "rationale": "WinRate 100.0% (2 угод, PF 99.99) для фази USDJPY"
+            },
+            {
+                "asset": "CADJPY",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 9,
+                    "rsi_oversold": 28,
+                    "rsi_overbought": 72,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3,
+                    "max_adx_trend": 30
+                },
+                "estimated_win_rate_pct": 66.67,
+                "estimated_profit_factor": 1.6,
+                "estimated_trades_count": 3,
+                "quantum_score": 97.815,
+                "rationale": "WinRate 66.7% (3 угод, PF 1.60) для фази CADJPY"
+            },
+            {
+                "asset": "USDJPY_otc",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 20,
+                    "min_wick_ratio": 0.35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 75,
+                "estimated_profit_factor": 2.76,
+                "estimated_trades_count": 8,
+                "quantum_score": 156.18,
+                "rationale": "WinRate 75.0% (8 угод, PF 2.76) для фази USDJPY_otc"
+            },
+            {
+                "asset": "GBPUSD",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 20,
+                    "rsi_period": 14,
+                    "min_wick_ratio": 0.35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 85,
+                "rationale": "Фрактальні рівні відбою для валютного спреду GBPUSD"
+            },
+            {
+                "asset": "GBPUSD_otc",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 25,
+                    "min_wick_ratio": 0.4,
+                    "base_expiration_bars": 4
+                },
+                "estimated_win_rate_pct": 66.67,
+                "estimated_profit_factor": 1.84,
+                "estimated_trades_count": 6,
+                "quantum_score": 110.95000000000002,
+                "rationale": "WinRate 66.7% (6 угод, PF 1.84) для фази GBPUSD_otc"
+            },
+            {
+                "asset": "NGNUSD_otc",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 20,
+                    "rsi_period": 14,
+                    "min_wick_ratio": 0.35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Price 0.00075948 is below 0.001000 (ultra-micro tick synthetic asset)"
+            },
+            {
+                "asset": "EURRUB_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000017 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "IRRUSD_otc",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 20,
+                    "rsi_period": 14,
+                    "min_wick_ratio": 0.35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Flat bar ratio 24.00% exceeds threshold 15.00% (discrete/illiquid noise)"
+            },
+            {
+                "asset": "USDPHP_otc",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 20,
+                    "rsi_period": 14,
+                    "min_wick_ratio": 0.35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000018 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "GBPCAD",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 9,
+                    "rsi_oversold": 28,
+                    "rsi_overbought": 72,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3,
+                    "max_adx_trend": 30
+                },
+                "estimated_win_rate_pct": 75,
+                "estimated_profit_factor": 2.4,
+                "estimated_trades_count": 4,
+                "quantum_score": 138.20499999999998,
+                "rationale": "WinRate 75.0% (4 угод, PF 2.40) для фази GBPCAD"
+            },
+            {
+                "asset": "USDCAD",
+                "strategy_id": "support_resistance_bounce",
+                "strategy_name": "Support & Resistance Pin-Bar",
+                "category": "Price Action / S&R",
+                "parameters": {
+                    "swing_window": 20,
+                    "min_wick_ratio": 0.35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62.5,
+                "estimated_profit_factor": 1.33,
+                "estimated_trades_count": 8,
+                "quantum_score": 95.965,
+                "rationale": "WinRate 62.5% (8 угод, PF 1.33) для фази USDCAD"
+            },
+            {
+                "asset": "USDEGP_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 14,
+                    "rsi_oversold": 25,
+                    "rsi_overbought": 75,
+                    "stoch_k": 14,
+                    "stoch_d": 3,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 62,
+                "estimated_profit_factor": 1.45,
+                "estimated_trades_count": 5,
+                "quantum_score": 15,
+                "rationale": "[MICROSTRUCTURE REJECTED] Relative ATR 0.000019 below threshold 0.000030 (dead/zero volatility)"
+            },
+            {
+                "asset": "EURAUD",
+                "strategy_id": "ema_pullback_trend",
+                "strategy_name": "EMA Ribbon Trend Pullback",
+                "category": "Trend Following",
+                "parameters": {
+                    "ema_fast": 9,
+                    "ema_mid": 21,
+                    "adx_threshold": 25,
+                    "rsi_overbought": 65,
+                    "rsi_oversold": 35,
+                    "base_expiration_bars": 3
+                },
+                "estimated_win_rate_pct": 50,
+                "estimated_profit_factor": 0.8,
+                "estimated_trades_count": 2,
+                "quantum_score": 17.404999999999998,
+                "rationale": "WinRate 50.0% (2 угод, PF 0.80) для фази EURAUD"
+            },
+            {
+                "asset": "NZDUSD_otc",
+                "strategy_id": "rsi_stochastic_extreme",
+                "strategy_name": "RSI + Stoch Extreme Scalp",
+                "category": "Scalping Reversal",
+                "parameters": {
+                    "rsi_period": 9,
+                    "rsi_oversold": 28,
+                    "rsi_overbought": 72,
+                    "stoch_oversold": 20,
+                    "stoch_overbought": 80,
+                    "base_expiration_bars": 3,
+                    "max_adx_trend": 30
+                },
+                "estimated_win_rate_pct": 100,
+                "estimated_profit_factor": 99.99,
+                "estimated_trades_count": 3,
+                "quantum_score": 235.38,
+                "rationale": "WinRate 100.0% (3 угод, PF 99.99) для фази NZDUSD_otc"
+            }
+        ],
+        "total_assets": 35,
+        "initial_deposit": 50000,
+        "stake_model": "flat",
+        "stake_amount": 10,
+        "stake_percent": 1,
+        "expiration_seconds": 180,
+        "daily_stop_loss_pct": 0.05,
+        "stop_loss_amount": 2500,
+        "daily_take_profit_pct": 0.025,
+        "take_profit_amount": 1250,
+        "trailing_profit_lock_enabled": true,
+        "trailing_profit_lock_threshold_usd": 500,
+        "trailing_profit_retention_pct": 0.75,
+        "per_asset_degradation_guard_enabled": true,
+        "per_asset_max_consecutive_losses": 2,
+        "per_asset_min_winrate_pct": 40,
+        "max_concurrent_trades": 3,
+        "min_payout_rate": 0.8,
+        "cooldown_bars": 3,
+        "global_cooldown_seconds": 30,
+        "max_consecutive_losses": 3,
+        "max_drawdown_pct_limit": 0.08,
+        "correlation_filter_enabled": true,
+        "pause_duration_minutes": 15,
+        "asset_blacklist": [],
+        "asset_whitelist": [],
+        "toxic_filter_enabled": true,
+        "session_filter_enabled": true,
+        "allowed_strategies": [
+            "rsi_stochastic_extreme",
+            "support_resistance_bounce",
+            "ema_pullback_trend"
+        ],
+        "created_at": "2026-08-28T15:07:45.532201+00:00"
+    }
+}
