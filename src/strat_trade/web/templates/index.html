@@ -129,6 +129,10 @@
         <i data-lucide="file-spreadsheet" class="w-4 h-4 text-cyan-400"></i> Аудит угод & XLS Мерджер
         <span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-400 text-[10px] font-bold">Audit</span>
       </button>
+      <button onclick="switchTab('collector')" id="tabBtnCollector" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
+        <i data-lucide="database" class="w-4 h-4 text-brand-400"></i> Збір S1 Даних
+        <span id="collectorNavBadge" class="px-1.5 py-0.2 rounded bg-gray-800 text-gray-400 text-[10px] font-bold">IDLE</span>
+      </button>
       <button onclick="switchTab('portfolio')" id="tabBtnPortfolio" class="tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap">
         <i data-lucide="layers" class="w-4 h-4"></i> Портфельний бектест
       </button>
@@ -690,6 +694,187 @@
             </tbody>
           </table>
         </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB: S1 MARKET DATA COLLECTOR                                             -->
+    <!-- ========================================================================= -->
+    <div id="tabCollector" class="hidden space-y-6">
+
+      <!-- Live Status & Action Header Ribbon -->
+      <div id="collectorStatusBar" class="glass-card rounded-2xl p-4 border border-gray-800 bg-surface-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+          <div id="collectorStatusPulse" class="w-3.5 h-3.5 rounded-full bg-gray-500"></div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 id="collectorStatusTitle" class="text-sm font-bold text-gray-200">Збір S1 даних готовий до запуску</h2>
+              <span id="collectorStatusBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">IDLE</span>
+            </div>
+            <p id="collectorStatusSubtitle" class="text-xs text-gray-400">Оберіть активи та запустіть фоновий збір 1-секундних свічок у локальну SQLite базу</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 self-end sm:self-auto">
+          <button type="button" onclick="fetchCollectorStatus()" class="px-3 py-1.5 rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-300 font-semibold text-xs border border-gray-700 transition flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Оновити
+          </button>
+          <button type="button" id="btnStartCollector" onclick="startDataCollector()" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition flex items-center gap-1.5">
+            <i data-lucide="play" class="w-3.5 h-3.5"></i> Запустити збір
+          </button>
+          <button type="button" id="btnStopCollector" onclick="stopDataCollector()" class="hidden px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition flex items-center gap-1.5">
+            <i data-lucide="square" class="w-3.5 h-3.5"></i> Зупинити збір
+          </button>
+        </div>
+      </div>
+
+      <!-- Telemetry Ribbon -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="glass-card rounded-xl p-3.5 border-l-4 border-cyan-500">
+          <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Всього свічок у базі</div>
+          <div id="collectorMetricTotalDb" class="text-lg font-bold text-cyan-400 tabular-nums">0</div>
+          <div class="text-[11px] text-gray-400">Таблиця candles_s1 (SQLite)</div>
+        </div>
+
+        <div class="glass-card rounded-xl p-3.5 border-l-4 border-emerald-500">
+          <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Активних активів у зборі</div>
+          <div id="collectorMetricActiveAssets" class="text-lg font-bold text-emerald-400 tabular-nums">0</div>
+          <div id="collectorMetricActiveSub" class="text-[11px] text-gray-400">0 обрано для моніторингу</div>
+        </div>
+
+        <div class="glass-card rounded-xl p-3.5 border-l-4 border-purple-500">
+          <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Пройдено циклів збору</div>
+          <div id="collectorMetricCycles" class="text-lg font-bold text-purple-400 tabular-nums">0</div>
+          <div id="collectorMetricSavedThisSession" class="text-[11px] text-gray-400">+0 свічок за поточну сесію</div>
+        </div>
+
+        <div class="glass-card rounded-xl p-3.5 border-l-4 border-amber-500">
+          <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Останній цикл / Uptime</div>
+          <div id="collectorMetricLastCycle" class="text-sm font-bold text-gray-200 tabular-nums">Очікування...</div>
+          <div id="collectorMetricIntervalSub" class="text-[11px] text-gray-400">Інтервал: 60с (пауза 0.5с)</div>
+        </div>
+      </div>
+
+      <!-- Main 2-Column Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left Column: Asset Selector Dock (5 cols) -->
+        <div class="lg:col-span-5 glass-card rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div>
+              <h2 class="text-sm font-bold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="check-square" class="w-4 h-4 text-brand-400"></i> Вибір активів для збору
+              </h2>
+              <p class="text-[11px] text-gray-400">Виберіть активи або скористайтесь швидкими фільтрами</p>
+            </div>
+            <span id="collectorAssetSelectedBadge" class="text-xs text-brand-400 font-semibold px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/20">
+              0 обрано
+            </span>
+          </div>
+
+          <!-- Quick Action Filter Buttons -->
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" onclick="selectAllCollectorAssets()" class="text-[10px] px-2 py-1 rounded bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 border border-brand-500/30 transition">
+              ✓ Обрати всі
+            </button>
+            <button type="button" onclick="deselectAllCollectorAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-gray-400 border border-gray-700 transition">
+              ✕ Зняти всі
+            </button>
+            <button type="button" onclick="selectCollectorTopNAssets(5)" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-cyan-400 border border-cyan-500/30 transition">
+              ⚡ Топ-5 Payout
+            </button>
+            <button type="button" onclick="selectCollectorOtcAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-emerald-400 border border-emerald-500/30 transition">
+              🟢 Усі OTC
+            </button>
+            <button type="button" onclick="selectCollectorForexAssets()" class="text-[10px] px-2 py-1 rounded bg-surface-800 hover:bg-surface-700 text-purple-400 border border-purple-500/30 transition">
+              💱 Валюти
+            </button>
+          </div>
+
+          <!-- Search Input -->
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
+              <i data-lucide="search" class="w-3.5 h-3.5"></i>
+            </div>
+            <input type="text" id="collectorAssetSearchInput" oninput="filterCollectorAssetsList()" placeholder="🔍 Пошук активу (EUR, OTC, Crypto, Gold)..." class="w-full pl-8 pr-7 py-1.5 glass-input text-xs rounded-lg border-gray-700 bg-surface-900/90 text-gray-200 placeholder-gray-500 focus:border-brand-500 transition" />
+            <button type="button" onclick="clearCollectorAssetSearch()" id="btnClearCollectorAssetSearch" class="hidden absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-500 hover:text-gray-300 transition">
+              <i data-lucide="x" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <!-- Checkbox Assets List Container -->
+          <div id="collectorAssetsContainer" class="max-h-64 overflow-y-auto p-2 rounded-xl bg-surface-900/90 border border-gray-800 space-y-1">
+            <div class="text-center py-6 text-xs text-gray-500">Завантаження доступних активів брокера...</div>
+          </div>
+
+          <!-- Advanced Collector Settings (Collapsible) -->
+          <details class="group rounded-xl border border-gray-800 bg-surface-900/40 p-3">
+            <summary class="flex items-center justify-between text-xs font-semibold text-gray-300 cursor-pointer select-none">
+              <span class="flex items-center gap-1.5"><i data-lucide="sliders" class="w-3.5 h-3.5 text-gray-400"></i> Параметри збору (Таймфрейм, Інтервал, Троттлінг)</span>
+              <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400 group-open:rotate-180 transition-transform"></i>
+            </summary>
+            <div class="grid grid-cols-2 gap-3 mt-3 pt-2 border-t border-gray-800/60">
+              <div>
+                <label class="text-[11px] text-gray-400 block mb-1">Таймфрейм (секунди)</label>
+                <input type="number" id="collectorCfgTimeframe" value="1" min="1" step="1" class="w-full glass-input text-xs rounded-lg px-2.5 py-1.5" />
+              </div>
+              <div>
+                <label class="text-[11px] text-gray-400 block mb-1">Свічок за запит (count)</label>
+                <input type="number" id="collectorCfgCount" value="300" min="10" max="5000" step="50" class="w-full glass-input text-xs rounded-lg px-2.5 py-1.5" />
+              </div>
+              <div>
+                <label class="text-[11px] text-gray-400 block mb-1">Інтервал циклу (сек)</label>
+                <input type="number" id="collectorCfgInterval" value="60" min="1" step="5" class="w-full glass-input text-xs rounded-lg px-2.5 py-1.5" />
+              </div>
+              <div>
+                <label class="text-[11px] text-gray-400 block mb-1">Затримка між активами (сек)</label>
+                <input type="number" id="collectorCfgThrottle" value="0.5" min="0.0" max="10.0" step="0.1" class="w-full glass-input text-xs rounded-lg px-2.5 py-1.5" />
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <!-- Right Column: Status Table & Database Records (7 cols) -->
+        <div class="lg:col-span-7 glass-card rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+            <div>
+              <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="table" class="w-4 h-4 text-cyan-400"></i> Статус збору за активами & Збережені дані
+              </h3>
+              <p class="text-[11px] text-gray-400">Реальний стан записів у базі SQLite (автооновлення)</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="collectorAutoRefreshInterval" onchange="updateCollectorRefreshTimer()" class="glass-input text-[11px] rounded-lg px-2 py-1 border-gray-700 bg-surface-900 text-gray-300">
+                <option value="3000" selected>Автооновлення: 3с</option>
+                <option value="5000">Автооновлення: 5с</option>
+                <option value="10000">Автооновлення: 10с</option>
+                <option value="0">Вимкнено</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto max-h-[420px]">
+            <table class="w-full text-left text-xs text-gray-300">
+              <thead class="bg-surface-800/80 text-[10px] uppercase tracking-wider text-gray-400 sticky top-0">
+                <tr>
+                  <th class="px-3 py-2">Актив</th>
+                  <th class="px-3 py-2">Тип</th>
+                  <th class="px-3 py-2">Статус</th>
+                  <th class="px-3 py-2 text-right">Збережено свічок</th>
+                  <th class="px-3 py-2">Перша свічка (UTC)</th>
+                  <th class="px-3 py-2">Остання свічка (UTC)</th>
+                </tr>
+              </thead>
+              <tbody id="collectorTableBody" class="divide-y divide-gray-800/60 font-mono">
+                <tr>
+                  <td colspan="6" class="text-center py-8 text-gray-500">Завантаження статусу бази даних...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -1501,6 +1686,11 @@
     let globalAssetsList = [];
     let lastPortfolioResult = null;
 
+    // Collector State & Intervals
+    let collectorPollingInterval = null;
+    let globalCollectorAssetsList = [];
+    let currentCollectorStatus = null;
+
     const defaultBacktestPayload = JSON.stringify({
       "asset": "EURUSD_otc",
       "timeframe_seconds": 60,
@@ -1652,6 +1842,7 @@
     function switchTab(tabId) {
       document.getElementById('tabLiveBot').classList.toggle('hidden', tabId !== 'liveBot');
       document.getElementById('tabAudit').classList.toggle('hidden', tabId !== 'audit');
+      document.getElementById('tabCollector').classList.toggle('hidden', tabId !== 'collector');
       document.getElementById('tabPortfolio').classList.toggle('hidden', tabId !== 'portfolio');
       document.getElementById('tabSingle').classList.toggle('hidden', tabId !== 'single');
       document.getElementById('tabOptimizer').classList.toggle('hidden', tabId !== 'optimizer');
@@ -1659,6 +1850,7 @@
 
       const btnL = document.getElementById('tabBtnLiveBot');
       const btnAud = document.getElementById('tabBtnAudit');
+      const btnCol = document.getElementById('tabBtnCollector');
       const btnP = document.getElementById('tabBtnPortfolio');
       const btnS = document.getElementById('tabBtnSingle');
       const btnO = document.getElementById('tabBtnOptimizer');
@@ -1667,15 +1859,20 @@
       const activeClass = 'tab-btn px-4 py-2.5 border-b-2 border-brand-500 text-brand-400 font-bold text-sm flex items-center gap-2 whitespace-nowrap';
       const inactiveClass = 'tab-btn px-4 py-2.5 border-b-2 border-transparent text-gray-400 hover:text-gray-200 font-semibold text-sm flex items-center gap-2 whitespace-nowrap';
 
-      btnL.className = tabId === 'liveBot' ? activeClass.replace('border-brand-500 text-brand-400', 'border-emerald-500 text-emerald-400') : inactiveClass;
-      btnAud.className = tabId === 'audit' ? activeClass.replace('border-brand-500 text-brand-400', 'border-cyan-500 text-cyan-400') : inactiveClass;
-      btnP.className = tabId === 'portfolio' ? activeClass : inactiveClass;
-      btnS.className = tabId === 'single' ? activeClass : inactiveClass;
-      btnO.className = tabId === 'optimizer' ? activeClass : inactiveClass;
-      btnA.className = tabId === 'apiTester' ? activeClass : inactiveClass;
+      if (btnL) btnL.className = tabId === 'liveBot' ? activeClass.replace('border-brand-500 text-brand-400', 'border-emerald-500 text-emerald-400') : inactiveClass;
+      if (btnAud) btnAud.className = tabId === 'audit' ? activeClass.replace('border-brand-500 text-brand-400', 'border-cyan-500 text-cyan-400') : inactiveClass;
+      if (btnCol) btnCol.className = tabId === 'collector' ? activeClass : inactiveClass;
+      if (btnP) btnP.className = tabId === 'portfolio' ? activeClass : inactiveClass;
+      if (btnS) btnS.className = tabId === 'single' ? activeClass : inactiveClass;
+      if (btnO) btnO.className = tabId === 'optimizer' ? activeClass : inactiveClass;
+      if (btnA) btnA.className = tabId === 'apiTester' ? activeClass : inactiveClass;
 
       setTimeout(() => {
-        if (tabId === 'portfolio') {
+        if (tabId === 'collector') {
+          loadCollectorAvailableAssets();
+          fetchCollectorStatus();
+          startCollectorPolling();
+        } else if (tabId === 'portfolio') {
           initPortfolioCharts();
           if (pEquityChart && document.getElementById('pEquityChartContainer')) {
             pEquityChart.applyOptions({ width: document.getElementById('pEquityChartContainer').clientWidth });
@@ -2596,6 +2793,384 @@
       updatePortfolioSelectedCount();
     }
 
+    // =========================================================================
+    // S1 MARKET DATA COLLECTOR CONTROLLER
+    // =========================================================================
+
+    async function loadCollectorAvailableAssets() {
+      const container = document.getElementById('collectorAssetsContainer');
+      if (globalCollectorAssetsList && globalCollectorAssetsList.length > 0) {
+        if (container && container.querySelectorAll('.collector-asset-item').length === 0) {
+          renderCollectorAssetCheckboxes(globalCollectorAssetsList);
+        }
+        return;
+      }
+
+      try {
+        let assets = null;
+        try {
+          const res = await fetch('/api/v1/collector/available-assets');
+          if (res.ok) {
+            assets = await res.json();
+          }
+        } catch (e) {
+          console.warn('Collector available-assets fetch failed, trying fallback:', e);
+        }
+
+        if (!assets || assets.length === 0) {
+          const fallbackRes = await fetch('/api/v1/market/assets');
+          if (fallbackRes.ok) {
+            assets = await fallbackRes.json();
+          }
+        }
+
+        if (!assets || assets.length === 0) {
+          if (container) {
+            container.innerHTML = '<div class="text-center py-6 text-xs text-gray-500">Немає доступних активів для збору.</div>';
+          }
+          return;
+        }
+
+        assets.sort((a, b) => (b.payout || 0) - (a.payout || 0) || (a.name || a.symbol).localeCompare(b.name || b.symbol));
+        globalCollectorAssetsList = assets;
+        renderCollectorAssetCheckboxes(assets);
+      } catch (err) {
+        console.error('Error loading collector assets:', err);
+        if (container) {
+          container.innerHTML = '<div class="text-center py-6 text-xs text-rose-400">Помилка завантаження активів</div>';
+        }
+      }
+    }
+
+    function renderCollectorAssetCheckboxes(assets) {
+      const container = document.getElementById('collectorAssetsContainer');
+      if (!container) return;
+      container.innerHTML = '';
+
+      assets.forEach((a, idx) => {
+        const isSelected = idx < 5; // Default select top 5
+        const row = document.createElement('label');
+        row.className = 'collector-asset-item flex items-center justify-between p-1.5 rounded-lg hover:bg-surface-800/80 cursor-pointer text-xs transition';
+        row.dataset.symbol = (a.symbol || '').toLowerCase();
+        row.dataset.name = (a.name || '').toLowerCase();
+        row.dataset.type = (a.asset_type || 'currency').toLowerCase();
+        row.dataset.isOtc = a.is_otc ? 'true' : 'false';
+
+        row.innerHTML = `
+          <div class="flex items-center gap-2">
+            <input type="checkbox" name="collectorAsset" value="${a.symbol}" data-payout="${a.payout || 80}" data-asset-type="${a.asset_type || 'currency'}" data-is-otc="${a.is_otc ? 'true' : 'false'}" class="collector-checkbox w-3.5 h-3.5 text-brand-500 rounded bg-gray-900 border-gray-700 focus:ring-brand-500" ${isSelected ? 'checked' : ''} onchange="updateCollectorSelectedCount()" />
+            <span class="font-medium text-gray-200">${a.name || a.symbol}</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${a.is_otc ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-gray-800 text-gray-400'}">
+              ${a.is_otc ? 'OTC' : 'Spot'}
+            </span>
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${(a.payout || 0) >= 90 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400'}">
+              ${a.payout || 80}%
+            </span>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      updateCollectorSelectedCount();
+      lucide.createIcons();
+    }
+
+    function updateCollectorSelectedCount() {
+      const checked = document.querySelectorAll('.collector-checkbox:checked');
+      const badge = document.getElementById('collectorAssetSelectedBadge');
+      if (badge) {
+        badge.textContent = `${checked.length} обрано`;
+      }
+    }
+
+    function selectAllCollectorAssets() {
+      document.querySelectorAll('.collector-checkbox').forEach(cb => { cb.checked = true; });
+      updateCollectorSelectedCount();
+    }
+
+    function deselectAllCollectorAssets() {
+      document.querySelectorAll('.collector-checkbox').forEach(cb => { cb.checked = false; });
+      updateCollectorSelectedCount();
+    }
+
+    function selectCollectorTopNAssets(n) {
+      const limit = typeof n === 'number' ? n : 5;
+      const cbs = document.querySelectorAll('.collector-checkbox');
+      cbs.forEach((cb, idx) => {
+        cb.checked = idx < limit;
+      });
+      updateCollectorSelectedCount();
+    }
+
+    function selectCollectorOtcAssets() {
+      const cbs = document.querySelectorAll('.collector-checkbox');
+      cbs.forEach(cb => {
+        const isOtc = cb.dataset.isOtc === 'true' || cb.value.toLowerCase().includes('otc');
+        cb.checked = isOtc;
+      });
+      updateCollectorSelectedCount();
+    }
+
+    function selectCollectorForexAssets() {
+      const cbs = document.querySelectorAll('.collector-checkbox');
+      cbs.forEach(cb => {
+        const isForex = cb.dataset.assetType === 'currency' || cb.dataset.assetType === 'forex';
+        cb.checked = isForex;
+      });
+      updateCollectorSelectedCount();
+    }
+
+    function filterCollectorAssetsList() {
+      const rawQuery = (document.getElementById('collectorAssetSearchInput').value || '').trim().toLowerCase();
+      const cleanQuery = rawQuery.replace(/[\/\_\#\-\s]/g, '');
+      const clearBtn = document.getElementById('btnClearCollectorAssetSearch');
+      if (clearBtn) clearBtn.classList.toggle('hidden', rawQuery.length === 0);
+
+      const items = document.querySelectorAll('.collector-asset-item');
+      items.forEach(item => {
+        const sym = item.dataset.symbol || '';
+        const name = item.dataset.name || '';
+        const type = item.dataset.type || '';
+        const searchable = `${sym} ${name} ${type}`;
+        const cleanSearchable = searchable.replace(/[\/\_\#\-\s]/g, '');
+        const match = rawQuery.length === 0 || searchable.includes(rawQuery) || (cleanQuery.length > 0 && cleanSearchable.includes(cleanQuery));
+        item.style.display = match ? 'flex' : 'none';
+      });
+    }
+
+    function clearCollectorAssetSearch() {
+      const input = document.getElementById('collectorAssetSearchInput');
+      if (input) {
+        input.value = '';
+        filterCollectorAssetsList();
+        input.focus();
+      }
+    }
+
+    async function startDataCollector() {
+      const checked = Array.from(document.querySelectorAll('.collector-checkbox:checked')).map(cb => cb.value);
+      if (checked.length === 0) {
+        alert('Будь ласка, оберіть хоча б один актив для збору даних.');
+        return;
+      }
+
+      const timeframe = parseInt(document.getElementById('collectorCfgTimeframe').value) || 1;
+      const count = parseInt(document.getElementById('collectorCfgCount').value) || 300;
+      const interval = parseFloat(document.getElementById('collectorCfgInterval').value) || 60.0;
+      const throttle = parseFloat(document.getElementById('collectorCfgThrottle').value) || 0.5;
+
+      const btn = document.getElementById('btnStartCollector');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin mr-2">&#9696;</span> Запуск...`;
+      }
+
+      try {
+        const res = await fetch('/api/v1/collector/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assets: checked,
+            timeframe_seconds: timeframe,
+            candles_count: count,
+            interval_seconds: interval,
+            throttle_delay: throttle
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const msg = data.error ? data.error.message : (data.detail || 'Помилка старту збору');
+          throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        }
+        renderCollectorStatus(data);
+        startCollectorPolling();
+      } catch (err) {
+        alert(`Помилка старту: ${err.message}`);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="play" class="w-3.5 h-3.5"></i> Запустити збір`;
+          lucide.createIcons();
+        }
+      }
+    }
+
+    async function stopDataCollector() {
+      const btn = document.getElementById('btnStopCollector');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin mr-2">&#9696;</span> Зупинка...`;
+      }
+
+      try {
+        const res = await fetch('/api/v1/collector/stop', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          renderCollectorStatus(data);
+        } else {
+          const msg = data.error ? data.error.message : (data.detail || 'Помилка зупинки збору');
+          alert(`Помилка: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+        }
+      } catch (err) {
+        console.warn('Error stopping collector:', err);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<i data-lucide="square" class="w-3.5 h-3.5"></i> Зупинити збір`;
+          lucide.createIcons();
+        }
+      }
+    }
+
+    async function fetchCollectorStatus() {
+      try {
+        const res = await fetch('/api/v1/collector/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderCollectorStatus(data);
+      } catch (err) {
+        console.warn('Error fetching collector status:', err);
+      }
+    }
+
+    function startCollectorPolling() {
+      if (collectorPollingInterval) {
+        clearInterval(collectorPollingInterval);
+        collectorPollingInterval = null;
+      }
+      const sel = document.getElementById('collectorAutoRefreshInterval');
+      const ms = sel ? parseInt(sel.value) : 3000;
+      if (ms > 0) {
+        collectorPollingInterval = setInterval(fetchCollectorStatus, ms);
+      }
+    }
+
+    function updateCollectorRefreshTimer() {
+      startCollectorPolling();
+    }
+
+    function renderCollectorStatus(data) {
+      if (!data) return;
+      currentCollectorStatus = data;
+      const isRunning = data.status === 'RUNNING' || data.is_running;
+
+      // 1. Status ribbon & Header elements
+      const pulse = document.getElementById('collectorStatusPulse');
+      const badge = document.getElementById('collectorStatusBadge');
+      const navBadge = document.getElementById('collectorNavBadge');
+      const title = document.getElementById('collectorStatusTitle');
+      const sub = document.getElementById('collectorStatusSubtitle');
+      const btnStart = document.getElementById('btnStartCollector');
+      const btnStop = document.getElementById('btnStopCollector');
+
+      const activeCount = (data.active_assets || []).length;
+
+      if (isRunning) {
+        if (pulse) pulse.className = 'w-3.5 h-3.5 rounded-full bg-emerald-400 animate-pulse';
+        if (badge) {
+          badge.textContent = 'RUNNING';
+          badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        }
+        if (navBadge) {
+          navBadge.textContent = 'LIVE';
+          navBadge.className = 'px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold animate-pulse';
+        }
+        if (title) title.textContent = `Збір даних активний (${activeCount} активів)`;
+        if (sub) sub.textContent = `Фоновий процес збирає S${data.timeframe_seconds || 1} свічки кожні ${data.interval_seconds || 60}с.`;
+        if (btnStart) btnStart.classList.add('hidden');
+        if (btnStop) btnStop.classList.remove('hidden');
+      } else {
+        if (pulse) pulse.className = 'w-3.5 h-3.5 rounded-full bg-gray-500';
+        if (badge) {
+          badge.textContent = data.status || 'IDLE';
+          badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700';
+        }
+        if (navBadge) {
+          navBadge.textContent = data.status || 'IDLE';
+          navBadge.className = 'px-1.5 py-0.2 rounded bg-gray-800 text-gray-400 text-[10px] font-bold';
+        }
+        if (title) title.textContent = 'Збір S1 даних готовий до запуску';
+        if (sub) sub.textContent = 'Оберіть активи та натисніть "Запустити збір" для початку збереження в базу.';
+        if (btnStart) btnStart.classList.remove('hidden');
+        if (btnStop) btnStop.classList.add('hidden');
+      }
+
+      // 2. Telemetry Ribbon metrics
+      const totalDbEl = document.getElementById('collectorMetricTotalDb');
+      if (totalDbEl) totalDbEl.textContent = Number(data.total_database_candles || 0).toLocaleString();
+
+      const activeEl = document.getElementById('collectorMetricActiveAssets');
+      if (activeEl) activeEl.textContent = activeCount;
+
+      const activeSubEl = document.getElementById('collectorMetricActiveSub');
+      if (activeSubEl) activeSubEl.textContent = `${activeCount} у списку збору`;
+
+      const cyclesEl = document.getElementById('collectorMetricCycles');
+      if (cyclesEl) cyclesEl.textContent = data.cycles_completed || 0;
+
+      const savedThisSessionEl = document.getElementById('collectorMetricSavedThisSession');
+      if (savedThisSessionEl) savedThisSessionEl.textContent = `+${Number(data.total_candles_saved || 0).toLocaleString()} свічок за сесію`;
+
+      const lastCycleEl = document.getElementById('collectorMetricLastCycle');
+      if (lastCycleEl) {
+        if (data.last_cycle_at) {
+          const d = new Date(data.last_cycle_at);
+          lastCycleEl.textContent = d.toLocaleTimeString();
+        } else if (isRunning) {
+          lastCycleEl.textContent = 'Виконується...';
+        } else {
+          lastCycleEl.textContent = 'Очікування...';
+        }
+      }
+
+      const intervalSubEl = document.getElementById('collectorMetricIntervalSub');
+      if (intervalSubEl) intervalSubEl.textContent = `Інтервал: ${data.interval_seconds || 60}с (пауза ${data.throttle_delay || 0.5}с)`;
+
+      // 3. Render Status Table
+      const tbody = document.getElementById('collectorTableBody');
+      if (!tbody) return;
+
+      const stats = data.asset_stats || [];
+      if (stats.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-500">Немає збережених даних. Запустіть збір для початку збереження.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      stats.forEach(stat => {
+        const isAct = stat.is_collecting || (data.active_assets && data.active_assets.includes(stat.asset));
+        const firstStr = stat.first_time ? new Date(stat.first_time).toISOString().replace('T', ' ').slice(0, 19) : (stat.first_timestamp ? new Date(stat.first_timestamp * 1000).toISOString().replace('T', ' ').slice(0, 19) : '—');
+        const lastStr = stat.last_time ? new Date(stat.last_time).toISOString().replace('T', ' ').slice(0, 19) : (stat.last_timestamp ? new Date(stat.last_timestamp * 1000).toISOString().replace('T', ' ').slice(0, 19) : '—');
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-surface-800/50 transition';
+        tr.innerHTML = `
+          <td class="px-3 py-2 font-semibold text-gray-200">
+            ${stat.name || stat.asset}
+            <span class="text-[10px] text-gray-500 block font-normal">${stat.asset}</span>
+          </td>
+          <td class="px-3 py-2">
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${stat.is_otc ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-gray-800 text-gray-400'}">
+              ${stat.is_otc ? 'OTC' : 'Spot'}
+            </span>
+          </td>
+          <td class="px-3 py-2">
+            ${isAct && isRunning ?
+              '<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Збір</span>' :
+              '<span class="text-[10px] text-gray-500">Очікування</span>'}
+          </td>
+          <td class="px-3 py-2 text-right font-bold text-cyan-400 tabular-nums">
+            ${Number(stat.count || 0).toLocaleString()}
+          </td>
+          <td class="px-3 py-2 text-[11px] text-gray-400 tabular-nums">${firstStr}</td>
+          <td class="px-3 py-2 text-[11px] text-gray-300 tabular-nums">${lastStr}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
     async function fetchAccountBalance() {
       const el = document.getElementById('balanceDisplay');
       try {
@@ -3384,6 +3959,7 @@
       loadAssetsList();
       loadStrategiesList();
       fetchLiveBotStatus();
+      fetchCollectorStatus();
       loadInternalTradesAudit();
       startPauseCountdownTicker();
 

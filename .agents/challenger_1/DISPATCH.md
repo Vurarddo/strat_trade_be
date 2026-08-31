@@ -1,7 +1,18 @@
-## 2026-08-31T15:56:04Z
+## 2026-08-31T18:40:57Z
+You are Challenger 1 (Backend & Concurrency Stress Verifier) for Stage 3 of Pocket Option AutoTrader Pro.
+Your working directory: /Users/vlados/work/projects/startup/strat_trade_be/.agents/challenger_1
+Original user request: /Users/vlados/work/projects/startup/strat_trade_be/.agents/ORIGINAL_REQUEST.md
+Project plan: /Users/vlados/work/projects/startup/strat_trade_be/PROJECT.md
 
 Task:
-1. Empirically verify the correctness and stress resilience of `MarketDataStore` in `src/strat_trade/domain/trading/market_data_store.py`.
-2. Write and execute stress / boundary test scripts (e.g. inserting thousands of candles with random timestamps, heavy overlapping intervals, multi-threaded or multi-connection concurrent writes, empty or corrupted rows, non-standard timestamp formats).
-3. Validate that `UNIQUE(asset, timestamp)` never allows duplicates and queries return accurate chronological data without data corruption or lock exceptions.
-4. Record your empirical test results and verdict (APPROVE or REQUEST_CHANGES) in `/Users/vlados/work/projects/startup/strat_trade_be/.agents/challenger_1/handoff.md` and send a message.
+Empirically challenge the backend collector implementation:
+1. Create and execute an empirical stress test suite (e.g. `tests/test_stage3_challenger_1_backend_stress.py`) testing:
+   - Rapid start/stop cycling (30+ rapid toggles) to detect race conditions or orphan tasks
+   - Simultaneous API queries during heavy background candle insertions
+   - Corrupted or invalid broker responses during collection
+   - Cancellation of task in different states (sleeping between assets vs sleeping between cycles)
+   - Verification that `MarketDataStore` correctly deduplicates duplicate candles under concurrent writes
+2. Run pytest across the entire codebase to ensure no regressions.
+3. Deliver your empirical verdict (APPROVE or REQUEST_CHANGES) with concrete metrics and test outputs.
+
+Write your report to `/Users/vlados/work/projects/startup/strat_trade_be/.agents/challenger_1/handoff.md`. Update progress.md with your liveness heartbeat. Once finished, send a message to parent.

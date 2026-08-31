@@ -1,14 +1,14 @@
-# BRIEFING — 2026-08-31T16:02:00Z
+# BRIEFING — 2026-08-31T18:46:00Z
 
 ## Mission
-Empirically stress-test, fault-inject, and verify `scripts/collect_s1_data.py` and `src/strat_trade/domain/trading/market_data_store.py` for Stage 2 of strat_trade_be.
+Empirically challenge Web UI and E2E integration contracts for Stage 3 of Pocket Option AutoTrader Pro, verifying DOM parity, JavaScript client state machine simulation, edge case inputs, schema adherence, and zero regression across the codebase.
 
 ## 🔒 My Identity
 - Archetype: Empirical Challenger
 - Roles: critic, specialist
 - Working directory: /Users/vlados/work/projects/startup/strat_trade_be/.agents/challenger_2
-- Original parent: ee07e9f8-fade-4d40-b5d1-0ca85a93ae4f
-- Milestone: Stage 2 S1 Collector Empirical Verification
+- Original parent: ffd95c2a-0032-4259-ab34-9953e1f58b00
+- Milestone: Stage 3 Web UI & E2E Contract Verification
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
@@ -16,40 +16,39 @@ Empirically stress-test, fault-inject, and verify `scripts/collect_s1_data.py` a
 - Empirically verify everything: run code, test edge cases, simulate faults.
 
 ## Current Parent
-- Conversation ID: ee07e9f8-fade-4d40-b5d1-0ca85a93ae4f
-- Updated: not yet
+- Conversation ID: ffd95c2a-0032-4259-ab34-9953e1f58b00
+- Updated: 2026-08-31T18:46:00Z
 
 ## Review Scope
-- **Files reviewed**: `scripts/collect_s1_data.py`, `src/strat_trade/domain/trading/market_data_store.py`, `src/strat_trade/adapters/pocket_option_gateway.py`, tests
-- **Interface contracts**: Stage 2 in ORIGINAL_REQUEST.md (## Follow-up — 2026-08-31T15:45:40Z)
-- **Review criteria**: Resilience under network dropouts, broker crash/timeout recovery, resource cleanup (`gateway.aclose()`), CLI flags, SQLite schema & upsert idempotency, BinaryBacktestEngine compatibility.
+- **Files reviewed**: `src/strat_trade/web/templates/index.html`, `src/strat_trade/api/routes/collector.py`, `src/strat_trade/web/routes/collector.py`, `src/strat_trade/api/schemas.py`, `src/strat_trade/use_cases/manage_collector.py`, `tests/test_collector_ui.py`, `tests/test_collector_e2e.py`
+- **Interface contracts**: Stage 3 in ORIGINAL_REQUEST.md & PROJECT.md
+- **Review criteria**: DOM element ID parity, JS state machine transitions, edge case inputs (whitespace, lowercase, empty, invalid symbols), schema adherence between FastAPI Pydantic responses and UI rendering assumptions, regression prevention.
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Broker fault isolation: simulated `BrokerUnavailableError`, `TimeoutError`, `ConnectionResetError`, `InvalidMarketParametersError`, `RuntimeError`. Confirmed individual asset failure does not halt cycle or crash loop.
-  - Multi-cycle recovery: verified consecutive blackout cycles resume gracefully when network recovers.
-  - Stochastic network flakiness: 25 cycles with 40% failure injection completed without unhandled exceptions or data corruption.
-  - Corrupted responses: empty lists, malformed dicts, non-numeric fields discarded safely.
-  - Graceful cancellation: verified `shutdown_event` aborts cycle/interval sleeps immediately and `gateway.aclose()` is guaranteed on cancellation/exit.
-  - CLI & Subprocess: verified `--once`, custom paths, custom intervals, custom assets, and fallback SSID resolution.
-  - Pipeline integration: verified stored S1 candles directly feed `BinaryBacktestEngine`.
-- **Vulnerabilities found**: None in core implementation. All 49 Stage 2 tests and 1,233 total project tests pass with 0 errors and 0 ruff violations.
-- **Untested angles**: Live real-money WebSocket stream with actual broker broker funds (mocked & offline demo executed; live execution requires active browser session).
+  - DOM interactive element ID coverage: 100% of JS `getElementById` calls match existing HTML elements in `index.html`.
+  - JS client state machine: verified IDLE -> START -> POLLING/TELEMETRY -> STOP -> RESTART transitions.
+  - Edge case inputs & fuzzing: verified whitespace stripping, deduplication, HTTP 422 on empty/blank lists, non-existent asset fault isolation, boundary config parameter validation (`timeframe >= 1`, `1 <= count <= 5000`, `interval >= 0.001`, `0 <= throttle <= 10.0`, forbidden extra fields).
+  - Schema adherence & null safety: confirmed `CollectorStatusResponse`, `CollectorAssetStatResponse`, and `CollectorAssetResponse` field parity with JS renderer; verified null timestamp formatting without `NaN` or unhandled exceptions; verified XSS injection resilience.
+  - Concurrency & high-load resilience: verified 30 concurrent GET /status queries under load and 6 rapid start/stop cycling iterations.
+- **Vulnerabilities found**: 0 vulnerabilities in core implementation. All 16 empirical stress tests, all 43 collector tests, and all 1,293 full-suite tests pass with 0 errors and 0 ruff violations.
+- **Untested angles**: Real live Pocket Option broker WebSocket stream with live monetary account balances (offline demo and simulated gateway executed; live execution requires browser session).
 
 ## Loaded Skills
 - **Source**: /Users/vlados/work/projects/startup/strat_trade_be/.agents/skills/qa-verification-engineer/SKILL.md
-- **Local copy**: /Users/vlados/work/projects/startup/strat_trade_be/.agents/challenger_2/SKILL.md
+- **Local copy**: /Users/vlados/work/projects/startup/strat_trade_be/.agents/challenger_2/skills/qa-verification-engineer.md
 - **Core methodology**: Rigorous empirical testing across static analysis, unit/integration tests, fault injection, edge cases, and deterministic harnesses.
 
 ## Key Decisions Made
-- [2026-08-31] Created dedicated test harness `tests/test_m2_challenger_2_collector_stress.py` containing 13 empirical stress and fault-injection tests.
-- [2026-08-31] Verified all 49 Stage 2 tests across `test_collect_s1_data.py`, `test_market_data_store.py`, `test_market_data_store_stress_challenger.py`, and `test_m2_challenger_2_collector_stress.py`.
-- [2026-08-31] Ran full regression test suite (1,233 passed) and verified 0 ruff lint errors.
-- [2026-08-31] Verdict: APPROVE.
+- Created dedicated empirical stress test harness `tests/test_stage3_challenger_2_ui_contract_stress.py` containing 16 test cases across 5 test classes.
+- Executed all 43 Stage 3 collector tests (100% passed in 3.74s).
+- Executed full project regression suite (1,293 passed in 71.40s).
+- Verified code formatting and linting across all 162 files (`ruff check`, `ruff format --check`).
+- Verdict: APPROVE.
 
 ## Artifact Index
 - `.agents/challenger_2/DISPATCH.md` — Incoming task dispatch
 - `.agents/challenger_2/BRIEFING.md` — Working memory and status
 - `.agents/challenger_2/progress.md` — Liveness and step tracking
 - `.agents/challenger_2/handoff.md` — Final handoff report
-- `tests/test_m2_challenger_2_collector_stress.py` — Challenger 2 empirical stress test harness
+- `tests/test_stage3_challenger_2_ui_contract_stress.py` — Challenger 2 empirical stress test harness

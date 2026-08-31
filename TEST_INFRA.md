@@ -1,43 +1,43 @@
-# E2E Test Infra: Sniper Confluence Trading System
+# E2E Test Infra: Stage 3 S1 Data Collector & Web UI Management
 
 ## Test Philosophy
-- Opaque-box, requirement-driven. Derives from ORIGINAL_REQUEST.md and trading system quantitative requirements.
-- Methodology: Category-Partition + Boundary Value Analysis + Pairwise Combinatorial + Real-World Workload Testing.
+- Opaque-box, requirement-driven, and contract-verifying.
+- Derived directly from `ORIGINAL_REQUEST.md`.
+- Verifies both API layer, background execution mechanics, data store integrity, and UI markup/client bindings.
+- Methodology: Category-Partition + Boundary Value Analysis + Pairwise Concurrency + Real-World Workload Testing.
 
-## Feature Inventory
-| # | Feature | Source (requirement) | Tier 1 | Tier 2 | Tier 3 | Tier 4 |
-|---|---------|---------------------|:------:|:------:|:------:|:------:|
-| 1 | Strategy Deactivation (MACD & Hybrid) | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
-| 2 | Primary Sniper Alpha Selection | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
-| 3 | Calibrated Expirations (180s / 3 bars) | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
-| 4 | UI Expiration Simplification | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
-| 5 | Dynamic Microstructure Noise Filter | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
-| 6 | Anti-Whipsaw Cooldown (min 180s) | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
-| 7 | Rolling 15-Trade Verification (WR >= 58%) | ORIGINAL_REQUEST §R4 | 5 | 5 | ✓ | ✓ |
-| 8 | 100% Pytest & Ruff Zero Errors | ORIGINAL_REQUEST §R4 | 5 | 5 | ✓ | ✓ |
+## Feature Inventory & Test Mapping
+| # | Feature | Source | Tier 1 (Feature) | Tier 2 (Boundary) | Tier 3 (Cross-Feature) | Tier 4 (E2E) |
+|---|---------|--------|:----------------:|:-----------------:|:----------------------:|:------------:|
+| 1 | Available Assets API | ORIGINAL_REQUEST §R1 | TC-1.1 | TC-2.1 | TC-3.1 | TC-4.1 |
+| 2 | Collector Status API | ORIGINAL_REQUEST §R1 | TC-1.2, TC-1.4 | TC-2.4 | TC-3.2 | TC-4.1 |
+| 3 | Start Collector API | ORIGINAL_REQUEST §R1 | TC-1.3 | TC-2.1, TC-2.2, TC-2.3 | TC-3.3 | TC-4.1 |
+| 4 | Stop Collector API | ORIGINAL_REQUEST §R1 | TC-1.5 | TC-2.4 | TC-3.3, TC-3.4 | TC-4.1 |
+| 5 | Shared Gateway & Background Loop | ORIGINAL_REQUEST §R3 | TC-1.3, TC-1.5 | TC-2.5, TC-2.6, TC-2.7 | TC-3.1, TC-3.4 | TC-4.1 |
+| 6 | Web UI Dashboard & Controls | ORIGINAL_REQUEST §R2 | TC-1.6 | TC-2.2 | TC-3.1 | TC-4.2 |
 
 ## Test Architecture
-- **Test Runner**: `.venv/bin/pytest tests/test_phase4_sniper_rolling_15_verification.py -v` and full suite `.venv/bin/pytest`
-- **Lint Runner**: `.venv/bin/ruff check src tests`
-- **Verification Runner**: `Rolling15TradeVerificationRunner` in `src/strat_trade/domain/backtest/verification_runner.py`
-- **Directory Layout**:
-  - `tests/test_phase4_sniper_rolling_15_verification.py`: Phase 4 verification suite
-  - `tests/test_strategy_curation_and_asset_filter.py`: Asset qualification and strategy curation
-  - `tests/test_strategy_auto_matcher.py`: Priority strategy allocation & fallbacks
-  - `tests/test_bot_and_audit_api.py`: Bot engine and API lifecycle
-  - `tests/test_rolling_15_trade_verification.py` & `tests/test_phase3_rolling_15_trade_verification.py`: Historical rolling batch benchmarks
+- Test Runner: `pytest` with `pytest-asyncio` and `httpx.AsyncClient(transport=ASGITransport(app=app))`
+- Centralized Fixtures: `tests/conftest.py`
+  - `isolated_market_store`: Clean temporary SQLite database in WAL mode per test.
+  - `mock_trading_gateway`: AsyncMock conforming to `TradingGateway` & `CandleFeed`.
+  - `async_test_client`: Asynchronous ASGI HTTP client bound to FastAPI test instance.
+- Test Layout:
+  - `tests/test_collector_api.py`: Tiers 1 & 2 (REST API feature coverage, payload validation, status inspection).
+  - `tests/test_collector_concurrency.py`: Tier 3 (Shared gateway concurrency, cancellation resilience, rapid cycling, lifespan shutdown).
+  - `tests/test_collector_ui.py`: Tier 1 & 4 (HTML DOM layout, UI element IDs, JS client handler signatures).
+  - `tests/test_collector_e2e.py`: Tier 4 (Complete lifecycle: fetch assets -> select -> start -> collect candles -> check stats -> stop -> verify db).
 
 ## Real-World Application Scenarios (Tier 4)
-| # | Scenario | Features Exercised | Complexity |
-|---|----------|--------------------|------------|
-| 1 | High-volatility market open across 8 pairs | F2, F3, F5, F6, F7 | High |
-| 2 | Toxic crypto OTC feed injection | F5, F6 | Medium |
-| 3 | Continuous 600-trade multi-session broker execution | F1, F2, F3, F6, F7, F8 | High |
-| 4 | UI Plan Generation and Launch with Auto-Expiration | F3, F4 | Medium |
-| 5 | Rolling 15-Trade Batch Verification on Real Trade Logs | F7, F8 | High |
+| # | Scenario | Features Exercised | Expected Outcome |
+|---|----------|--------------------|------------------|
+| 1 | Full Operator Lifecycle | Available assets -> Select Top 5 -> Start -> 2 Cycles -> Stop -> Verify DB | Accurate row counts in DB, valid timestamps, clean task shutdown |
+| 2 | Live Bot & Collector Concurrency | Collector running while LiveDemoBot performs trade execution | Shared gateway handles both without lockups or WebSocket collisions |
+| 3 | UI Contract & DOM Synchronization | HTML template rendering and JS function signatures | Complete DOM parity with API schema |
 
 ## Coverage Thresholds
-- Tier 1: >= 5 tests per feature (Happy-path unit & functional tests)
-- Tier 2: >= 5 tests per feature (Boundary, zero-candle, malformed, threshold tests)
-- Tier 3: Pairwise combination tests (e.g. microstructure filter + cooldown + sniper strategy execution)
-- Tier 4: >= 5 realistic multi-session application scenarios (600+ real broker trade evaluation with WR >= 58% and positive net batch PnL)
+- Tier 1: >= 6 feature contract test cases
+- Tier 2: >= 7 boundary & error resilience test cases
+- Tier 3: >= 4 concurrency & gateway lifecycle test cases
+- Tier 4: >= 2 comprehensive E2E application scenarios
+- Total Target: >= 19 test cases

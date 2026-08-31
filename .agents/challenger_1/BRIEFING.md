@@ -1,59 +1,61 @@
-# BRIEFING — 2026-08-31T15:59:45Z
+# BRIEFING — 2026-08-31T18:45:15Z
 
 ## Mission
-Empirically stress-test and verify correctness, concurrency resilience, schema integrity, and deduplication of `MarketDataStore` in `src/strat_trade/domain/trading/market_data_store.py`.
+Empirically challenge the Stage 3 backend collector implementation: create and execute a comprehensive stress test suite (`tests/test_stage3_challenger_1_backend_stress.py`) covering rapid start/stop cycling, concurrent API queries under heavy writes, corrupted/invalid broker responses, task cancellation in distinct states, and deduplication under concurrent writes; run full test suite and deliver empirical verdict with concrete metrics.
 
 ## 🔒 My Identity
-- Archetype: challenger
+- Archetype: Empirical Challenger
 - Roles: critic, specialist
 - Working directory: /Users/vlados/work/projects/startup/strat_trade_be/.agents/challenger_1
-- Original parent: ee07e9f8-fade-4d40-b5d1-0ca85a93ae4f
-- Milestone: Stage 2 - MarketDataStore Verification & Stress Testing
+- Original parent: ffd95c2a-0032-4259-ab34-9953e1f58b00
+- Milestone: Stage 3 Backend & Concurrency Stress Verification
 - Instance: 1 of 1
 
 ## 🔒 Key Constraints
-- Review-only — do NOT modify implementation code (report findings/failures)
-- Empirical Challenger mindset: FIND BUGS by writing and executing tests (generators, oracles, stress harnesses)
-- Must run verification code directly; do NOT trust unverified claims
-- Never place source code, tests, or data files inside `.agents/`
+- Review-only & test-authoring — write rigorous verification tests in `tests/`, do NOT modify implementation code unless fixing a test harness issue.
+- Verify everything empirically by executing code and inspecting outputs.
+- Never trust claims without running verification code.
+- Communicate via `send_message` with Recipient `ffd95c2a-0032-4259-ab34-9953e1f58b00` (parent).
 
 ## Current Parent
-- Conversation ID: ee07e9f8-fade-4d40-b5d1-0ca85a93ae4f
-- Updated: 2026-08-31T15:59:45Z
+- Conversation ID: ffd95c2a-0032-4259-ab34-9953e1f58b00
+- Updated: 2026-08-31T18:45:15Z
 
 ## Review Scope
-- **Files to review**: `src/strat_trade/domain/trading/market_data_store.py`
-- **Related tests**: `tests/test_market_data_store.py`, `tests/test_collect_s1_data.py`, `tests/test_market_data_store_stress_challenger.py`
+- **Files to review**:
+  - `src/strat_trade/use_cases/manage_collector.py`
+  - `src/strat_trade/api/routes/collector.py`
+  - `src/strat_trade/web/routes/collector.py`
+  - `src/strat_trade/domain/trading/market_data_store.py`
+- **Interface contracts**:
+  - `PROJECT.md`, `.agents/ORIGINAL_REQUEST.md`
 - **Review criteria**:
-  - `UNIQUE(asset, timestamp)` constraint and conflict resolution
-  - Chronological ordering and correctness of range queries
-  - High-throughput insertion (10,000 candles) with random/unsorted timestamps
-  - Heavy overlapping intervals (50 cycles x 300 bars with 80% overlap)
-  - Concurrent multi-connection / multi-threaded writes and reads (18 threads, 4 OS processes)
-  - Edge cases: corrupted/empty rows, non-standard timestamp formats (float, str, iso8601, int, tz-aware/naive, sub-millisecond), boundary values, zero/extreme prices
-  - Integration with `BinaryBacktestEngine`
+  - Thread safety, async lifecycle safety, SQLite WAL concurrency, deduplication correctness, exception resilience, orphan task prevention.
 
-## Loaded Skills
-- **Source**: `/Users/vlados/work/projects/startup/strat_trade_be/.agents/skills/qa-verification-engineer/SKILL.md`
-- **Local copy**: `/Users/vlados/work/projects/startup/strat_trade_be/.agents/challenger_1/qa_verification_skill.md`
-- **Core methodology**: Rigorous empirical testing through 6-layer QA hierarchy: static analysis, unit tests, integration/concurrency tests, boundary/fault injection, full regression test execution.
+## Key Decisions Made
+- Authored 17-test empirical stress test suite in `tests/test_stage3_challenger_1_backend_stress.py`.
+- Tested 50 sequential rapid start/stop cycles + 40-worker concurrent start/stop swarm: passed with zero orphan tasks.
+- Tested heavy concurrent SQLite WAL writes against 120 API reads: zero database locks, P95 latency < 60ms.
+- Tested broker payload fault injection (None, malformed objects, type errors, NaNs) and unexpected exceptions: gracefully handled.
+- Tested task cancellation in distinct states (throttle sleep, interval wait, gateway await, zero-tick): cancelled immediately (<200ms).
+- Tested deduplication under multi-worker concurrent writes (10 workers, 10k attempts -> 1k rows): exact deduplication verified.
+
+## Artifact Index
+- `.agents/challenger_1/BRIEFING.md` — persistent memory
+- `.agents/challenger_1/progress.md` — liveness heartbeat
+- `.agents/challenger_1/handoff.md` — final 5-component handoff report (Verdict: APPROVE)
+- `tests/test_stage3_challenger_1_backend_stress.py` — empirical stress test suite (17 tests)
 
 ## Attack Surface
 - **Hypotheses tested**:
-  1. *Hypothesis 1*: Out-of-order inserts with shuffled timestamps corrupt chronological index ordering in `get_candles` / `get_candles_df`. -> **DISPROVED**: SQLite index and SQL queries strictly enforce ascending chronological ordering (`is_monotonic_increasing`).
-  2. *Hypothesis 2*: Overlapping sliding window inserts create phantom duplicate records or inflate insertion metrics. -> **DISPROVED**: `UNIQUE(asset, timestamp)` and `conn.total_changes` tracking accurately report only net new insertions (e.g. 60 new on 240 duplicate overlap).
-  3. *Hypothesis 3*: High-concurrency multithreaded and multi-process writes cause SQLite `database is locked` OperationalErrors. -> **DISPROVED**: WAL mode (`PRAGMA journal_mode=WAL`), `PRAGMA busy_timeout=5000`, and `PRAGMA synchronous=NORMAL` reliably absorb contention across 18 concurrent threads and 4 separate OS processes.
-  4. *Hypothesis 4*: Malformed dictionaries (missing timestamp, corrupted date strings, non-numeric price values) cause runtime unhandled exceptions or partial write corruption. -> **DISPROVED**: `insert_candles` safely sanitizes and skips bad records, inserting only valid ones.
-  5. *Hypothesis 5*: `get_candles_df` output requires manual casting or breaks when passed to `BinaryBacktestEngine`. -> **DISPROVED**: DataFrame matches `BinaryBacktestEngine` input specifications seamlessly.
-- **Vulnerabilities found**: None. System is resilient across all tested vectors.
-- **Untested angles**: Hardware-level sudden power loss during write (out of scope for domain unit/integration testing).
+  - H1: Rapid start/stop cycling (>30 toggles) causes orphan background tasks or locked state. -> **REFUTED**: 50 toggles + 40-worker swarm showed 0 task leaks and atomic state transitions.
+  - H2: Concurrent REST API queries during heavy SQLite candle insertion trigger `OperationalError: database is locked` or stale/corrupt reads. -> **REFUTED**: WAL mode and connection pooling handled 120 concurrent reads + continuous writes cleanly.
+  - H3: Corrupted or invalid broker responses (None, malformed dicts, NaN, schema violations) crash collector loop or corrupt DB. -> **REFUTED**: Error filtering and try/except boundaries successfully isolated corrupt records and unexpected exceptions.
+  - H4: Task cancellation during sleep (between assets vs between cycles) leaves unclosed resources or uncaught errors. -> **REFUTED**: Cancellation handles `asyncio.CancelledError` cleanly and halts within <200ms across all sleep states.
+  - H5: High-concurrency simultaneous writes with identical and overlapping timestamps cause duplicate rows or lost updates in `MarketDataStore`. -> **REFUTED**: `INSERT OR IGNORE` with compound unique index `(asset, timestamp)` provided 100% accurate deduplication and strictly monotonic ascending ordering.
+- **Vulnerabilities found**: None. System is resilient across all tested attack vectors.
+- **Untested angles**: Hardware failure / power loss during SQLite write transactions (covered by SQLite WAL journal guarantees).
 
-## Key Decisions Made
-- Verdict: **APPROVE**. `MarketDataStore` exhibits production-grade correctness, idempotency, and concurrency resilience.
-
-## Artifact Index
-- `.agents/challenger_1/DISPATCH.md` — Initial dispatch message
-- `.agents/challenger_1/BRIEFING.md` — Agent situational awareness
-- `.agents/challenger_1/progress.md` — Liveness & step-by-step progress
-- `.agents/challenger_1/handoff.md` — Final 5-component handoff report
-- `tests/test_market_data_store_stress_challenger.py` — Dedicated empirical stress test suite
+## Loaded Skills
+- **Source**: `/Users/vlados/work/projects/startup/strat_trade_be/.agents/skills/qa-verification-engineer/SKILL.md`
+- **Core methodology**: 6-layer verification hierarchy, deterministic fixtures, fault injection, edge case paranoia, regression prevention.

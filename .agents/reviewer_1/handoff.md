@@ -1,113 +1,114 @@
-# Reviewer 1 Handoff Report — Stage 2: S1 Market Data Collector & MarketDataStore
+# Reviewer 1 (Backend & Concurrency Specialist) Handoff Report
 
-**Verdict**: **APPROVE**
+## Review Summary
+
+**Verdict**: **APPROVE**  
+**Integrity Status**: **CLEAN** (No hardcoded test outputs, no dummy facades, no bypassed tasks, no fabricated verification).  
+**Regression Test Results**: **1,260 Passed, 0 Failed, 0 Skipped** (Execution time: ~91s).  
+**Stage 3 Specific Tests**: **73 Passed, 0 Failed** across API, Concurrency, UI DOM, and E2E tiers.  
+**Static Analysis (`src/`)**: **100% Passed** (`ruff check src/` and `ruff format --check src/` clean).
 
 ---
 
 ## 1. Observation
 
-### 1.1 Reviewed Work Products
-- `src/strat_trade/domain/trading/market_data_store.py`:
-  - Implements `MarketDataStore` encapsulating SQLite storage at `data/market_data.db` (or custom path).
-  - Uses SQLite WAL mode (`PRAGMA journal_mode=WAL;`, `PRAGMA synchronous=NORMAL;`, `PRAGMA busy_timeout=5000;`).
-  - Creates table `candles_s1` with schema: `asset TEXT`, `timestamp REAL`, `open REAL`, `high REAL`, `low REAL`, `close REAL`, `volume REAL DEFAULT 0.0`, with compound unique constraint `UNIQUE(asset, timestamp)` and index `idx_candles_s1_asset_timestamp`.
-  - Provides robust timestamp parsing (`_extract_ts`) handling naive/aware `datetime`, millisecond/second epoch `int`/`float`, and ISO string timestamps.
-  - Implements batch upsert `insert_candles()` using `INSERT OR IGNORE` with insertion count calculation via `conn.total_changes`.
-  - Implements retrieval methods `get_candles()` (returning domain `Candle` entities with `Decimal` precision and UTC timezone) and `get_candles_df()` (returning pandas `DataFrame` with UTC datetime index/column ready for `BinaryBacktestEngine`).
-  - Implements metadata and inspection methods: `get_stored_assets()`, `get_asset_stats()`, `count_candles()`, `get_total_candle_count()`, `get_latest_timestamp()`, `clear_candles()`.
-- `scripts/collect_s1_data.py`:
-  - Standalone executable script (`#!/usr/bin/env python3`) for periodic 1-second candle ingestion.
-  - Resolves SSID via a 7-tier priority cascade: CLI `--ssid` $\to$ CLI `--ssid-file` $\to$ `Settings()` $\to$ `STRAT_TRADE_POCKET_OPTION_SSID` / `POCKET_OPTION_SSID` $\to$ `STRAT_TRADE_POCKET_OPTION_SSID_FILE` / `POCKET_OPTION_SSID_FILE` $\to$ `.ssid` file $\to$ `"demo"`.
-  - Instantiates `PocketOptionTradingGateway` and `MarketDataStore`.
-  - Implements `run_collector_loop()` and `collect_cycle()` with per-asset fault isolation catching `(BrokerUnavailableError, TimeoutError)`, `InvalidMarketParametersError`, `(ConnectionError, OSError)`, and generic `Exception` without terminating the loop.
-  - Supports comprehensive CLI arguments: `--assets`, `--timeframe`, `--count`, `--interval`, `--db-path`, `--ssid`, `--ssid-file`, `--demo`, `--live`, `--once`, `--max-cycles`, `--throttle-delay`, `--log-level`.
-  - Handles `SIGINT` / `SIGTERM` / `asyncio.CancelledError` gracefully, ensuring `gateway.aclose()` is awaited.
-- `tests/test_market_data_store.py`: 11 unit tests covering schema, WAL mode, deduplication, timestamp formats, DataFrame generation, metadata queries, and malformed inputs.
-- `tests/test_collect_s1_data.py`: 14 unit tests covering SSID resolution hierarchy, cycle execution, exception resilience, loop control, CLI parsing, and graceful termination.
-- `tests/test_s1_data_collection_integration.py`: 2 end-to-end integration tests validating multi-cycle overlapping ingestion deduplication and downstream time-based backtest execution with `BinaryBacktestEngine`.
+Direct observations and evidence gathered during the review:
 
-### 1.2 Verification Commands & Output
-1. **Stage 2 Test Suite**:
-   ```bash
-   .venv/bin/pytest tests/test_market_data_store.py tests/test_collect_s1_data.py tests/test_s1_data_collection_integration.py -v
-   # Result: 27 passed in 0.63s
-   ```
-2. **Full Project Regression Test Suite**:
-   ```bash
-   .venv/bin/pytest -v
-   # Result: 1209 passed in 59.70s
-   ```
-3. **Linter**:
-   ```bash
-   .venv/bin/ruff check src tests scripts
-   # Result: All checks passed! (0 errors)
-   ```
-4. **Static Type Checker**:
-   ```bash
-   .venv/bin/mypy src/strat_trade/domain/trading/market_data_store.py scripts/collect_s1_data.py
-   # Result: Success: no issues found in 2 source files
-   ```
-5. **Standalone Script CLI Verification**:
-   ```bash
-   .venv/bin/python scripts/collect_s1_data.py --help
-   # Result: Exited 0, displayed complete argument documentation.
-   
-   .venv/bin/python scripts/collect_s1_data.py --once --db-path /tmp/test_eval_market.db --assets EURUSD_otc --log-level DEBUG
-   # Result: Exited 0, demonstrated graceful broker timeout handling, logged cleanly, and shut down gateway connection properly.
-   ```
+1. **`src/strat_trade/use_cases/manage_collector.py`**:
+   - `AsyncCollectorEngine` manages the background lifecycle using `asyncio.create_task(self._run_loop(self._shutdown_event))` (lines 108).
+   - Locking: `_lock` is instantiated lazily via `_get_lock()` ensuring event-loop affinity (lines 46–49). `start()` and `stop()` synchronize state mutations via `async with lock:` (lines 79, 120).
+   - Task cancellation & non-blocking shutdown: In `stop()`, `self._shutdown_event.set()` signals immediate exit from sleep intervals; `self._task` is captured and cleared inside the lock (lines 127–128), and awaited outside the lock (lines 130–137) handling `asyncio.CancelledError` gracefully without deadlocking concurrent callers.
+   - Immediate cycle wait: In `_run_loop()`, interval sleep uses `await asyncio.wait_for(event.wait(), timeout=max(0.001, self._interval_seconds))` (lines 256–263), guaranteeing instant termination on `stop()` rather than waiting for up to 60s.
+   - Fault isolation: Per-asset exception block catches `(BrokerUnavailableError, TimeoutError, InvalidMarketParametersError, ConnectionError, OSError)` (lines 226–234), logging warnings while allowing healthy sibling assets to continue collecting. `asyncio.CancelledError` is explicitly re-raised (lines 235, 247, 262, 264–266).
+   - Gateway reuse: `self._gateway = gateway` accepts the injected application gateway without creating duplicate websockets and does not close `gateway` on stop (lines 88, 117–141).
+
+2. **`src/strat_trade/api/routes/collector.py` & `src/strat_trade/web/routes/collector.py`**:
+   - `GET /api/v1/collector/available-assets`: Injects `gateway: TradingGatewayDep`, calls `await gateway.get_assets()`, and falls back to `_CURATED_ASSETS` on connection errors (lines 26–63).
+   - `GET /api/v1/collector/status`: Queries store from `request.app.state.market_data_store` and returns aggregated candle metrics from SQLite (lines 65–77).
+   - `POST /api/v1/collector/start`: Accepts `StartCollectorRequest`, validates bounds and sanitized assets, passes `TradingGatewayDep` and `market_data_store` into `start_collector()` (lines 79–101).
+   - `POST /api/v1/collector/stop`: Calls `stop_collector()`, gracefully halting background execution (lines 103–115).
+   - `web/routes/collector.py`: Clean architectural re-export of all handlers and router.
+
+3. **`src/strat_trade/main.py`**:
+   - Application lifespan creates a single `PocketOptionTradingGateway` stored in `app.state.trading_gateway` (lines 27–38).
+   - Shutdown order in lifespan: `await collector_engine.stop()` runs first, followed by `await gateway.aclose()` (lines 40–43), preventing broken-pipe / teardown socket crashes.
+
+4. **`src/strat_trade/api/schemas.py`**:
+   - `CollectorAssetResponse` (lines 982–990) with `extra="forbid"`.
+   - `CollectorAssetStatResponse` (lines 992–1005) with `extra="forbid"`.
+   - `CollectorStatusResponse` (lines 1007–1025) with `status: Literal["IDLE", "RUNNING", "STOPPED"]`, `is_running: bool`, `asset_stats`, and `total_database_candles`.
+   - `StartCollectorRequest` (lines 1027–1053) with field validator `validate_assets` stripping whitespace, filtering empty strings, and deduplicating symbols.
+
+5. **`src/strat_trade/domain/trading/market_data_store.py`**:
+   - SQLite in WAL mode (`PRAGMA journal_mode=WAL`, `PRAGMA synchronous=NORMAL`, `PRAGMA busy_timeout=5000`) (lines 26–29).
+   - Deduplication via `INSERT OR IGNORE INTO candles_s1` (lines 125–129).
+   - Monotonic UTC datetime conversion and dataframe extraction (`get_candles_df`, `get_asset_stats`) (lines 143–288).
+
+6. **Test & Static Analysis Execution**:
+   - Full test suite: `.venv/bin/pytest tests/ -v` -> `1260 passed, 2 warnings in 91.33s`.
+   - Stage 3 test suite: `.venv/bin/pytest tests/*collector* tests/*stage3* -v` -> `73 passed in 8.68s`.
+   - Source lint check: `.venv/bin/ruff check src/ && .venv/bin/ruff format --check src/` -> `All checks passed! 85 files already formatted`.
+   - Stage 3 test lint check: `.venv/bin/ruff check tests/conftest.py tests/test_collector_*.py` -> `All checks passed! 5 files already formatted`.
 
 ---
 
 ## 2. Logic Chain
 
-1. **Adversarial & Integrity Evaluation**:
-   - Checked for hardcoded test outputs or dummy facades: None found.
-   - Database operations use parameterized queries (`?`), preventing SQL injection and handling SQLite locking properly.
-   - Deduplication is verified: In an overlapping polling cycle (e.g. 300 candles fetched every 60 seconds with 240 seconds overlap), `INSERT OR IGNORE` on `UNIQUE(asset, timestamp)` cleanly ignores duplicate entries without throwing errors or expanding disk footprint unnecessarily.
-2. **Domain Architecture Conformance**:
-   - `MarketDataStore` correctly resides under `src/strat_trade/domain/trading/` and interacts with domain `Candle` entities with strict `Decimal` pricing and UTC timezones.
-   - `get_candles_df()` outputs standard pandas DataFrame format compatible with `BinaryBacktestEngine` and indicators (`timestamp`, `open`, `high`, `low`, `close`, `volume`).
-3. **Robustness & Operational Resilience**:
-   - Network dropouts, broker resets, or temporary HTTP/WebSocket timeouts in `scripts/collect_s1_data.py` are caught at the individual asset level within `collect_cycle()`, allowing the collector to continue servicing remaining assets and retrying on subsequent cycles.
-   - Graceful shutdown handles `SIGINT` (Ctrl+C) and `SIGTERM` via `asyncio.Event`, interrupting long sleep intervals immediately without dangling threads or unclosed WebSocket connections.
+1. **Requirement Fulfillment (R1, R2, R3)**:
+   - Observation 2 demonstrates all 4 requested REST endpoints (`GET /available-assets`, `GET /status`, `POST /start`, `POST /stop`) are implemented with strict Pydantic models.
+   - Observation 1 & 3 demonstrate that the shared gateway from `main.py` is utilized throughout without instantiating secondary gateways, satisfying R3.
+   - Observation 1 demonstrates that `AsyncCollectorEngine` encapsulates the `asyncio` task, implements throttle sleep between assets (`throttle_delay`), and uses `asyncio.CancelledError` and `_shutdown_event` for clean, immediate shutdown.
+
+2. **Concurrency Safety & Deadlock Prevention**:
+   - Locking is confined to synchronous state transitions in `start()` and `stop()`.
+   - In `stop()`, releasing the lock before awaiting task completion (`await task`) prevents deadlock when multiple callers or background hooks invoke `stop()`.
+   - In SQLite (`MarketDataStore`), WAL mode with a 5000ms busy timeout ensures non-blocking concurrent reads while the collector background task is writing batches of S1 candles.
+
+3. **Fault Tolerance & Resilience**:
+   - Per-asset error containment ensures that transient broker network disconnects, invalid symbol queries, or socket timeouts on one asset do not terminate the background loop or block other healthy assets from being collected.
+   - Reconfiguring assets via `POST /start` while the engine is already `RUNNING` cleanly updates `_active_assets` without restarting the task or losing historical telemetry.
+
+4. **Integrity & Verification**:
+   - All assertions across 73 targeted unit, integration, concurrency, and E2E tests are backed by real mock interactions, SQLite database queries, and ASGI network client exchanges without any hardcoded facades.
 
 ---
 
 ## 3. Caveats
 
-- **SQLite WAL Files**: SQLite generates `-wal` and `-shm` auxiliary files alongside `data/market_data.db` while transactions are active. Any file backup or archiving tooling should include all matching `.db*` files.
-- **Broker Rate Limits**: Default throttle delay between individual asset requests is set to 0.5s with a 60s cycle interval. When expanding to a large asset pool ($\ge 20$ assets), throttle delay and cycle intervals should be configured accordingly to avoid broker websocket rate throttling.
+- **Test Linting in Challenger Suites**: Repository-wide `ruff check .` flagged minor line length (E501 > 100 chars) and import formatting in challenger test files (`test_stage3_challenger_1_backend_stress.py` and `test_stage3_challenger_2_ui_contract_stress.py`). All core source files (`src/`) and official Stage 3 test files (`test_collector_*.py`) are 100% lint-compliant.
+- **Broker Rate Limiting**: In live production environments, Pocket Option may throttle high-frequency requests. The default `throttle_delay=0.5s` and `interval_seconds=60.0s` provide safe broker pacing.
 
 ---
 
 ## 4. Conclusion
 
-The Stage 2 implementation fully satisfies all requirements specified in `ORIGINAL_REQUEST.md` (§ Follow-up — 2026-08-31T15:45:40Z):
-- `MarketDataStore` is fully implemented, performant, and concurrency-safe with SQLite WAL mode.
-- `scripts/collect_s1_data.py` is a robust, standalone async collector with full CLI configuration, error recovery, and clean shutdown handling.
-- Comprehensive test coverage (27 unit/integration tests) and 100% full project regression pass (1,209 tests).
+The Stage 3 S1 Data Collector implementation meets all requirements specified in `ORIGINAL_REQUEST.md` and `PROJECT.md`. The architecture exhibits high concurrency robustness, proper connection sharing, resilient error handling, clean cancellation, and full test suite passing.
 
-**Final Verdict**: **APPROVE**
+**Verdict**: **APPROVE**
 
 ---
 
 ## 5. Verification Method
 
-To independently verify this review:
+To independently verify these findings, execute the following commands in the workspace root:
 
 ```bash
-# 1. Run Stage 2 test suite
-.venv/bin/pytest tests/test_market_data_store.py tests/test_collect_s1_data.py tests/test_s1_data_collection_integration.py -v
+# 1. Verify Stage 3 Collector targeted tests (20 core tests + 53 challenger tests = 73 tests)
+.venv/bin/pytest tests/test_collector_api.py tests/test_collector_concurrency.py tests/test_collector_ui.py tests/test_collector_e2e.py tests/test_manage_collector_unit.py tests/test_stage3_challenger_*.py -v
 
-# 2. Run full regression suite
-.venv/bin/pytest -v
+# 2. Run full regression test suite (1260 tests)
+.venv/bin/pytest tests/ -v
 
-# 3. Run linting
-.venv/bin/ruff check src tests scripts
+# 3. Verify static analysis and formatting compliance on production sources
+.venv/bin/ruff check src/
+.venv/bin/ruff format --check src/
 
-# 4. Run mypy typing check
-.venv/bin/mypy src/strat_trade/domain/trading/market_data_store.py scripts/collect_s1_data.py
-
-# 5. Test CLI help
-.venv/bin/python scripts/collect_s1_data.py --help
+# 4. Verify core collector test fixtures and test files
+.venv/bin/ruff check tests/conftest.py tests/test_collector_*.py
+.venv/bin/ruff format --check tests/conftest.py tests/test_collector_*.py
 ```
+
+### Invalidation Conditions
+- Any failure in `pytest tests/` regression suite.
+- Re-introduction of duplicate `PocketOptionTradingGateway` instantiation inside the collector engine.
+- Failure of `stop()` to release background tasks cleanly under rapid start/stop stress.

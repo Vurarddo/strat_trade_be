@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ErrorBody(BaseModel):
@@ -972,3 +972,81 @@ class BrokerReportAuditResponse(BaseModel):
     strategy_breakdown: list[StrategyAuditItem]
     asset_breakdown: list[AssetAuditItem]
     merged_records: list[MergedRecordItem]
+
+
+# =========================================================================
+# COLLECTOR ENGINE SCHEMAS
+# =========================================================================
+
+
+class CollectorAssetResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    symbol: str = Field(description="Broker asset identifier (e.g. EURUSD_otc).")
+    name: str = Field(description="Human-readable asset name (e.g. EUR/USD OTC).")
+    payout: int = Field(default=80, description="Current payout percentage.")
+    is_otc: bool = Field(default=True, description="True for OTC assets.")
+    asset_type: str = Field(default="currency", description="Asset category.")
+
+
+class CollectorAssetStatResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    asset: str
+    name: str | None = None
+    count: int = Field(default=0, description="Total candles saved for this asset.")
+    first_timestamp: float | None = None
+    last_timestamp: float | None = None
+    first_time: datetime | None = None
+    last_time: datetime | None = None
+    payout: int = 80
+    is_otc: bool = True
+    is_collecting: bool = False
+
+
+class CollectorStatusResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["IDLE", "RUNNING", "STOPPED"] = Field(
+        description="Collector operational status."
+    )
+    is_running: bool
+    started_at: datetime | None = None
+    active_assets: list[str] = Field(default_factory=list)
+    timeframe_seconds: int = 1
+    candles_count: int = 300
+    interval_seconds: float = 60.0
+    throttle_delay: float = 0.5
+    cycles_completed: int = 0
+    total_candles_saved: int = 0
+    last_cycle_at: datetime | None = None
+    asset_stats: list[CollectorAssetStatResponse] = Field(default_factory=list)
+    total_database_candles: int = 0
+
+
+class StartCollectorRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assets: list[str] = Field(
+        ..., min_length=1, description="List of broker asset symbols to collect."
+    )
+    timeframe_seconds: int = Field(
+        default=1, ge=1, description="Candle timeframe in seconds (default 1 for S1)."
+    )
+    candles_count: int = Field(
+        default=300, ge=1, le=5000, description="Number of candles per query batch."
+    )
+    interval_seconds: float = Field(
+        default=60.0, ge=0.001, description="Sleep interval in seconds between cycles."
+    )
+    throttle_delay: float = Field(
+        default=0.5, ge=0.0, le=10.0, description="Sleep delay between individual asset queries."
+    )
+
+    @field_validator("assets")
+    @classmethod
+    def validate_assets(cls, v: list[str]) -> list[str]:
+        cleaned = [a.strip() for a in v if a and a.strip()]
+        if not cleaned:
+            raise ValueError("assets list must contain at least one non-empty asset symbol.")
+        return list(dict.fromkeys(cleaned))

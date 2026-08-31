@@ -1,7 +1,7 @@
-# BRIEFING — 2026-08-31T15:59:10Z
+# BRIEFING — 2026-08-31T18:41:45Z
 
 ## Mission
-Independently review and stress-test Stage 2 implementation for S1 market data storage, collector script, and test suite.
+Independently review, test, and adversarial stress-test Stage 3 Web UI and Frontend Integration for S1 Data Collector management in Pocket Option AutoTrader Pro.
 
 ## 🔒 My Identity
 - Archetype: reviewer / critic
@@ -10,6 +10,8 @@ Independently review and stress-test Stage 2 implementation for S1 market data s
 - Original parent: ee07e9f8-fade-4d40-b5d1-0ca85a93ae4f
 - Milestone: Stage 2 S1 Data Storage & Collection
 - Instance: 1 of 1
+- Current Parent: ffd95c2a-0032-4259-ab34-9953e1f58b00 (Stage 3)
+- Milestone (Stage 3): Stage 3 Frontend UI & Integration Specialist
 
 ## 🔒 Key Constraints
 - Review-only — do NOT modify implementation code
@@ -17,45 +19,58 @@ Independently review and stress-test Stage 2 implementation for S1 market data s
 - Verify interface contract compatibility with `BinaryBacktestEngine`
 - Verify safe upsert logic under concurrent access
 - Verify graceful shutdown handlers and CLI options
+- Verify Frontend UI requirements (Tab `#tabBtnCollector`/`#tabCollector`, Dynamic checkboxes, Select/Deselect All, Start/Stop buttons, Auto-refresh status table)
 
 ## Current Parent
-- Conversation ID: ee07e9f8-fade-4d40-b5d1-0ca85a93ae4f
-- Updated: 2026-08-31T15:59:10Z
+- Conversation ID: ffd95c2a-0032-4259-ab34-9953e1f58b00
+- Updated: 2026-08-31T18:41:45Z
 
 ## Review Scope
 - **Files to review**:
-  - `src/strat_trade/domain/trading/market_data_store.py`
-  - `scripts/collect_s1_data.py`
-  - `tests/test_market_data_store.py`
-  - `tests/test_collect_s1_data.py`
-  - `tests/test_s1_data_collection_integration.py`
-- **Interface contracts**: `ORIGINAL_REQUEST.md` (§ Follow-up — 2026-08-31T15:45:40Z), `BinaryBacktestEngine`
-- **Review criteria**: correctness, interface compatibility, concurrency safety, integrity, error handling, test coverage
+  - `src/strat_trade/web/templates/index.html`
+  - `src/strat_trade/web/routes/collector.py`
+  - `src/strat_trade/api/routes/collector.py`
+  - `src/strat_trade/use_cases/manage_collector.py`
+  - `tests/test_collector_ui.py`
+  - `tests/test_collector_api.py`
+  - `tests/test_collector_concurrency.py`
+  - `tests/test_collector_e2e.py`
+- **Interface contracts**: `ORIGINAL_REQUEST.md` (Stage 3), `PROJECT.md`, `TEST_READY.md`
+- **Review criteria**: correctness, UI ergonomics, DOM id fidelity, API contract integration, auto-refresh polling safety, XSS prevention, error handling, test suite pass.
 
 ## Review Checklist
 - **Items reviewed**:
-  - `src/strat_trade/domain/trading/market_data_store.py`
-  - `scripts/collect_s1_data.py`
-  - `tests/test_market_data_store.py`
-  - `tests/test_collect_s1_data.py`
-  - `tests/test_s1_data_collection_integration.py`
-  - `src/strat_trade/domain/backtest/engine.py`
-  - `src/strat_trade/adapters/pocket_option_gateway.py`
+  - `src/strat_trade/web/templates/index.html`
+  - `src/strat_trade/web/routes/collector.py`
+  - `src/strat_trade/api/routes/collector.py`
+  - `src/strat_trade/use_cases/manage_collector.py`
+  - `src/strat_trade/main.py`
+  - `tests/test_collector_ui.py`
+  - `tests/test_collector_api.py`
+  - `tests/test_collector_concurrency.py`
+  - `tests/test_collector_e2e.py`
+  - `tests/test_manage_collector_unit.py`
+  - `tests/test_stage3_challenger_1_backend_stress.py`
+  - `tests/test_stage3_challenger_2_ui_contract_stress.py`
 - **Verdict**: APPROVE
 - **Unverified claims**: none
 
 ## Attack Surface
 - **Hypotheses tested**:
-  - Interface compatibility with `BinaryBacktestEngine` (DF timestamp types, UTC parsing, column matching) -> PASS
-  - Overlapping batch deduplication with SQLite `UNIQUE(asset, timestamp)` and `INSERT OR IGNORE` -> PASS
-  - Transient network error and broker timeout resilience in `collect_s1_data.py` -> PASS
-  - Graceful shutdown upon SIGINT / SIGTERM / asyncio cancellation -> PASS
-  - Integrity violation checks (no facades, no fake tests, no hardcoded cheating) -> PASS
-- **Vulnerabilities found**: None in reviewed files.
-- **Untested angles**: Live network websocket availability on expired demo tokens (gracefully handled via timeout retry / fallback).
+  - DOM structure parity (`#tabBtnCollector`, `#tabCollector`, `#collectorAssetsContainer`, `#collectorTableBody`) -> PASS
+  - Dynamic broker asset loading and checkbox rendering -> PASS
+  - Select All / Deselect All batch operations & counter badge update -> PASS
+  - Start Collection / Stop Collection buttons with interactive disabled & spinner states -> PASS
+  - Status table auto-refresh polling with selectable intervals (3s/5s/10s/off) & memory leak protection -> PASS
+  - API parameter bounds validation and empty asset rejection (HTTP 422) -> PASS
+  - Shared gateway concurrency and graceful lifespan shutdown without websocket duplicates -> PASS
+  - Integrity violation checks (no facades, no hardcoded cheats, no dummy implementations) -> PASS
+- **Vulnerabilities found**: None in Stage 3 implementation.
+- **Untested angles**: Live browser rendering in unsupported legacy IE browsers (out of scope for modern HTML5 dashboard).
 
 ## Key Decisions Made
-- Confirmed full compliance with Stage 2 requirements.
+- Verified complete compliance with all Stage 3 requirements from ORIGINAL_REQUEST.md.
+- Verified all 60 Stage 3 tests pass cleanly.
 - Issued APPROVE verdict.
 
 ## Artifact Index

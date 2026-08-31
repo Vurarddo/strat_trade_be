@@ -1,33 +1,32 @@
-# Sentinel Handoff Report
+# Stage 3 Implementation — Sentinel Final Handoff
 
 ## Observation
-User requested Stage 2 of quantitative improvements for Pocket Option AutoTrader Pro:
-1. Database Schema for Market Data: `src/strat_trade/domain/trading/market_data_store.py` connecting to SQLite database at `data/market_data.db`, creating table `candles_s1` with columns `(asset, timestamp, open, high, low, close, volume)` and `UNIQUE(asset, timestamp)` constraint.
-2. Data Collection Script: `scripts/collect_s1_data.py` instantiating `PocketOptionTradingGateway`, running an async loop fetching 1-second candles with `gateway.get_candles(asset, timeframe=1, count=300)`, sleeping between cycles, handling exceptions gracefully.
-3. Safe Upsert Logic: `INSERT OR IGNORE` deduplication ensuring no duplicate records on overlapping polling cycles.
-4. Independent verification and full regression suite integrity.
+- The user requested Stage 3 of the quantitative improvements for Pocket Option AutoTrader Pro: building a Web UI and FastAPI backend endpoints to manage, start, and stop the S1 data collection process dynamically.
+- Requirements covered:
+  - R1: Backend API for collector management (`/available-assets`, `/status`, `/start`, `/stop`).
+  - R2: Frontend UI Dashboard with broker asset checkboxes, Select/Deselect All, Start/Stop buttons, auto-refreshing candle count status table.
+  - R3: Thread-safe background execution sharing the global `PocketOptionTradingGateway` connection and clean `asyncio.CancelledError` handling.
+  - Verification with comprehensive unit, API, UI, concurrency, and E2E integration tests.
 
 ## Logic Chain
-- Sentinel recorded user request to `ORIGINAL_REQUEST.md`.
-- Evaluated task characteristics per the Routing Decision Table: standard feature development routed to `teamwork_preview_orchestrator` (General path).
-- Scheduled dual monitoring crons (Progress Reporting every 8 minutes and Liveness Check every 10 minutes).
-- Orchestrator dispatched specialist explorers, implementer, reviewers, and adversarial challengers to implement `MarketDataStore` with WAL concurrency, create `scripts/collect_s1_data.py`, build 51 dedicated unit/integration/stress tests, and confirm backtest engine compatibility.
-- Orchestrator reported completion upon achieving unanimous review consensus and 100% test pass.
-- Sentinel enforced mandatory independent Victory Audit by spawning `teamwork_preview_victory_auditor` (`51f607f4-fd9a-4014-9898-2809c91b8e04`) with isolated context.
-- Victory Auditor executed full 3-phase audit (Timeline, Integrity & Anti-Cheating, Independent Test Execution), confirming 1,233 passed tests (0 failures, 0 ruff errors, clean mypy/formatting) and returning `VICTORY CONFIRMED`.
-- Sentinel cancelled all monitoring tasks and cleanly terminated all subagents (`kill_all`).
+1. Routed project through the General path to `teamwork_preview_orchestrator` (`ffd95c2a-0032-4259-ab34-9953e1f58b00`).
+2. Recorded `ORIGINAL_REQUEST.md` and initialized sentinel liveness and progress monitoring crons.
+3. Orchestrator decomposed and executed Stage 3 across backend use cases (`manage_collector.py`), API routing (`src/strat_trade/api/routes/collector.py`, `src/strat_trade/web/routes/collector.py`), Web UI template/JS (`src/strat_trade/web/templates/index.html`), and test suites.
+4. Independent reviews, adversarial challenger stress tests, and internal forensic audit passed.
+5. On completion claim, dispatched independent `teamwork_preview_victory_auditor` (`395b3535-7e4f-4241-a436-0b6f73371100`).
+6. Victory Auditor confirmed integrity, zero mocks/cheating, 60/60 Stage 3 tests passed, and 1,293/1,293 full regression tests passed, delivering `VICTORY CONFIRMED`.
 
 ## Caveats
-- Production Live vs Demo: `scripts/collect_s1_data.py` defaults to demo credentials or fallback `"demo"`. For live trading data collection with real money accounts, provide a valid session SSID via `--ssid`, `--ssid-file`, or environment variables.
-- SQLite WAL mode: SQLite creates `-wal` and `-shm` sidecar files in `data/` during active collection. These are standard SQLite write-ahead log files and ensure lock-free concurrent reads by backtesters while the collector is running.
+- Broker live asset discovery depends on valid broker credentials / active websocket session; when offline or during test mocks, it safely falls back to standard OTC defaults.
+- Database access uses SQLite WAL mode with retry decorators to handle high-frequency concurrent writes.
 
 ## Conclusion
-Stage 2 quantitative improvements are fully implemented, independently verified, and confirmed ready to fuel time-based backtests and live market data pipelines.
+Stage 3 is 100% complete, fully tested, and independently verified. All acceptance criteria are met.
 
 ## Verification Method
-- Independent Test Execution: `./.venv/bin/pytest -v` -> 1,233 passed, 0 failed, 2 warnings in 47.10s (51/51 dedicated Stage 2 tests passed).
-- Linter Check: `./.venv/bin/ruff check src tests scripts` -> 0 violations.
-- Formatter Check: `./.venv/bin/ruff format --check src tests scripts` -> 152 files left unchanged (100% compliant).
-- Type Check: `./.venv/bin/mypy src/strat_trade/domain/trading/market_data_store.py scripts/collect_s1_data.py` -> Success: no issues found in 2 source files.
-- Live CLI Validation: `./.venv/bin/python3 scripts/collect_s1_data.py --once --assets EURUSD_otc --interval 1 --db-path /tmp/test_sentinel_live.db` -> Clean exit code 0, valid SQLite database generated.
-- Victory Auditor Report: `.agents/sentinel_auditor_stage2/handoff.md` -> VERDICT: VICTORY CONFIRMED.
+- Independent test run:
+  `.venv/bin/pytest tests/test_collector_api.py tests/test_collector_concurrency.py tests/test_collector_ui.py tests/test_collector_e2e.py tests/test_manage_collector_unit.py tests/test_stage3_challenger_1_backend_stress.py tests/test_stage3_challenger_2_ui_contract_stress.py -v` (60 passed)
+- Full regression suite:
+  `.venv/bin/pytest tests/ -q` (1,293 passed)
+- Lint check:
+  `.venv/bin/ruff check .` (Clean, 0 errors)
